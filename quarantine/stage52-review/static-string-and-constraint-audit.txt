@@ -1,0 +1,179 @@
+﻿HASH_OK 2026_10_19_100000_create_hrms_tables.php 4ab8b5a55312240eea8bcfbfc5257ed1dbf62827ce2f8235466ad48f7bff7eda
+HASH_OK 2026_10_19_120000_create_remaining_phase_tables.php 106fa2cfce41fce713fac720edbb28cc9d34934b446f9be7337b5bc084470770
+HASH_OK 2026_10_19_130000_add_holiday_calendars.php b6f58cf6148d2605c0df145ad8e6e3d652f46e9b871d57418e3723c352037c07
+HASH_OK 2026_10_19_140000_add_office_wifi_and_wfh.php 797f4d2aa1d9a2a8a79213edd49fe93f0e742ab1a1e489cbedad4cdd8ab1dee1
+HASH_OK 2026_10_19_140000_add_payroll_day_counts.php 50355fcf9828e2f16cee0bf86f4b4d167423b1d03f26ffcaea929c2934e6d089
+HASH_OK 2026_10_19_160000_add_profile_details_and_tickets.php 395625052dc84659d62a769d531369d493889c2c61487a871ea25832029e180f
+STAGE51_CANDIDATE bc1283747b84e80d5b593fed52b6c8a073a8b389af1fd14606159f729f133d6c
+
+PAYLOAD_STRINGS
+2026_10_19_100000_create_hrms_tables.php	13	tenants.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	14	tenants.slug	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	15	tenants.email	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	16	tenants.phone	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	18	tenants.logo_path	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	19	tenants.timezone	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Asia/Kolkata'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Asia/Kolkata'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	21	tenants.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	31	plans.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	32	plans.slug	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	39	features.key	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	40	features.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	41	features.category	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	58	subscriptions.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	67	departments.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	68	departments.code	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	77	designations.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	85	locations.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	93	shifts.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	94	shifts.type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fixed'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fixed'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	107	employees.employee_code	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	108	employees.first_name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	109	employees.last_name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	110	employees.email	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	111	employees.phone	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	113	employees.gender	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	120	employees.employment_type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'full_time'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'full_time'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	121	employees.work_mode	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'office'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'office'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	123	employees.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'invited'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'invited'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	134	employment_histories.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	135	employment_histories.department_name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	136	employment_histories.designation_name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	147	employee_skills.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	148	employee_skills.level	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	155	document_types.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	165	employee_documents.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	166	employee_documents.file_path	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	167	employee_documents.original_name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	175	letter_templates.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	176	letter_templates.type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	186	generated_letters.type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	187	generated_letters.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	196	onboarding_templates.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	205	onboarding_template_tasks.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	207	onboarding_template_tasks.assignee_role	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	217	onboardings.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	227	onboarding_tasks.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	229	onboarding_tasks.assignee_role	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	232	onboarding_tasks.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	245	exit_requests.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	255	exit_tasks.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	256	exit_tasks.assignee_role	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	258	exit_tasks.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	266	leave_types.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	267	leave_types.code	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	278	leave_policies.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	279	leave_policies.accrual	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'yearly'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'yearly'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	306	leave_requests.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	310	leave_requests.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	318	holidays.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	340	attendance_logs.work_mode	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'office'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'office'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	341	attendance_logs.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'present'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'present'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	344	attendance_logs.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	352	overtime_rules.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	365	overtime_entries.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	368	overtime_entries.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_100000_create_hrms_tables.php	374	notifications.type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	13	users.api_token	string(..., 64)	varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_120000_create_remaining_phase_tables.php	17	employees.pan	string(..., 10)	varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_120000_create_remaining_phase_tables.php	18	employees.uan	string(..., 20)	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_120000_create_remaining_phase_tables.php	19	employees.esi_number	string(..., 20)	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_120000_create_remaining_phase_tables.php	27	posts.kind	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	28	posts.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	37	polls.question	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	46	poll_options.label	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	76	payroll_runs.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'processed'	unqualified_string_both_snapshots_varchar_191	2026_10_19_220000 rewrites this column as VARCHAR(191) NOT NULL DEFAULT draft. The backup already has varchar(191) with default processed.
+2026_10_19_120000_create_remaining_phase_tables.php	106	payroll_items.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'processed'	unqualified_string_both_snapshots_varchar_191	2026_10_19_220000 rewrites this column as VARCHAR(191) NOT NULL DEFAULT draft. The backup already has varchar(191) with default processed.
+2026_10_19_120000_create_remaining_phase_tables.php	114	loans.type	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'loan'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'loan'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	118	loans.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	137	expenses.category	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	140	expenses.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	142	expenses.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	150	perks.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	161	perk_claims.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	162	perk_claims.payroll_status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	195	tax_declarations.regime	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	196	tax_declarations.section	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	199	tax_declarations.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_120000_create_remaining_phase_tables.php	200	tax_declarations.proof_path	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_130000_add_holiday_calendars.php	12	holidays.calendar	string(..., 10)	varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'india'	varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'india'	explicit_length_matches_both_snapshots	
+2026_10_19_130000_add_holiday_calendars.php	16	employees.holiday_calendar	string(..., 10)	varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'india'	varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'india'	explicit_length_matches_both_snapshots	
+2026_10_19_140000_add_office_wifi_and_wfh.php	16	attendance_logs.check_in_ip	string(..., 45)	varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_140000_add_office_wifi_and_wfh.php	17	attendance_logs.verified_as	string(..., 20)	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL	explicit_length_matches_both_snapshots	
+2026_10_19_140000_add_office_wifi_and_wfh.php	25	wfh_requests.reason	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_140000_add_office_wifi_and_wfh.php	26	wfh_requests.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_160000_add_profile_details_and_tickets.php	22	tickets.category	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_160000_add_profile_details_and_tickets.php	23	tickets.title	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_160000_add_profile_details_and_tickets.php	24	tickets.priority	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medium'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medium'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_160000_add_profile_details_and_tickets.php	25	tickets.status	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open'	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open'	unqualified_string_both_snapshots_varchar_191	
+2026_10_19_160000_add_profile_details_and_tickets.php	26	tickets.attachment_path	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL	unqualified_string_both_snapshots_varchar_191	
+
+COUNTS
+unqualified_string_both_snapshots_varchar_191 91
+explicit_length_matches_both_snapshots 8
+
+STOCK_0001_STRINGS
+0001_01_01_000000_create_users_table.php	users.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	users.email	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	users.password	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	password_reset_tokens.email	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	password_reset_tokens.token	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	sessions.id	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000000_create_users_table.php	sessions.ip_address	string(..., 45)	varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL	varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+0001_01_01_000001_create_cache_table.php	cache.key	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000001_create_cache_table.php	cache_locks.key	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000001_create_cache_table.php	cache_locks.owner	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000002_create_jobs_table.php	jobs.queue	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000002_create_jobs_table.php	job_batches.id	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000002_create_jobs_table.php	job_batches.name	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+0001_01_01_000002_create_jobs_table.php	failed_jobs.uuid	string() with no length	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL	varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL
+
+VARCHAR_DIFFS
+attendance_logs.check_out_ip	DUMP varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+company_payroll_setting_events.action	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+company_payroll_settings.currency	DUMP char(3) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+holidays.status	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	BACKUP ABSENT
+leave_request_events.action	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+location_networks.cidr	DUMP varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+locations.status	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active'	BACKUP ABSENT
+locations.timezone	DUMP varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+overtime_events.action	DUMP varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+payroll_events.action	DUMP varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+payroll_items.currency	DUMP char(3) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+payroll_items.payroll_status	DUMP varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft'	BACKUP varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'processed'
+payroll_payments.method	DUMP varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+payroll_payments.reference	DUMP varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+payroll_payments.status	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending'	BACKUP ABSENT
+payroll_runs.status	DUMP varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft'	BACKUP varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'processed'
+role_assignment_events.action	DUMP varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+role_assignment_events.role_name	DUMP varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+salary_structure_events.action	DUMP varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+salary_structures.currency	DUMP char(3) COLLATE utf8mb4_unicode_ci DEFAULT NULL	BACKUP ABSENT
+ticket_events.action	DUMP varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL	BACKUP ABSENT
+
+CONSTRAINT_DIFFS
+attendance_breaks presence dump=yes backup=no
+attendance_logs
+  dump_only CONSTRAINT `attendance_logs_location_id_foreign` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`)
+company_payroll_setting_events presence dump=yes backup=no
+company_payroll_settings presence dump=yes backup=no
+leave_request_events presence dump=yes backup=no
+location_networks presence dump=yes backup=no
+overtime_events presence dump=yes backup=no
+payroll_events presence dump=yes backup=no
+payroll_payments presence dump=yes backup=no
+payroll_runs
+  dump_only CONSTRAINT `payroll_runs_approved_by_foreign` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  dump_only CONSTRAINT `payroll_runs_calculated_by_foreign` FOREIGN KEY (`calculated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  dump_only CONSTRAINT `payroll_runs_reviewed_by_foreign` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+role_assignment_events presence dump=yes backup=no
+salary_structure_events presence dump=yes backup=no
+ticket_comments presence dump=yes backup=no
+ticket_events presence dump=yes backup=no
+tickets
+  backup_only CONSTRAINT `tickets_assignee_id_foreign` FOREIGN KEY (`assignee_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL
+  dump_only CONSTRAINT `tickets_assignee_id_foreign` FOREIGN KEY (`assignee_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+
+ON_UPDATE dump 0
+ON_UPDATE backup 0
+
+LEXICAL 0001_01_01_000000_create_users_table | 2026_10_19_010000_add_users_company_columns | 2026_10_19_023112_create_permission_tables | 2026_10_19_100000_create_hrms_tables

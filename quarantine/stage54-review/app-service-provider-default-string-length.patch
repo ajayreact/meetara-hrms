@@ -1,0 +1,19 @@
+--- a/app/Providers/AppServiceProvider.php
++++ b/app/Providers/AppServiceProvider.php
+@@ -27,6 +27,7 @@
+ use Illuminate\Http\Request;
+ use Illuminate\Support\Facades\Gate;
+ use Illuminate\Support\Facades\Route;
++use Illuminate\Support\Facades\Schema;
+ use Illuminate\Support\Facades\URL;
+ use Illuminate\Support\ServiceProvider;
+ 
+@@ -45,6 +46,8 @@ class AppServiceProvider extends ServiceProvider
+      */
+     public function boot(): void
+     {
++        Schema::defaultStringLength(191);
++
+         if (DeploymentSecurity::requiresHttps($this->app->environment())) {
+             URL::forceScheme('https');
+         }

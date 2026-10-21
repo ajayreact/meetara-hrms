@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.mysql.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="MysqlIntegration">
+            <file>tests/Feature/CompanyAdminInvitationMysqlTest.php</file>
+            <file>tests/Feature/HistoricalDecisionMigrationTest.php</file>
+            <file>tests/Feature/HistoricalDecisionMysqlTest.php</file>
+            <file>tests/Feature/OfferLetterMysqlTest.php</file>
+            <file>tests/Feature/OnboardingPreflightMysqlTest.php</file>
+            <file>tests/Feature/PaymentConcurrencyTest.php</file>
+            <file>tests/Feature/Stage28MysqlWorkflowTest.php</file>
+        </testsuite>
+    </testsuites>
+    <php>
+        <const name="HRMS_MYSQL_INTEGRATION" value="1"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="DB_CONNECTION" value="mysql" force="true"/>
+        <server name="DB_CONNECTION" value="mysql" force="true"/>
+    </php>
+</phpunit>

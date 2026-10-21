@@ -1,0 +1,22 @@
+# UNVERIFIED REVIEW ARTIFACT
+# Do not copy this file into database/migrations and do not apply it.
+# Source: the StrReplace on 0001_01_01_000000_create_users_table.php and the
+# immediate read-back in chat f0697b32-2cd5-4451-9f11-90180714140d,
+# compaction segment_000.md. down() was not part of that edit.
+# The current users migration file was not modified to produce this diff.
+
+--- a/database/migrations/0001_01_01_000000_create_users_table.php
++++ b/database/migrations/0001_01_01_000000_create_users_table.php
+@@ -13,7 +13,12 @@
+     {
+         Schema::create('users', function (Blueprint $table) {
+             $table->id();
++            $table->foreignId('tenant_id')->nullable()->index();
++            $table->boolean('is_platform_admin')->default(false);
+             $table->string('name');
++            $table->string('invite_token', 80)->nullable()->unique();
++            $table->timestamp('invited_at')->nullable();
++            $table->timestamp('invite_accepted_at')->nullable();
+             $table->string('email')->unique();
+             $table->timestamp('email_verified_at')->nullable();
+             $table->string('password');
