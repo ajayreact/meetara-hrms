@@ -38,6 +38,7 @@ class OfficeRequest extends FormRequest
                 Rule::unique('locations', 'name')->where('tenant_id', $companyId)->ignore($officeId),
             ],
             'address' => ['nullable', 'string', 'max:2000'],
+            'map_label' => ['nullable', 'string', 'max:120'],
             'timezone' => ['required', 'timezone'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
@@ -52,9 +53,12 @@ class OfficeRequest extends FormRequest
         $latitude = $this->input('latitude');
         $longitude = $this->input('longitude');
 
+        $label = trim((string) $this->input('map_label', ''));
+
         $this->merge([
             'latitude' => $latitude === '' || $latitude === null ? null : $latitude,
             'longitude' => $longitude === '' || $longitude === null ? null : $longitude,
+            'map_label' => $label === '' ? null : $label,
             'gps_verification_enabled' => $this->boolean('gps_verification_enabled'),
         ]);
     }

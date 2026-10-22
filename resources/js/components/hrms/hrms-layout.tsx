@@ -48,17 +48,8 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
             <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">
                 Skip to content
             </a>
-            {workspace.interfacePreview && (
-                <div className="no-print border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs leading-5 text-amber-950 md:px-6">
-                    <p>
-                        Route Map is not implemented and does not collect locations. Leave, holidays, attendance, offices, pay, help desk, overtime, and inbox use saved records.
-                        {workspace.companyName ? ` Signed in to ${workspace.companyName}` : ' Signed in'} as {workspace.userName} ({workspace.roleLabel}).
-                    </p>
-                </div>
-            )}
-
-            <div className="flex min-h-[calc(100vh-49px)] w-full min-w-0">
-                <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} ${compact ? 'md:w-[76px]' : 'md:w-60'} no-print fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm transition-[width,transform] md:sticky md:top-0 md:h-[calc(100dvh-2.75rem)] md:translate-x-0 md:self-start md:shadow-none`}>
+            <div className="flex min-h-screen w-full min-w-0">
+                <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} ${compact ? 'md:w-[76px]' : 'md:w-60'} no-print fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm transition-[width,transform] md:sticky md:top-0 md:h-dvh md:translate-x-0 md:self-start md:shadow-none`}>
                     <div className={`flex items-center gap-2 px-3 pt-4 pb-3 ${compact ? 'md:flex-col' : ''}`}>
                         <Link href="/dashboard" className="flex min-w-0 flex-1 justify-center md:justify-start" onClick={() => setOpen(false)}>
                             <img src="/brand/meetara-logo.png" alt="Meetara" className={`h-9 w-auto object-contain ${compact ? 'max-w-[148px] md:max-w-10' : 'max-w-[148px]'}`} />

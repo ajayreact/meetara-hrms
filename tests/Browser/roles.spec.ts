@@ -58,7 +58,8 @@ test('super admin sees companies and cannot open payroll', async ({ page }) => {
     await denied(page, '/payslips', 403);
     await denied(page, `/employees/${data.ids.northReport}`, 404);
     await page.goto('/route-map');
-    await expect(page.getByText('Your account cannot open Route Map')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Route Map' })).toBeVisible();
+    await expect(page.getByText('Your account cannot open Route Map')).toHaveCount(0);
     await signOut(page);
 });
 

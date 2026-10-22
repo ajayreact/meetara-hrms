@@ -34,8 +34,8 @@ class OfficeScheduleRequest extends FormRequest
             $start = (string) $this->input('work_start');
             $end = (string) $this->input('work_end');
 
-            if ($start !== '' && $end !== '' && $end <= $start) {
-                $validator->errors()->add('work_end', 'The end time must be after the start time.');
+            if ($start !== '' && $end !== '' && $start === $end) {
+                $validator->errors()->add('work_end', 'The end time must be different from the start time.');
             }
         });
     }

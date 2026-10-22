@@ -1,11 +1,12 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
-import { OfficeMapPicker } from '@/components/hrms/office-map';
+import { OfficeMapPicker, type MapTiles } from '@/components/hrms/office-map';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { indiaToday, nextDate, zoneTimes, type ZoneTime } from '@/lib/shift-times';
 import type { HrmsPageProps } from '@/types/hrms';
 import { router, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 
 interface Verification {
     locationConfigured: boolean;
@@ -22,6 +23,7 @@ interface OfficeRecord {
     address: string | null;
     timezone: string;
     status: string;
+    mapLabel: string | null;
     latitude: number | null;
     longitude: number | null;
     verificationRadiusMeters: number;
@@ -42,6 +44,7 @@ interface OfficeFormData {
     address: string;
     timezone: string;
     status: string;
+    map_label: string;
     latitude: string;
     longitude: string;
     verification_radius_meters: number;
@@ -50,18 +53,64 @@ interface OfficeFormData {
 
 const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
-export default function OfficesPage({ workspace, offices, schedule, timezones, notice, locationFieldsAvailable }: HrmsPageProps & {
+const decimalPattern = /^-?\d+(\.\d+)?$/;
+
+function locationErrors(data: OfficeFormData): Partial<Record<keyof OfficeFormData, string>> {
+    const errors: Partial<Record<keyof OfficeFormData, string>> = {};
+    const latitude = data.latitude.trim();
+    const longitude = data.longitude.trim();
+
+    if (latitude === '' && longitude !== '') {
+        errors.latitude = 'Enter a latitude with the longitude, or clear both.';
+    } else if (latitude !== '' && (!decimalPattern.test(latitude) || Math.abs(Number(latitude)) > 90)) {
+        errors.latitude = 'Latitude must be a number from -90 to 90.';
+    }
+
+    if (longitude === '' && latitude !== '') {
+        errors.longitude = 'Enter a longitude with the latitude, or clear both.';
+    } else if (longitude !== '' && (!decimalPattern.test(longitude) || Math.abs(Number(longitude)) > 180)) {
+        errors.longitude = 'Longitude must be a number from -180 to 180.';
+    }
+
+    const radius = data.verification_radius_meters;
+    if (!Number.isInteger(radius) || radius < 25 || radius > 2000) {
+        errors.verification_radius_meters = 'Radius must be a whole number from 25 to 2000 meters.';
+    }
+
+    if (data.map_label.length > 120) {
+        errors.map_label = 'Map display name must be 120 characters or fewer.';
+    }
+
+    return errors;
+}
+
+function checkLocation(form: ReturnType<typeof useForm<OfficeFormData>>): boolean {
+    const errors = locationErrors(form.data);
+    form.clearErrors('latitude', 'longitude', 'verification_radius_meters', 'map_label');
+
+    if (Object.keys(errors).length > 0) {
+        form.setError(errors);
+        return false;
+    }
+
+    return true;
+}
+
+export default function OfficesPage({ workspace, offices, schedule, timezones, notice, locationFieldsAvailable, mapLabelAvailable = false, mapTiles }: HrmsPageProps & {
     offices: OfficeRecord[];
     schedule: Schedule;
     timezones: string[];
     notice?: string | null;
     locationFieldsAvailable: boolean;
+    mapLabelAvailable?: boolean;
+    mapTiles?: MapTiles;
 }) {
     const officeForm = useForm<OfficeFormData>({
         name: '',
         address: '',
         timezone: timezones[0] ?? 'UTC',
         status: 'active',
+        map_label: '',
         latitude: '',
         longitude: '',
         verification_radius_meters: 150,
@@ -73,6 +122,9 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
         grace_minutes: schedule.graceMinutes,
         working_days: schedule.workingDays,
     });
+    const [previewDate, setPreviewDate] = useState(indiaToday);
+    const overnight = scheduleForm.data.work_end !== '' && scheduleForm.data.work_start !== '' && scheduleForm.data.work_end < scheduleForm.data.work_start;
+    const endDate = overnight ? nextDate(previewDate) : previewDate;
 
     return (
         <HrmsLayout workspace={workspace} title="Offices">
@@ -88,11 +140,16 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
                     className="grid gap-3 lg:grid-cols-[repeat(3,minmax(0,12rem))_1fr]"
                     onSubmit={(event) => {
                         event.preventDefault();
+                        scheduleForm.clearErrors('work_end');
+                        if (scheduleForm.data.work_start !== '' && scheduleForm.data.work_start === scheduleForm.data.work_end) {
+                            scheduleForm.setError('work_end', 'The end time must be different from the start time.');
+                            return;
+                        }
                         scheduleForm.put(route('hrms.offices.schedule'));
                     }}
                 >
-                    <Field label="Work start" error={scheduleForm.errors.work_start}><Input type="time" value={scheduleForm.data.work_start} onChange={(event) => scheduleForm.setData('work_start', event.target.value)} /></Field>
-                    <Field label="Work end" error={scheduleForm.errors.work_end}><Input type="time" value={scheduleForm.data.work_end} onChange={(event) => scheduleForm.setData('work_end', event.target.value)} /></Field>
+                    <Field label="Work start (India time)" error={scheduleForm.errors.work_start}><Input type="time" value={scheduleForm.data.work_start} onChange={(event) => scheduleForm.setData('work_start', event.target.value)} /></Field>
+                    <Field label="Work end (India time)" error={scheduleForm.errors.work_end}><Input type="time" value={scheduleForm.data.work_end} onChange={(event) => scheduleForm.setData('work_end', event.target.value)} /></Field>
                     <Field label="Grace minutes" error={scheduleForm.errors.grace_minutes}><Input type="number" min={0} max={120} value={scheduleForm.data.grace_minutes} onChange={(event) => scheduleForm.setData('grace_minutes', Number(event.target.value))} /></Field>
                     <div>
                         <p className="mb-2 text-sm">Working days</p>
@@ -115,6 +172,19 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
                         </div>
                         {scheduleForm.errors.working_days && <p className="mt-1 text-xs text-rose-600">{scheduleForm.errors.working_days}</p>}
                     </div>
+                    <div className="grid gap-4 lg:col-span-4 sm:grid-cols-2">
+                        <ZonePreview title="Start in the United States" date={previewDate} time={scheduleForm.data.work_start} />
+                        <ZonePreview title={overnight ? 'End in the United States, next India day' : 'End in the United States'} date={endDate} time={scheduleForm.data.work_end} />
+                    </div>
+                    <div className="grid gap-2 lg:col-span-4">
+                        <label className="grid w-fit gap-1.5 text-sm">
+                            <span className="font-medium">Preview US times for date.</span>
+                            <Input type="date" value={previewDate} onChange={(event) => setPreviewDate(event.target.value)} />
+                        </label>
+                        {overnight && <p className="text-sm text-slate-600">The end time is earlier than the start time, so it is saved as the following day in India.</p>}
+                        <p className="text-xs text-slate-500">US times automatically adjust for daylight saving time. Converted times are a preview for the selected date.</p>
+                        <p className="text-xs text-slate-500">Hours are saved in India time and applied in each office time zone. An India office uses Asia/Kolkata.</p>
+                    </div>
                     <div className="lg:col-span-4 flex flex-wrap items-center gap-3">
                         <Button type="submit" disabled={scheduleForm.processing}>Save schedule</Button>
                         <p className="text-xs text-slate-500">Hours and grace apply to the company shift. Each office keeps its own time zone.</p>
@@ -125,7 +195,7 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
                 {offices.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">No offices are recorded for this company yet.</p>
                 ) : offices.map((office) => (
-                    <OfficeCard key={`${office.id}-${office.latitude ?? ''}-${office.longitude ?? ''}-${office.verificationRadiusMeters}-${office.gpsVerificationEnabled}`} office={office} timezones={timezones} locationFieldsAvailable={locationFieldsAvailable} />
+                    <OfficeCard key={`${office.id}-${office.latitude ?? ''}-${office.longitude ?? ''}-${office.mapLabel ?? ''}-${office.verificationRadiusMeters}-${office.gpsVerificationEnabled}`} office={office} timezones={timezones} locationFieldsAvailable={locationFieldsAvailable} mapLabelAvailable={mapLabelAvailable} mapTiles={mapTiles} />
                 ))}
             </div>
             <div className="mt-4">
@@ -134,10 +204,13 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
                         className="grid gap-4"
                         onSubmit={(event) => {
                             event.preventDefault();
-                            officeForm.post(route('hrms.offices.store'), { onSuccess: () => officeForm.reset('name', 'address', 'latitude', 'longitude') });
+                            if (!checkLocation(officeForm)) {
+                                return;
+                            }
+                            officeForm.post(route('hrms.offices.store'), { onSuccess: () => officeForm.reset('name', 'address', 'map_label', 'latitude', 'longitude') });
                         }}
                     >
-                        <OfficeFields form={officeForm} timezones={timezones} locationFieldsAvailable={locationFieldsAvailable} savedAddress={null} savedLatitude={null} savedLongitude={null} />
+                        <OfficeFields form={officeForm} timezones={timezones} locationFieldsAvailable={locationFieldsAvailable} mapLabelAvailable={mapLabelAvailable} mapTiles={mapTiles} savedAddress={null} savedLatitude={null} savedLongitude={null} />
                         <div>
                             <Button type="submit" disabled={officeForm.processing}>Save office</Button>
                         </div>
@@ -148,12 +221,13 @@ export default function OfficesPage({ workspace, offices, schedule, timezones, n
     );
 }
 
-function OfficeCard({ office, timezones, locationFieldsAvailable }: { office: OfficeRecord; timezones: string[]; locationFieldsAvailable: boolean }) {
+function OfficeCard({ office, timezones, locationFieldsAvailable, mapLabelAvailable, mapTiles }: { office: OfficeRecord; timezones: string[]; locationFieldsAvailable: boolean; mapLabelAvailable: boolean; mapTiles?: MapTiles }) {
     const form = useForm<OfficeFormData>({
         name: office.name,
         address: office.address ?? '',
         timezone: office.timezone,
         status: office.status,
+        map_label: office.mapLabel ?? '',
         latitude: office.latitude === null ? '' : String(office.latitude),
         longitude: office.longitude === null ? '' : String(office.longitude),
         verification_radius_meters: office.verificationRadiusMeters,
@@ -173,13 +247,17 @@ function OfficeCard({ office, timezones, locationFieldsAvailable }: { office: Of
                 className="grid gap-4"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.put(route('hrms.offices.update', office.id));
+                    if (checkLocation(form)) {
+                        form.put(route('hrms.offices.update', office.id), { preserveScroll: true });
+                    }
                 }}
             >
                 <OfficeFields
                     form={form}
                     timezones={timezones}
                     locationFieldsAvailable={locationFieldsAvailable}
+                    mapLabelAvailable={mapLabelAvailable}
+                    mapTiles={mapTiles}
                     savedAddress={office.address}
                     savedLatitude={office.latitude}
                     savedLongitude={office.longitude}
@@ -207,7 +285,7 @@ function OfficeCard({ office, timezones, locationFieldsAvailable }: { office: Of
                     </label>
                     {form.errors.gps_verification_enabled && <p className="text-xs text-rose-600">{form.errors.gps_verification_enabled}</p>}
                     <p className="text-xs text-slate-500">A website cannot read the connected Wi-Fi name. Approved public networks remain the network check.</p>
-                    <Button type="button" variant="outline" disabled={form.processing} onClick={() => form.put(route('hrms.offices.update', office.id))}>Save verification</Button>
+                    <Button type="button" variant="outline" disabled={form.processing} onClick={() => checkLocation(form) && form.put(route('hrms.offices.update', office.id), { preserveScroll: true })}>Save verification</Button>
                 </div>
                 <div className="grid content-start gap-3">
                 <h3 className="text-sm font-semibold text-slate-800">Approved public networks</h3>
@@ -245,6 +323,8 @@ function OfficeFields({
     form,
     timezones,
     locationFieldsAvailable,
+    mapLabelAvailable,
+    mapTiles,
     savedAddress,
     savedLatitude,
     savedLongitude,
@@ -254,6 +334,8 @@ function OfficeFields({
     form: ReturnType<typeof useForm<OfficeFormData>>;
     timezones: string[];
     locationFieldsAvailable: boolean;
+    mapLabelAvailable: boolean;
+    mapTiles?: MapTiles;
     savedAddress: string | null;
     savedLatitude: number | null;
     savedLongitude: number | null;
@@ -287,8 +369,14 @@ function OfficeFields({
             </section>
             <section className="grid content-start gap-3">
                 <h3 className="text-sm font-semibold text-slate-800">Map location and coordinates</h3>
-                <p className="text-sm text-slate-600">Saved coordinates: {savedLatitude === null || savedLongitude === null ? 'not configured' : `${savedLatitude}, ${savedLongitude}`}.</p>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <p className="text-sm text-slate-600">
+                    Saved coordinates: {savedLatitude === null || savedLongitude === null ? 'not configured. Route Map lists this office as Not on map' : `${savedLatitude}, ${savedLongitude}`}.
+                </p>
+                <p className="text-xs text-slate-500">Pick a point on the map or type both coordinates. Addresses are not looked up automatically, because no approved geocoding service is configured.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Map display name" error={form.errors.map_label}>
+                        <Input disabled={!mapLabelAvailable} maxLength={120} value={form.data.map_label} onChange={(event) => form.setData('map_label', event.target.value)} placeholder="Optional name shown on the map" />
+                    </Field>
                     <Field label="Latitude" error={form.errors.latitude}>
                         <Input inputMode="decimal" disabled={!locationFieldsAvailable} value={form.data.latitude} onChange={(event) => form.setData('latitude', event.target.value)} placeholder="-90 to 90" />
                     </Field>
@@ -302,11 +390,26 @@ function OfficeFields({
                 <OfficeMapPicker
                     latitude={form.data.latitude}
                     longitude={form.data.longitude}
+                    tiles={mapTiles}
                     disabled={!locationFieldsAvailable}
                     onSelect={(latitude, longitude) => {
                         form.setData({ ...form.data, latitude, longitude });
                     }}
                 />
+                {(form.data.latitude !== '' || form.data.longitude !== '') && (
+                    <div>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!locationFieldsAvailable || form.data.gps_verification_enabled}
+                            onClick={() => form.setData({ ...form.data, latitude: '', longitude: '' })}
+                        >
+                            Clear coordinates
+                        </Button>
+                        {form.data.gps_verification_enabled && <p className="mt-1 text-xs text-slate-500">Turn off GPS verification before clearing the coordinates.</p>}
+                    </div>
+                )}
                 {showGps && (
                     <label className="flex items-start gap-2 text-sm">
                         <input
@@ -325,6 +428,29 @@ function OfficeFields({
     );
 }
 
+function ZonePreview({ title, date, time }: { title: string; date: string; time: string }) {
+    const rows = zoneTimes(date, time);
+
+    return (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-sm font-medium text-slate-800">{title}</p>
+            {rows.length === 0 ? (
+                <p className="mt-1 text-xs text-slate-500">Enter a time to see New York, Detroit, and Dallas.</p>
+            ) : (
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    {rows.map((row: ZoneTime) => (
+                        <li key={row.label}>
+                            <span className="text-slate-500">{row.label}: </span>
+                            <span className="font-medium">{row.clock} {row.abbreviation}</span>
+                            {row.date && <span className="text-slate-500"> · {row.date}</span>}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-    return <div className="grid gap-1.5 text-sm"><Label>{label}</Label>{children}{error && <span className="text-xs text-rose-600">{error}</span>}</div>;
+    return <label className="grid gap-1.5 text-sm"><span className="text-sm leading-none font-medium">{label}</span>{children}{error && <span className="text-xs text-rose-600">{error}</span>}</label>;
 }

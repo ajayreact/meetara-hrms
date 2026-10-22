@@ -25,7 +25,7 @@ class WorkSchedule
         $day = strtolower($local->format('l'));
         $start = self::clock($shift?->start_time);
         $end = self::clock($shift?->end_time);
-        $span = self::span($start, $end);
+        $span = self::minutesBetween($start ?? '', $end ?? '');
 
         return new self(
             expected: ! in_array($day, $weekOff, true),
@@ -51,19 +51,44 @@ class WorkSchedule
         return (int) floor(($clockIn->getTimestamp() - $deadline->getTimestamp()) / 60);
     }
 
-    public function earlyMinutes(CarbonInterface $clockOut): int
+    public function crossesMidnight(): bool
+    {
+        return $this->start !== null && $this->end !== null && $this->end < $this->start;
+    }
+
+    public function earlyMinutes(CarbonInterface $clockOut, CarbonInterface $shiftStart): int
     {
         if (! $this->expected || $this->end === null) {
             return 0;
         }
 
-        $end = $clockOut->copy()->setTimeFromTimeString($this->end);
+        $end = $shiftStart->copy()->setTimeFromTimeString($this->end);
+
+        if ($this->crossesMidnight()) {
+            $end->addDay();
+        }
 
         if ($clockOut->greaterThanOrEqualTo($end)) {
             return 0;
         }
 
         return (int) floor(($end->getTimestamp() - $clockOut->getTimestamp()) / 60);
+    }
+
+    /**
+     * Minutes from start to end. An earlier end is the next day. Identical times are not a shift.
+     */
+    public static function minutesBetween(?string $start, ?string $end): ?int
+    {
+        if (! is_string($start) || ! is_string($end) || ! preg_match('/^\d{2}:\d{2}$/', $start) || ! preg_match('/^\d{2}:\d{2}$/', $end) || $start === $end) {
+            return null;
+        }
+
+        [$startHour, $startMinute] = array_map('intval', explode(':', $start));
+        [$endHour, $endMinute] = array_map('intval', explode(':', $end));
+        $span = (($endHour * 60) + $endMinute) - (($startHour * 60) + $startMinute);
+
+        return $span < 0 ? $span + 1440 : $span;
     }
 
     private static function shift(Employee $employee, CarbonInterface $local): ?Shift
@@ -132,17 +157,5 @@ class WorkSchedule
         }
 
         return substr($value, 0, 5);
-    }
-
-    private static function span(?string $start, ?string $end): ?int
-    {
-        if ($start === null || $end === null || $end <= $start) {
-            return null;
-        }
-
-        [$startHour, $startMinute] = array_map('intval', explode(':', $start));
-        [$endHour, $endMinute] = array_map('intval', explode(':', $end));
-
-        return (($endHour * 60) + $endMinute) - (($startHour * 60) + $startMinute);
     }
 }

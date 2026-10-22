@@ -15,7 +15,7 @@ export function accounts(): BrowserAccounts {
         throw new Error('The live database meetara_hrms is prohibited.');
     }
 
-    if (!['meetara_hrms_browser', 'meetara_hrms_stage28_20261020', 'meetara_hrms_stage36_browser_20261020', 'meetara_hrms_stage37_browser_20261020', 'meetara_hrms_stage38_browser_20261020'].includes(data.database)) {
+    if (!['meetara_hrms_browser', 'meetara_hrms_stage28_20261020', 'meetara_hrms_stage36_browser_20261020', 'meetara_hrms_stage37_browser_20261020', 'meetara_hrms_stage38_browser_20261020', 'meetara_hrms_routemap_browser_20261022'].includes(data.database)) {
         throw new Error('Browser credentials are not for an allowed disposable database.');
     }
 

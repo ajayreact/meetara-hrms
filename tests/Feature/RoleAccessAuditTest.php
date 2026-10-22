@@ -41,7 +41,10 @@ class RoleAccessAuditTest extends TestCase
         $this->actingAs($platform)->get('/payslips/'.$company->payrollItemId)->assertNotFound();
         $this->actingAs($platform)->get('/employees/'.$company->reportEmployeeId)->assertNotFound();
         $this->actingAs($platform)->post('/payroll/runs/'.$company->payrollRunId.'/approve')->assertNotFound();
-        $this->actingAs($platform)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
+        $this->actingAs($platform)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('route-map/index')
+            ->where('map.canViewPreciseLocations', false)
+            ->where('map.points', []));
         $this->actingAs($platform)->get('/company/settings')->assertOk()->assertInertia(fn (Assert $page) => $page->where('payrollSettings', null));
 
         $this->actingAs($owner)->get('/payroll')->assertOk();
@@ -54,7 +57,7 @@ class RoleAccessAuditTest extends TestCase
         ])->assertForbidden();
         $this->actingAs($owner)->get('/employees')->assertOk()->assertSee($company->reportEmail)->assertDontSee($other->reportEmail);
         $this->actingAs($owner)->get('/company/settings')->assertInertia(fn (Assert $page) => $page->where('payrollSettings.statutory', 'Not configured'));
-        $this->actingAs($owner)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
+        $this->actingAs($owner)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index')->where('map.canViewPreciseLocations', true));
 
         $this->actingAs($company->hr)->get('/payroll')->assertForbidden();
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();
@@ -86,7 +89,7 @@ class RoleAccessAuditTest extends TestCase
         $this->actingAs($company->lead)->get('/offices')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->lead)->get('/attendance/export')->assertForbidden();
         $this->actingAs($company->lead)->post('/attendance/'.$company->attendanceId.'/recover', ['reason' => 'Closed the open session'])->assertForbidden();
-        $this->actingAs($company->lead)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
+        $this->actingAs($company->lead)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index'));
 
         $this->actingAs($company->employee)->get('/employees')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->employee)->get('/employees/'.$company->outsideEmployeeId)->assertNotFound();
@@ -95,7 +98,7 @@ class RoleAccessAuditTest extends TestCase
         $this->actingAs($company->employee)->get('/payments')->assertForbidden();
         $this->actingAs($company->employee)->get('/attendance')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->employee)->get('/my-attendance')->assertOk();
-        $this->actingAs($company->employee)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
+        $this->actingAs($company->employee)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index')->where('map.canViewPreciseLocations', true));
         $this->actingAs($company->employee)->get('/companies')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->employee)->get('/audit')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
     }

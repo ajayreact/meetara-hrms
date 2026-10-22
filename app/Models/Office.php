@@ -21,6 +21,7 @@ class Office extends Model
         'longitude',
         'verification_radius_meters',
         'gps_verification_enabled',
+        'map_label',
     ];
 
     /**

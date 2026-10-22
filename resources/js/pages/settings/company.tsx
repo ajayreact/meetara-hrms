@@ -24,7 +24,13 @@ interface PayrollSettings {
     salaryVisibilityNote: string;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; notice?: string | null; error?: string | null }) {
+interface GpsCaptureSettings {
+    ready: boolean;
+    enabled: boolean;
+    notice: string;
+}
+
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -38,6 +44,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
                         <p className="mt-2 text-sm text-slate-500">This is the saved company name. It is shown here and is not an editable field.</p>
                     </SectionCard>
                     {payrollSettings && <PayrollSettingsForm settings={payrollSettings} notice={notice} error={error} />}
+                    {gpsCapture && <GpsCaptureForm settings={gpsCapture} />}
                 </div>
             )}
         </HrmsLayout>
@@ -52,7 +59,7 @@ function PlatformSettings() {
     ];
     const unavailable = [
         'Billing and subscription management are not connected.',
-        'Route Map does not collect locations.',
+        'Employee GPS capture stays off until a company admin enables it. Platform accounts do not receive those coordinates.',
         'Email, SMS, and push delivery are not connected.',
         'Monitoring, backup verification, and queue health are not connected.',
         'Environment, database, and session configuration cannot be changed here.',
@@ -113,5 +120,24 @@ function PayrollSettingsForm({ settings, notice, error }: { settings: PayrollSet
                 </ul>
                 </div>
             </SectionCard>
+    );
+}
+
+function GpsCaptureForm({ settings }: { settings: GpsCaptureSettings }) {
+    const form = useForm({ enabled: settings.enabled });
+
+    return (
+        <SectionCard title="GPS attendance capture" className="xl:col-span-2">
+            <p className="text-sm leading-6 text-slate-600">{settings.notice}</p>
+            <p className="mt-3 text-sm text-slate-600">This switch does not replace approved public-network verification, and it does not make a browser location mandatory for clock-in.</p>
+            {!settings.ready && <p className="mt-3 text-sm text-amber-800">GPS storage is not ready on this database, so the setting cannot be saved.</p>}
+            <form className="mt-4 flex flex-wrap items-center gap-3" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.gps')); }}>
+                <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={form.data.enabled} onChange={(event) => form.setData('enabled', event.target.checked)} disabled={!settings.ready} />
+                    Save a browser location at clock-in and clock-out
+                </label>
+                <Button type="submit" disabled={form.processing || !settings.ready}>{form.processing ? 'Working…' : 'Save GPS setting'}</Button>
+            </form>
+        </SectionCard>
     );
 }

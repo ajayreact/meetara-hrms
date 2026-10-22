@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 
 const TILE = 256;
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 };
+const DEFAULT_TILE_TEMPLATE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const DEFAULT_TILE_DISCLOSURE = 'Opening this map loads tiles from OpenStreetMap and sends the area you are viewing to that service. No API key is used.';
+
+export interface MapTiles {
+    template: string;
+    disclosure: string;
+}
+
+function tileTemplate(template?: string): string {
+    if (template && /^https:\/\/[a-z0-9.-]+(?::\d+)?\/(?:[a-z0-9._~%-]+\/)*\{z\}\/\{x\}\/\{y\}\.png$/i.test(template)) {
+        return template;
+    }
+
+    return DEFAULT_TILE_TEMPLATE;
+}
+
+function tileUrl(template: string, zoom: number, x: number, y: number): string {
+    return template.replaceAll('{z}', String(zoom)).replaceAll('{x}', String(x)).replaceAll('{y}', String(y));
+}
 
 function latLngToWorld(latitude: number, longitude: number, zoom: number): { x: number; y: number } {
     const scale = TILE * 2 ** zoom;
@@ -27,11 +46,13 @@ export function OfficeMapPicker({
     latitude,
     longitude,
     disabled,
+    tiles,
     onSelect,
 }: {
     latitude: string;
     longitude: string;
     disabled?: boolean;
+    tiles?: MapTiles;
     onSelect: (latitude: string, longitude: string) => void;
 }) {
     const parsedLat = Number(latitude);
@@ -57,6 +78,7 @@ export function OfficeMapPicker({
         return () => observer.disconnect();
     }, []);
 
+    const template = tileTemplate(tiles?.template);
     const world = latLngToWorld(center.lat, center.lng, zoom);
     const left = world.x - size.width / 2;
     const top = world.y - size.height / 2;
@@ -65,12 +87,12 @@ export function OfficeMapPicker({
     const xEnd = Math.floor((left + size.width) / TILE);
     const yStart = Math.max(0, Math.floor(top / TILE));
     const yEnd = Math.min(tileCount - 1, Math.floor((top + size.height) / TILE));
-    const tiles: { key: string; x: number; y: number; left: number; top: number }[] = [];
+    const tileImages: { key: string; x: number; y: number; left: number; top: number }[] = [];
 
     for (let y = yStart; y <= yEnd; y += 1) {
         for (let x = xStart; x <= xEnd; x += 1) {
             const wrapped = ((x % tileCount) + tileCount) % tileCount;
-            tiles.push({
+            tileImages.push({
                 key: `${zoom}-${wrapped}-${y}-${x}`,
                 x: wrapped,
                 y,
@@ -98,11 +120,12 @@ export function OfficeMapPicker({
                 role="application"
                 aria-label="Office map. Click to set latitude and longitude."
             >
-                {tiles.map((tile) => (
+                {tileImages.map((tile) => (
                     <img
                         key={tile.key}
                         alt=""
-                        src={`https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png`}
+                        src={tileUrl(template, zoom, tile.x, tile.y)}
+                        referrerPolicy="no-referrer"
                         className="absolute max-w-none"
                         style={{ left: tile.left, top: tile.top, width: TILE, height: TILE }}
                         draggable={false}
@@ -113,7 +136,96 @@ export function OfficeMapPicker({
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.min(18, value + 1))}>Zoom in</button>
                 <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.max(2, value - 1))}>Zoom out</button>
-                <span>Map tiles are from OpenStreetMap and need no API key. Manual coordinates are saved with the office.</span>
+                <span>{tiles?.disclosure || DEFAULT_TILE_DISCLOSURE} Manual coordinates are saved with the office.</span>
+            </div>
+        </div>
+    );
+}
+
+export interface MapMarker {
+    id: string;
+    label: string;
+    latitude: number;
+    longitude: number;
+    tone: 'office' | 'in' | 'out';
+}
+
+export function LocationMap({ markers, selectedId, tiles, onSelect }: { markers: MapMarker[]; selectedId?: string; tiles?: MapTiles; onSelect?: (id: string) => void }) {
+    const first = markers[0];
+    const [zoom, setZoom] = useState(markers.length > 1 ? 4 : 15);
+    const frame = useRef<HTMLDivElement>(null);
+    const [size, setSize] = useState({ width: 640, height: 320 });
+    const [tilesFailed, setTilesFailed] = useState(false);
+    const center = first ? { lat: first.latitude, lng: first.longitude } : DEFAULT_CENTER;
+
+    useEffect(() => {
+        const element = frame.current;
+
+        if (!element) {
+            return;
+        }
+
+        const measure = () => setSize({ width: element.clientWidth, height: element.clientHeight });
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
+
+    if (!first) {
+        return null;
+    }
+
+    const template = tileTemplate(tiles?.template);
+    const world = latLngToWorld(center.lat, center.lng, zoom);
+    const left = world.x - size.width / 2;
+    const top = world.y - size.height / 2;
+    const tileCount = 2 ** zoom;
+    const xStart = Math.floor(left / TILE);
+    const xEnd = Math.floor((left + size.width) / TILE);
+    const yStart = Math.max(0, Math.floor(top / TILE));
+    const yEnd = Math.min(tileCount - 1, Math.floor((top + size.height) / TILE));
+    const tileImages: { key: string; x: number; y: number; left: number; top: number }[] = [];
+
+    for (let y = yStart; y <= yEnd; y += 1) {
+        for (let x = xStart; x <= xEnd; x += 1) {
+            const wrapped = ((x % tileCount) + tileCount) % tileCount;
+            tileImages.push({ key: `${zoom}-${wrapped}-${y}-${x}`, x: wrapped, y, left: x * TILE - left, top: y * TILE - top });
+        }
+    }
+
+    return (
+        <div className="grid gap-2">
+            <div ref={frame} className="relative h-80 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                {tileImages.map((tile) => (
+                    <img key={tile.key} alt="" src={tileUrl(template, zoom, tile.x, tile.y)} referrerPolicy="no-referrer" className="absolute max-w-none" style={{ left: tile.left, top: tile.top, width: TILE, height: TILE }} draggable={false} onError={() => setTilesFailed(true)} />
+                ))}
+                {tilesFailed && (
+                    <p role="status" className="absolute inset-x-3 top-3 z-20 rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-700 shadow">
+                        Map tiles from OpenStreetMap could not be loaded. Markers are still placed by their saved coordinates. Use the List view for names and addresses.
+                    </p>
+                )}
+                {markers.map((marker) => {
+                    const point = latLngToWorld(marker.latitude, marker.longitude, zoom);
+                    const tone = marker.tone === 'in' ? 'bg-emerald-600' : marker.tone === 'out' ? 'bg-rose-600' : 'bg-blue-700';
+
+                    return (
+                        <button
+                            key={marker.id}
+                            type="button"
+                            className={`absolute z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ${tone} ${selectedId === marker.id ? 'ring-2 ring-slate-950' : ''}`}
+                            style={{ left: point.x - left, top: point.y - top }}
+                            aria-label={marker.label}
+                            onClick={() => onSelect?.(marker.id)}
+                        />
+                    );
+                })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.min(18, value + 1))}>Zoom in</button>
+                <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.max(2, value - 1))}>Zoom out</button>
+                <span>{tiles?.disclosure || DEFAULT_TILE_DISCLOSURE} Points are not connected into a route.</span>
             </div>
         </div>
     );

@@ -126,7 +126,7 @@ class WorkflowModulesTest extends TestCase
         $admin->forceFill(['is_platform_admin' => true, 'tenant_id' => null, 'invite_accepted_at' => now()])->save();
 
         $this->actingAs($company->employee)->get('/companies')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
-        $this->actingAs($company->employee)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
+        $this->actingAs($company->employee)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index')->where('map.canViewPreciseLocations', true));
         $this->actingAs($admin)->get('/payroll')->assertForbidden();
         $this->actingAs($admin)->get('/companies?search=Veltrix')->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('companies/index')

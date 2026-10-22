@@ -16,6 +16,8 @@ export interface TimingState {
     canEndBreak: boolean;
     canClockOut: boolean;
     gpsRequired?: boolean;
+    gpsCapture?: boolean;
+    gpsNoticePending?: boolean;
 }
 
 function formatClock(date: Date): string {
@@ -61,13 +63,53 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
         return () => window.clearInterval(timer);
     }, [timing.breakSeconds, timing.state]);
 
-    function submit(action: string) {
-        form.transform((data) => data);
-        form.post(route(action), { preserveScroll: true, onSuccess: () => setConfirmOut(false) });
+    function submit(action: string, extra: Record<string, string | number> = {}) {
+        form.transform((data) => ({ ...data, ...extra }));
+        form.post(route(action), {
+            preserveScroll: true,
+            onFinish: () => {
+                form.transform((data) => data);
+                setLocating(false);
+                setConfirmOut(false);
+            },
+        });
+    }
+
+    function captureThen(action: string) {
+        setLocationMessage(null);
+
+        if (!navigator.geolocation) {
+            setLocationMessage('This browser did not share a location. The attendance action was sent without coordinates.');
+            submit(action, { capture_result: 'unavailable' });
+            return;
+        }
+
+        setLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                submit(action, {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy_meters: Math.round(position.coords.accuracy),
+                    capture_result: 'recorded',
+                });
+            },
+            (error) => {
+                const denied = error.code === error.PERMISSION_DENIED;
+                setLocationMessage(denied ? 'Location permission was denied. The attendance action was sent without coordinates.' : 'A location was not available in time. The attendance action was sent without coordinates.');
+                submit(action, { capture_result: denied ? 'denied' : 'unavailable' });
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        );
     }
 
     function clockIn() {
         setLocationMessage(null);
+
+        if (timing.gpsCapture && !timing.gpsRequired) {
+            captureThen('hrms.attendance.clock-in');
+            return;
+        }
 
         if (!timing.gpsRequired) {
             submit('hrms.attendance.clock-in');
@@ -103,7 +145,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
         );
     }
 
-    const message = locationMessage ?? form.errors.attendance ?? notice;
+    const messages = [form.errors.attendance, locationMessage, form.errors.attendance ? null : notice].filter((item): item is string => typeof item === 'string' && item !== '');
 
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -142,9 +184,11 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
             <p className="mt-3 text-xs text-slate-500">
                 {timing.officeName ? `Clock-in is checked against the approved public network for ${timing.officeName}.` : 'Clock-in is recorded only after the server verifies an approved office network.'}
                 {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough.' : ''}
+                {timing.gpsCapture ? ' Optional GPS capture is on, so a browser location may be saved with this attendance action after the network check.' : ''}
+                {timing.gpsNoticePending ? ' GPS capture is enabled, but it is not requested until the Route Map notice is acknowledged.' : ''}
                 {' '}A Wi-Fi name is not detected.
             </p>
-            {message && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{message}</p>}
+            {messages.map((item) => <p key={item} className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{item}</p>)}
             <Dialog open={confirmOut} onOpenChange={setConfirmOut}>
                 <DialogContent>
                     <DialogHeader>
@@ -153,7 +197,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setConfirmOut(false)}>Cancel</Button>
-                        <Button type="button" className="bg-rose-500 hover:bg-rose-600" disabled={form.processing} onClick={() => submit('hrms.attendance.clock-out')}>
+                        <Button type="button" className="bg-rose-500 hover:bg-rose-600" disabled={form.processing} onClick={() => (timing.gpsCapture ? captureThen('hrms.attendance.clock-out') : submit('hrms.attendance.clock-out'))}>
                             Clock Out
                         </Button>
                     </DialogFooter>

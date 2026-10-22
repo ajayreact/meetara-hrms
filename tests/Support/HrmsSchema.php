@@ -636,6 +636,83 @@ class HrmsSchema
             });
         }
 
+        if (Schema::hasTable('locations') && ! Schema::hasColumn('locations', 'map_label')) {
+            Schema::table('locations', function (Blueprint $table) {
+                $table->string('map_label', 120)->nullable();
+            });
+        }
+
+        if (Schema::hasTable('tenants') && ! Schema::hasTable('company_attendance_settings')) {
+            Schema::create('company_attendance_settings', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id')->unique();
+                $table->boolean('gps_capture_enabled')->default(false);
+                $table->string('notice_version', 40);
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('company_attendance_setting_events')) {
+            Schema::create('company_attendance_setting_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('action', 20);
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('employees') && ! Schema::hasTable('gps_attendance_acknowledgements')) {
+            Schema::create('gps_attendance_acknowledgements', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->unsignedBigInteger('user_id');
+                $table->string('notice_version', 40);
+                $table->timestamp('acknowledged_at');
+                $table->unique(['tenant_id', 'employee_id', 'notice_version'], 'gps_ack_employee_version');
+            });
+        }
+
+        if (Schema::hasTable('attendance_logs') && ! Schema::hasTable('attendance_location_records')) {
+            Schema::create('attendance_location_records', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->unsignedBigInteger('attendance_log_id');
+                $table->string('event_type', 20);
+                $table->decimal('latitude', 10, 7)->nullable();
+                $table->decimal('longitude', 10, 7)->nullable();
+                $table->unsignedInteger('accuracy_meters')->nullable();
+                $table->string('status', 20);
+                $table->unsignedBigInteger('acknowledgement_id')->nullable();
+                $table->timestamp('captured_at');
+                $table->unique(['attendance_log_id', 'event_type'], 'attendance_location_event');
+            });
+        }
+
+        if (! Schema::hasTable('attendance_location_view_events')) {
+            Schema::create('attendance_location_view_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('subject', 40);
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('attendance_location_retention_events')) {
+            Schema::create('attendance_location_retention_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedSmallInteger('retention_days');
+                $table->timestamp('cutoff_at');
+                $table->unsignedInteger('deleted_count');
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
         if (! Schema::hasTable('shifts')) {
             Schema::create('shifts', function (Blueprint $table) {
                 $table->id();

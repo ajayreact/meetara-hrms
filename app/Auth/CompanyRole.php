@@ -72,12 +72,14 @@ class CompanyRole
         return match ($role) {
             'super_admin' => array_merge($none, [
                 'settings' => true,
+                'routeMap' => true,
                 'companies' => true,
                 'audit' => true,
             ]),
             'company_admin' => array_merge($none, [
                 'employees' => true,
                 'settings' => true,
+                'routeMap' => true,
                 'attendanceManage' => true,
                 'attendanceCorrect' => true,
                 'leaveApprove' => true,
@@ -89,6 +91,7 @@ class CompanyRole
             ]),
             'hr' => array_merge($none, [
                 'employees' => true,
+                'routeMap' => true,
                 'attendanceManage' => true,
                 'attendanceCorrect' => true,
                 'leaveApprove' => true,
@@ -104,8 +107,12 @@ class CompanyRole
             ]),
             'team_lead' => array_merge($none, [
                 'employees' => true,
+                'routeMap' => true,
                 'attendanceManage' => true,
                 'leaveApprove' => true,
+            ]),
+            'employee' => array_merge($none, [
+                'routeMap' => true,
             ]),
             default => $none,
         };

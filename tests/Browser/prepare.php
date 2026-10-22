@@ -5,7 +5,7 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-$allowedDatabases = ['meetara_hrms_browser', 'meetara_hrms_stage28_20261020', 'meetara_hrms_stage36_browser_20261020', 'meetara_hrms_stage37_browser_20261020', 'meetara_hrms_stage38_browser_20261020'];
+$allowedDatabases = ['meetara_hrms_browser', 'meetara_hrms_stage28_20261020', 'meetara_hrms_stage36_browser_20261020', 'meetara_hrms_stage37_browser_20261020', 'meetara_hrms_stage38_browser_20261020', 'meetara_hrms_routemap_browser_20261022'];
 $configuredDatabase = getenv('DB_DATABASE');
 
 if ($configuredDatabase === 'meetara_hrms') {

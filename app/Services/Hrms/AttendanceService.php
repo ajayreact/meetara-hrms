@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\DB;
 
 class AttendanceService
 {
-    public function __construct(private readonly ClientAddress $clientAddress) {}
+    public function __construct(
+        private readonly ClientAddress $clientAddress,
+        private readonly GpsCapture $gpsCapture,
+    ) {}
 
     public function clockIn(User $actor, ?int $requestedOfficeId, Request $request): AttendanceLog
     {
@@ -63,6 +66,8 @@ class AttendanceService
             } catch (QueryException) {
                 throw new AttendanceRejected('You already have an active attendance session.');
             }
+
+            $this->gpsCapture->record($actor, $employee, $log, 'clock_in', $request);
 
             return $log;
         });
@@ -133,6 +138,8 @@ class AttendanceService
             $log->forceFill([
                 'late_minutes' => $schedule->lateMinutes(Carbon::parse($checkIn, $this->timezone($office))),
             ])->save();
+
+            $this->gpsCapture->record($actor, $employee, $log, 'clock_out', $request);
         });
     }
 

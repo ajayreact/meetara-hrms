@@ -30,6 +30,8 @@ class AttendanceDirectory
             'canEndBreak' => false,
             'canClockOut' => false,
             'gpsRequired' => false,
+            'gpsCapture' => false,
+            'gpsNoticePending' => false,
         ];
 
         $employee = $this->employee($user);
@@ -75,6 +77,8 @@ class AttendanceDirectory
             'canEndBreak' => $state === 'break',
             'canClockOut' => $state === 'in',
             'gpsRequired' => (bool) $office?->gps_verification_enabled,
+            'gpsCapture' => app(GpsCapture::class)->shouldRequest($user),
+            'gpsNoticePending' => app(GpsCapture::class)->noticePending($user),
         ];
     }
 
@@ -381,7 +385,7 @@ class AttendanceDirectory
         return [
             'work' => $log->minutes !== null && $log->check_out !== null ? (int) $log->minutes : $work,
             'break' => $breakMinutes,
-            'early' => $log->check_out ? $schedule->earlyMinutes($out) : 0,
+            'early' => $log->check_out ? $schedule->earlyMinutes($out, $in) : 0,
         ];
     }
 

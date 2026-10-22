@@ -11,12 +11,15 @@ use App\Models\LocationNetwork;
 use App\Models\Office;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\Hrms\WorkSchedule;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\MapTiles;
 use App\Support\OfficeVerification;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -50,6 +53,7 @@ class OfficeController extends Controller
                 'address' => $office->address,
                 'timezone' => $office->timezone ?: ($company?->timezone ?: 'UTC'),
                 'status' => (string) ($office->status ?: 'active'),
+                'mapLabel' => Schema::hasColumn('locations', 'map_label') ? $office->map_label : null,
                 'latitude' => $office->latitude,
                 'longitude' => $office->longitude,
                 'verificationRadiusMeters' => (int) ($office->verification_radius_meters ?: OfficeVerification::DEFAULT_RADIUS_METERS),
@@ -61,12 +65,14 @@ class OfficeController extends Controller
                 ])->all(),
             ])->all(),
             'locationFieldsAvailable' => OfficeVerification::columnsAvailable(),
+            'mapLabelAvailable' => Schema::hasColumn('locations', 'map_label'),
             'schedule' => [
                 'workStart' => $shift?->start_time ? substr((string) $shift->start_time, 0, 5) : '09:30',
                 'workEnd' => $shift?->end_time ? substr((string) $shift->end_time, 0, 5) : '18:30',
                 'graceMinutes' => (int) ($shift->grace_minutes ?? 10),
                 'workingDays' => array_values(array_filter($days, fn (string $day) => ! in_array($day, array_map('strtolower', $weekOff), true))),
             ],
+            'mapTiles' => MapTiles::payload(),
             'timezones' => ['Asia/Kolkata', 'Asia/Dubai', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'UTC'],
             'notice' => $request->session()->get('status'),
         ]);
@@ -96,7 +102,13 @@ class OfficeController extends Controller
         $start = $request->validated('work_start');
         $end = $request->validated('work_end');
         $grace = (int) $request->validated('grace_minutes');
-        $minutes = $this->minutes($start, $end);
+        $minutes = WorkSchedule::minutesBetween($start, $end);
+
+        if ($minutes === null) {
+            throw ValidationException::withMessages([
+                'work_end' => 'The end time must be different from the start time.',
+            ]);
+        }
 
         DB::transaction(function () use ($companyId, $weekOff, $start, $end, $grace, $minutes): void {
             Company::query()->whereKey($companyId)->update(['week_off' => json_encode($weekOff)]);
@@ -175,20 +187,18 @@ class OfficeController extends Controller
             return $attributes;
         }
 
-        return array_merge($attributes, $request->safe()->only([
+        $location = $request->safe()->only([
             'latitude',
             'longitude',
             'verification_radius_meters',
             'gps_verification_enabled',
-        ]));
-    }
+        ]);
 
-    private function minutes(string $start, string $end): int
-    {
-        [$startHour, $startMinute] = array_map('intval', explode(':', $start));
-        [$endHour, $endMinute] = array_map('intval', explode(':', $end));
+        if (Schema::hasColumn('locations', 'map_label')) {
+            $location = array_merge($location, $request->safe()->only(['map_label']));
+        }
 
-        return (($endHour * 60) + $endMinute) - (($startHour * 60) + $startMinute);
+        return array_merge($attributes, $location);
     }
 
     private function actor(Request $request): User

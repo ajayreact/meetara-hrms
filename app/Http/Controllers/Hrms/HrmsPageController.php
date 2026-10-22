@@ -93,11 +93,6 @@ class HrmsPageController extends Controller
         return app(HelpDeskController::class)->index($request, app(\App\Services\Hrms\HelpDeskService::class));
     }
 
-    public function routeMap(Request $request): Response
-    {
-        return $this->gated($request, 'route-map/index', 'routeMap', 'Route Map');
-    }
-
     public function companySettings(Request $request): Response
     {
         $workspace = $this->workspace($request);
@@ -116,6 +111,11 @@ class HrmsPageController extends Controller
         return Inertia::render('settings/company', [
             'workspace' => $workspace,
             'payrollSettings' => $user->applicationRole() === 'company_admin' ? app(PayrollSettings::class)->present($user) : null,
+            'gpsCapture' => $user->applicationRole() === 'company_admin' ? [
+                'ready' => app(\App\Services\Hrms\GpsCapture::class)->ready(),
+                'enabled' => $user->companyId() !== null && app(\App\Services\Hrms\GpsCapture::class)->enabled((int) $user->companyId()),
+                'notice' => app(\App\Services\Hrms\GpsCapture::class)->notice(),
+            ] : null,
             'notice' => session('status'),
             'error' => session('error'),
         ]);

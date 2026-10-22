@@ -17,6 +17,7 @@ use App\Http\Controllers\Hrms\PaymentController;
 use App\Http\Controllers\Hrms\PayrollController;
 use App\Http\Controllers\Hrms\PayrollSettingsController;
 use App\Http\Controllers\Hrms\PayslipController;
+use App\Http\Controllers\Hrms\RouteMapController;
 use App\Http\Controllers\Hrms\SalaryController;
 use Illuminate\Support\Facades\Route;
 
@@ -89,7 +90,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/help-desk/{ticket}/assign', [HelpDeskController::class, 'assign'])->name('hrms.help-desk.assign');
     Route::post('/help-desk/{ticket}/status', [HelpDeskController::class, 'status'])->name('hrms.help-desk.status');
     Route::post('/inbox/{notification}/read', [InboxController::class, 'read'])->name('hrms.inbox.read');
-    Route::get('/route-map', [HrmsPageController::class, 'routeMap'])->name('hrms.route-map');
+    Route::get('/route-map', [RouteMapController::class, 'index'])->name('hrms.route-map');
+    Route::post('/route-map/acknowledgement', [RouteMapController::class, 'acknowledge'])->name('hrms.route-map.acknowledge');
+    Route::put('/company/settings/gps-capture', [RouteMapController::class, 'updateCapture'])->name('hrms.company-settings.gps');
     Route::get('/offices', [OfficeController::class, 'index'])->name('hrms.offices');
     Route::post('/offices', [OfficeController::class, 'store'])->name('hrms.offices.store');
     Route::put('/offices/schedule', [OfficeController::class, 'schedule'])->name('hrms.offices.schedule');
