@@ -34,21 +34,26 @@ export default function AccountsDashboard({ workspace, payrollBoard }: HrmsPageP
         <HrmsLayout workspace={workspace} title="Accounts">
             <PageIntro title={greetingName(workspace.userName)} subtitle={board.currencyNote || `${workspace.companyName ?? 'Your company'} · payroll figures come from saved runs.`} />
             {board.runs === 0 ? (
-                <SectionCard title="Payroll" extra={<Link href="/payroll/runs" className="text-sm font-medium text-blue-700 hover:underline">Open runs</Link>}>
+                <SectionCard title="Payroll" extra={<PayrollLinks />}>
                     <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
                         <p className="text-sm font-medium text-slate-800">No payroll runs yet</p>
-                        <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">Opening this page does not create a run. A run is opened for one company and month from payroll runs.</p>
+                        <p className="mx-auto mt-2 max-w-lg text-sm leading-5 text-slate-500">{payrollGuidance}</p>
                     </div>
                 </SectionCard>
             ) : (
                 <>
                     <div className="grid gap-3 md:grid-cols-3">
-                        <MetricCard tone="blue" icon={Receipt} label="Processed net" value={board.processedNet} />
+                        {board.processed > 0 ? (
+                            <MetricCard tone="blue" icon={Receipt} label="Processed net" value={board.processedNet} />
+                        ) : (
+                            <MetricCard tone="blue" icon={Receipt} label="Processed runs" value={String(board.processed)} />
+                        )}
                         <MetricCard tone="orange" icon={Clock3} label="Awaiting review" value={String(board.review)} />
                         <MetricCard tone="green" icon={CircleCheck} label="Outstanding payments" value={String(board.outstanding)} />
                     </div>
+                    <p className="mt-3 text-sm leading-5 text-slate-500">{payrollGuidance}</p>
                     <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                        <SectionCard title="Payroll" extra={<Link href="/payroll" className="text-sm text-blue-600">Open payroll</Link>}>
+                        <SectionCard title="Payroll" extra={<PayrollLinks />}>
                             <ul className="divide-y divide-slate-100 text-sm text-slate-700">
                                 <Count label="Draft" value={board.draft} />
                                 <Count label="Calculated" value={board.calculated} />
@@ -74,6 +79,17 @@ export default function AccountsDashboard({ workspace, payrollBoard }: HrmsPageP
                 </>
             )}
         </HrmsLayout>
+    );
+}
+
+const payrollGuidance = 'Accounts can create and calculate payroll from Payroll Runs. Payroll Review lists runs awaiting review. Approval and processing remain blocked while statutory categories are unresolved. Opening this dashboard does not create a payroll run.';
+
+function PayrollLinks() {
+    return (
+        <span className="flex flex-wrap gap-3 text-sm">
+            <Link href="/payroll/runs" className="font-medium text-blue-700 hover:underline">Payroll Runs</Link>
+            <Link href="/payroll/runs?status=review" className="font-medium text-blue-700 hover:underline">Payroll Review</Link>
+        </span>
     );
 }
 

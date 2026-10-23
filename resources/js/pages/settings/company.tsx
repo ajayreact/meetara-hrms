@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 
 interface PayrollSettings {
     currency: string | null;
@@ -30,7 +31,15 @@ interface GpsCaptureSettings {
     notice: string;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; notice?: string | null; error?: string | null }) {
+interface CandidateFormSettings {
+    ready: boolean;
+    enabled: boolean;
+    canEnable: boolean;
+    publicUrl: string | null;
+    notice: string;
+}
+
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -45,6 +54,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
                     </SectionCard>
                     {payrollSettings && <PayrollSettingsForm settings={payrollSettings} notice={notice} error={error} />}
                     {gpsCapture && <GpsCaptureForm settings={gpsCapture} />}
+                    {candidateForm && <CandidateFormSettingsForm settings={candidateForm} />}
                 </div>
             )}
         </HrmsLayout>
@@ -120,6 +130,52 @@ function PayrollSettingsForm({ settings, notice, error }: { settings: PayrollSet
                 </ul>
                 </div>
             </SectionCard>
+    );
+}
+
+function CandidateFormSettingsForm({ settings }: { settings: CandidateFormSettings }) {
+    const form = useForm({ enabled: settings.enabled, confirm_disable: false });
+    const rotation = useForm({ confirm_rotate: false });
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <SectionCard title="Public candidate form" className="xl:col-span-2">
+            <p className="text-sm leading-6 text-slate-600">{settings.notice}</p>
+            {!settings.ready && <p className="mt-3 text-sm text-amber-800">Candidate form storage is not ready on this database, so the setting cannot be saved.</p>}
+            {settings.ready && !settings.canEnable && <p className="mt-3 text-sm text-amber-800">The form cannot be enabled until malware scanning and the verification check are configured.</p>}
+            {settings.enabled && settings.publicUrl && (
+                <div className="mt-4 grid gap-2">
+                    <Label htmlFor="candidate-public-url">Public form link</Label>
+                    <div className="flex flex-wrap gap-2">
+                        <Input id="candidate-public-url" readOnly value={settings.publicUrl} className="max-w-xl" />
+                        <Button type="button" variant="outline" onClick={() => { void navigator.clipboard.writeText(settings.publicUrl ?? '').then(() => setCopied(true)); }}>{copied ? 'Copied' : 'Copy link'}</Button>
+                    </div>
+                </div>
+            )}
+            <form className="mt-4 grid gap-3" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.candidate-form')); }}>
+                <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={form.data.enabled} onChange={(event) => form.setData('enabled', event.target.checked)} disabled={!settings.ready || (!settings.enabled && !settings.canEnable)} />
+                    Accept new candidate submissions
+                </label>
+                {settings.enabled && !form.data.enabled && (
+                    <label className="flex items-start gap-2 text-sm">
+                        <input type="checkbox" checked={form.data.confirm_disable} onChange={(event) => form.setData('confirm_disable', event.target.checked)} />
+                        <span>Stop new submissions. Existing submissions and documents stay available to HR.</span>
+                    </label>
+                )}
+                <InputError message={form.errors.confirm_disable} />
+                <Button type="submit" disabled={form.processing || !settings.ready || (settings.enabled && !form.data.enabled && !form.data.confirm_disable)}>{form.processing ? 'Working…' : 'Save candidate form'}</Button>
+            </form>
+            <form className="mt-4 grid gap-3 border-t border-slate-200 pt-4" onSubmit={(event) => { event.preventDefault(); rotation.post(route('hrms.company-settings.candidate-form.rotate')); }}>
+                <p className="text-sm text-slate-600">Replacing the public link makes the current link stop opening the form. Submissions already received stay in this company.</p>
+                <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" checked={rotation.data.confirm_rotate} onChange={(event) => rotation.setData('confirm_rotate', event.target.checked)} disabled={!settings.ready} />
+                    <span>I understand the current public link will stop working.</span>
+                </label>
+                <InputError message={rotation.errors.confirm_rotate} />
+                <Button type="submit" variant="outline" disabled={rotation.processing || !settings.ready || !rotation.data.confirm_rotate}>{rotation.processing ? 'Working…' : 'Replace public link'}</Button>
+            </form>
+        </SectionCard>
     );
 }
 

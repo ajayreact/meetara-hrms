@@ -106,7 +106,7 @@ export function OfficeMapPicker({
         <div className="grid gap-2">
             <div
                 ref={frame}
-                className="relative h-56 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                className="relative h-48 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                 onClick={(event) => {
                     if (disabled) {
                         return;
@@ -125,19 +125,19 @@ export function OfficeMapPicker({
                         key={tile.key}
                         alt=""
                         src={tileUrl(template, zoom, tile.x, tile.y)}
-                        referrerPolicy="no-referrer"
+                        referrerPolicy="origin"
                         className="absolute max-w-none"
                         style={{ left: tile.left, top: tile.top, width: TILE, height: TILE }}
                         draggable={false}
                     />
                 ))}
-                {hasPoint && <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-rose-600 shadow" />}
+                {hasPoint && <span className="pointer-events-none absolute left-1/2 top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-full text-blue-600" aria-hidden="true"><svg viewBox="0 0 24 24" className="size-6 fill-blue-600 stroke-white" strokeWidth="1.5"><path d="M12 22s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" className="fill-white" /></svg></span>}
+                <div className="absolute top-2 left-2 z-20 flex flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm" onClick={(event) => event.stopPropagation()}>
+                    <button type="button" className="px-2 py-1 text-sm leading-none text-slate-700 hover:bg-slate-50" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(18, value + 1))}>+</button>
+                    <button type="button" className="border-t border-slate-200 px-2 py-1 text-sm leading-none text-slate-700 hover:bg-slate-50" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(2, value - 1))}>−</button>
+                </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.min(18, value + 1))}>Zoom in</button>
-                <button type="button" className="rounded border border-slate-200 px-2 py-1" onClick={() => setZoom((value) => Math.max(2, value - 1))}>Zoom out</button>
-                <span>{tiles?.disclosure || DEFAULT_TILE_DISCLOSURE} Manual coordinates are saved with the office.</span>
-            </div>
+            <p className="text-xs leading-5 text-slate-500">{tiles?.disclosure || DEFAULT_TILE_DISCLOSURE} Manual coordinates are saved with the office.</p>
         </div>
     );
 }

@@ -25,6 +25,8 @@ const tones: Record<string, string> = {
     Declined: 'bg-rose-50 text-rose-700',
     Calculated: 'bg-blue-50 text-blue-700',
     'Under Review': 'bg-amber-50 text-amber-700',
+    'Pending Review': 'bg-amber-50 text-amber-700',
+    'Changes Requested': 'bg-amber-50 text-amber-800',
     Approved: 'bg-emerald-50 text-emerald-700',
     Processed: 'bg-emerald-50 text-emerald-700',
     Paid: 'bg-emerald-50 text-emerald-700',

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Hrms;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Hrms\ApproveDetectedNetworkRequest;
 use App\Http\Requests\Hrms\OfficeNetworkRequest;
 use App\Http\Requests\Hrms\OfficeRequest;
 use App\Http\Requests\Hrms\OfficeScheduleRequest;
@@ -13,6 +14,8 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\Hrms\WorkSchedule;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\ClientAddress;
+use App\Support\NetworkAddress;
 use App\Support\MapTiles;
 use App\Support\OfficeVerification;
 use Illuminate\Database\QueryException;
@@ -74,6 +77,7 @@ class OfficeController extends Controller
             ],
             'mapTiles' => MapTiles::payload(),
             'timezones' => ['Asia/Kolkata', 'Asia/Dubai', 'America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'UTC'],
+            'detectedAddress' => $this->detectedAddress($request),
             'notice' => $request->session()->get('status'),
         ]);
     }
@@ -137,21 +141,24 @@ class OfficeController extends Controller
 
     public function storeNetwork(OfficeNetworkRequest $request, Office $office): RedirectResponse
     {
-        $network = new LocationNetwork(['cidr' => $request->validated('cidr')]);
-        $network->forceFill([
-            'tenant_id' => $office->tenant_id,
-            'location_id' => $office->id,
-        ]);
+        $this->rememberNetwork($office, (string) $request->validated('cidr'), 'cidr');
 
-        try {
-            $network->save();
-        } catch (QueryException) {
+        return back()->with('status', 'Approved network saved.');
+    }
+
+    public function approveDetected(ApproveDetectedNetworkRequest $request, Office $office): RedirectResponse
+    {
+        $detected = $this->detectedAddress($request);
+
+        if (! $detected['approvable'] || ! is_string($detected['ip'])) {
             throw ValidationException::withMessages([
-                'cidr' => 'That network is already approved for this office.',
+                'confirm_detected' => $detected['message'],
             ]);
         }
 
-        return back()->with('status', 'Approved network saved.');
+        $this->rememberNetwork($office, NetworkAddress::normalizeCidr($detected['ip']), 'confirm_detected');
+
+        return back()->with('status', 'The detected public address was approved for this office.');
     }
 
     public function destroyNetwork(Request $request, Office $office, int $network): RedirectResponse
@@ -199,6 +206,81 @@ class OfficeController extends Controller
         }
 
         return array_merge($attributes, $location);
+    }
+
+    /**
+     * @return array{ip: ?string, approvable: bool, message: string}
+     */
+    private function detectedAddress(Request $request): array
+    {
+        $observed = app(ClientAddress::class)->observe($request);
+
+        if (! $observed['ok'] || ! is_string($observed['ip'])) {
+            $invalidProxy = str_contains($observed['reason'], 'invalid');
+
+            return [
+                'ip' => null,
+                'approvable' => false,
+                'message' => $invalidProxy
+                    ? 'The trusted-proxy configuration is invalid, so this connection cannot be approved.'
+                    : 'A forwarded address arrived from an untrusted connection, so this connection cannot be approved.',
+            ];
+        }
+
+        $ip = $observed['ip'];
+
+        if (NetworkAddress::isForbidden($ip)) {
+            $loopback = $ip === '::1' || str_starts_with($ip, '127.');
+
+            return [
+                'ip' => null,
+                'approvable' => false,
+                'message' => $loopback
+                    ? 'This connection is localhost. A loopback address is not saved for this company.'
+                    : 'This connection is a private address such as 192.168, 10.x, or 172.16. Private addresses are not saved for this company. Approve only the public address of this office network.',
+            ];
+        }
+
+        return [
+            'ip' => $ip,
+            'approvable' => true,
+            'message' => 'The server sees this public address on the current connection. It is not saved until you confirm it for one office.',
+        ];
+    }
+
+    private function rememberNetwork(Office $office, string $cidr, string $errorKey): void
+    {
+        $alreadySaved = LocationNetwork::query()
+            ->where('tenant_id', $office->tenant_id)
+            ->where('location_id', $office->id)
+            ->pluck('cidr')
+            ->contains(function (mixed $saved) use ($cidr): bool {
+                try {
+                    return NetworkAddress::normalizeCidr((string) $saved) === $cidr;
+                } catch (\InvalidArgumentException) {
+                    return false;
+                }
+            });
+
+        if ($alreadySaved) {
+            throw ValidationException::withMessages([
+                $errorKey => 'That network is already approved for this office.',
+            ]);
+        }
+
+        $network = new LocationNetwork(['cidr' => $cidr]);
+        $network->forceFill([
+            'tenant_id' => $office->tenant_id,
+            'location_id' => $office->id,
+        ]);
+
+        try {
+            $network->save();
+        } catch (QueryException) {
+            throw ValidationException::withMessages([
+                $errorKey => 'That network is already approved for this office.',
+            ]);
+        }
     }
 
     private function actor(Request $request): User

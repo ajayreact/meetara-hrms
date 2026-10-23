@@ -8,9 +8,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Comma-separated public addresses of proxies that may set X-Forwarded-For.
-    | Leave this empty when the browser connects directly, including local WAMP.
-    | A value of "*" is ignored. Forwarded headers from any other peer are not
-    | used as proof of an office network.
+    | Leave this empty when the browser connects directly, including local WAMP
+    | and a LAN address such as 192.168.x.x. Loopback and private proxy
+    | addresses are ignored, because trusting them would allow the browser to
+    | supply the client address. A value of "*" is ignored. Forwarded headers
+    | from any other peer are not used as proof of an office network.
     |
     */
 

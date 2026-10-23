@@ -92,6 +92,7 @@ test('company admin saves, validates, clears, and reloads office coordinates', a
 
     const annex = officeCard(page, 'North Annex');
     await expect(annex.getByText('Saved coordinates: not configured. Route Map lists this office as Not on map.')).toBeVisible();
+    await annex.getByRole('button', { name: 'Edit office' }).click();
     const latitude = annex.getByRole('textbox', { name: /^Latitude/ });
     const longitude = annex.getByRole('textbox', { name: /^Longitude/ });
     await expect(latitude).toBeEnabled();
@@ -123,6 +124,7 @@ test('company admin saves, validates, clears, and reloads office coordinates', a
     await page.reload();
     const saved = officeCard(page, 'North Annex');
     await expect(saved.getByText(/Saved coordinates: 22\.517/)).toBeVisible();
+    await saved.getByRole('button', { name: 'Edit office' }).click();
     expect(Number(await saved.getByRole('textbox', { name: /^Latitude/ }).inputValue())).toBeCloseTo(22.517, 6);
     expect(Number(await saved.getByRole('textbox', { name: /^Longitude/ }).inputValue())).toBeCloseTo(88.3654, 6);
     await expect(saved.getByRole('textbox', { name: /^Map display name/ })).toHaveValue('Annex Gate');
@@ -133,13 +135,14 @@ test('company admin saves, validates, clears, and reloads office coordinates', a
     await saved.getByRole('button', { name: 'Clear coordinates' }).click();
     await saved.getByRole('button', { name: 'Save office' }).click();
     await page.reload();
-    await expect(officeCard(page, 'North Annex').getByText('Saved coordinates: not configured. Route Map lists this office as Not on map.')).toBeVisible();
-    await expect(officeCard(page, 'North Annex').getByRole('textbox', { name: /^Physical office address/ })).toHaveValue('40 Lake Road, Kolkata');
+    const cleared = officeCard(page, 'North Annex');
+    await expect(cleared.getByText('Saved coordinates: not configured. Route Map lists this office as Not on map.')).toBeVisible();
+    await cleared.getByRole('button', { name: 'Edit office' }).click();
+    await expect(cleared.getByRole('textbox', { name: /^Physical office address/ })).toHaveValue('40 Lake Road, Kolkata');
 
-    const again = officeCard(page, 'North Annex');
-    await again.getByRole('textbox', { name: /^Latitude/ }).fill('22.517');
-    await again.getByRole('textbox', { name: /^Longitude/ }).fill('88.3654');
-    await again.getByRole('button', { name: 'Save office' }).click();
+    await cleared.getByRole('textbox', { name: /^Latitude/ }).fill('22.517');
+    await cleared.getByRole('textbox', { name: /^Longitude/ }).fill('88.3654');
+    await cleared.getByRole('button', { name: 'Save office' }).click();
     await page.reload();
     await expect(officeCard(page, 'North Annex').getByText(/Saved coordinates: 22\.517/)).toBeVisible();
     await finishClean(page);
@@ -260,7 +263,7 @@ test('a granted location cannot get past a failed network check', async ({ page 
 
     await page.goto('/my-attendance');
     await page.getByRole('button', { name: 'Clock In' }).click();
-    await expect(page.getByText('You are not connected through an approved office network. Clock-in is blocked.')).toBeVisible();
+    await expect(page.getByText('Clock-in was blocked because this connection is localhost. The server does not see the office public address.')).toBeVisible();
     await expect(page.getByText('Clock-in recorded.')).toHaveCount(0);
     expect(await geoCalls(page)).toBe(1);
 
@@ -316,7 +319,7 @@ test('team lead, accounts, super admin, and another company stay inside their sc
     await page.goto('/my-attendance');
     await expect(page.getByText('Optional GPS capture is on')).toHaveCount(0);
     await page.getByRole('button', { name: 'Clock In' }).click();
-    await expect(page.getByText(/approved office network\. Clock-in is blocked|office network could not be verified/)).toBeVisible();
+    await expect(page.getByText('Clock-in was blocked because this connection is localhost. The server does not see the office public address.')).toBeVisible();
     expect(await geoCalls(page)).toBe(0);
     await finishClean(page);
 });

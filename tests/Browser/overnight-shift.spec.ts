@@ -27,7 +27,7 @@ test('an administrator previews US times and saves an overnight India shift', as
     await page.getByLabel('Preview US times for date.').fill('2026-01-15');
 
     const startPreview = page.getByText('Start in the United States').locator('xpath=..');
-    const endPreview = page.getByText('End in the United States, next India day').locator('xpath=..');
+    const endPreview = page.getByText('End in the United States (Next India day)').locator('xpath=..');
     await expect(startPreview).toContainText('New York:');
     await expect(startPreview).toContainText('8:00 AM EST');
     await expect(startPreview).toContainText('Detroit, Michigan:');

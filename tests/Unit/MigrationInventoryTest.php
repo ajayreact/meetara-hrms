@@ -22,6 +22,7 @@ class MigrationInventoryTest extends TestCase
             '2026_10_21_120000_repair_company_lifecycle_subject_email',
             '2026_10_21_150000_add_office_location_verification',
             '2026_10_22_120000_add_route_map_gps_capture',
+            '2026_10_23_200000_add_candidate_onboarding',
         ], $inventory->filesAfterDump());
     }
 
@@ -40,6 +41,7 @@ class MigrationInventoryTest extends TestCase
             MigrationInventory::SUBJECT_EMAIL_REPAIR,
             '2026_10_21_150000_add_office_location_verification',
             '2026_10_22_120000_add_route_map_gps_capture',
+            '2026_10_23_200000_add_candidate_onboarding',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());

@@ -7,12 +7,16 @@ use App\Models\Employee;
 use App\Models\Office;
 use App\Models\User;
 use App\Services\Hrms\AttendanceDirectory;
-use App\Services\Hrms\EmployeeDirectory;
-use App\Services\Hrms\LeaveDirectory;
-use App\Services\Hrms\PayrollDirectory;
+use App\Services\Hrms\CandidateOnboarding;
 use App\Services\Hrms\CompanyAdminInvitation;
-use App\Services\Hrms\PlatformDirectory;
+use App\Services\Hrms\EmployeeDirectory;
+use App\Services\Hrms\GpsCapture;
+use App\Services\Hrms\HelpDeskService;
+use App\Services\Hrms\LeaveDirectory;
+use App\Services\Hrms\OvertimeService;
+use App\Services\Hrms\PayrollDirectory;
 use App\Services\Hrms\PayrollSettings;
+use App\Services\Hrms\PlatformDirectory;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -85,12 +89,12 @@ class HrmsPageController extends Controller
 
     public function overtime(Request $request): Response
     {
-        return app(OvertimeController::class)->index($request, app(\App\Services\Hrms\OvertimeService::class));
+        return app(OvertimeController::class)->index($request, app(OvertimeService::class));
     }
 
     public function helpDesk(Request $request): Response
     {
-        return app(HelpDeskController::class)->index($request, app(\App\Services\Hrms\HelpDeskService::class));
+        return app(HelpDeskController::class)->index($request, app(HelpDeskService::class));
     }
 
     public function companySettings(Request $request): Response
@@ -112,10 +116,11 @@ class HrmsPageController extends Controller
             'workspace' => $workspace,
             'payrollSettings' => $user->applicationRole() === 'company_admin' ? app(PayrollSettings::class)->present($user) : null,
             'gpsCapture' => $user->applicationRole() === 'company_admin' ? [
-                'ready' => app(\App\Services\Hrms\GpsCapture::class)->ready(),
-                'enabled' => $user->companyId() !== null && app(\App\Services\Hrms\GpsCapture::class)->enabled((int) $user->companyId()),
-                'notice' => app(\App\Services\Hrms\GpsCapture::class)->notice(),
+                'ready' => app(GpsCapture::class)->ready(),
+                'enabled' => $user->companyId() !== null && app(GpsCapture::class)->enabled((int) $user->companyId()),
+                'notice' => app(GpsCapture::class)->notice(),
             ] : null,
+            'candidateForm' => $user->applicationRole() === 'company_admin' ? app(CandidateOnboarding::class)->settings($user) : null,
             'notice' => session('status'),
             'error' => session('error'),
         ]);

@@ -16,7 +16,9 @@ export default defineConfig({
         actionTimeout: 15_000,
     },
     webServer: {
-        command: 'php artisan serve --host=127.0.0.1 --port=8001',
+        // php -S keeps this process environment. php artisan serve can drop it and fall back to .env.
+        command: 'php -S 127.0.0.1:8001 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php',
+        cwd: 'public',
         url: 'http://127.0.0.1:8001/login',
         reuseExistingServer: false,
         timeout: 120_000,
@@ -24,6 +26,7 @@ export default defineConfig({
             DB_CONNECTION: 'mysql',
             DB_DATABASE: 'meetara_hrms_browser',
             APP_URL: 'http://127.0.0.1:8001',
+            TRUSTED_PROXIES: '127.0.0.1',
         },
     },
     projects: [

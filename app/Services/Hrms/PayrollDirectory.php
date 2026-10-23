@@ -11,11 +11,13 @@ use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
 use App\Models\User;
 use App\Support\Money;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class PayrollDirectory
 {
     public function __construct(private readonly PayrollStatutoryReadiness $statutory) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -34,6 +36,10 @@ class PayrollDirectory
             'processedGross' => '0.00',
             'processedNet' => '0.00',
             'employees' => 0,
+            'activeEmployees' => 0,
+            'payslips' => 0,
+            'latest' => null,
+            'eligibility' => null,
             'period' => $this->emptyPeriod($year, $month),
             'activity' => [],
         ];
@@ -75,6 +81,12 @@ class PayrollDirectory
             'processedGross' => Money::format($processedGross),
             'processedNet' => Money::format($net),
             'employees' => $processedIds->isEmpty() ? 0 : PayrollItem::query()->whereIn('payroll_run_id', $processedIds)->count(),
+            'activeEmployees' => Employee::query()->inCompany($companyId)->where('status', 'active')->count(),
+            'payslips' => $processedIds->isEmpty() || ! Schema::hasTable('payroll_items')
+                ? 0
+                : PayrollItem::query()->whereIn('payroll_run_id', $processedIds)->where('tenant_id', $companyId)->count(),
+            'latest' => $this->latest($companyId),
+            'eligibility' => $this->eligibility($companyId, $year, $month),
             'period' => $this->period($companyId, $year, $month),
             'activity' => $this->activity($companyId),
         ];
@@ -125,6 +137,8 @@ class PayrollDirectory
         return [
             ...$this->summary($run),
             'warnings' => $run->warnings ?? [],
+            'membership' => $this->membership($run),
+            'totals' => $this->reliableTotals($run),
             'blocked' => collect($run->warnings ?? [])->contains(fn (array $warning): bool => ($warning['level'] ?? null) === 'critical') || ! $this->statutory->ready(),
             'statutory' => $this->statutory->present(),
             'deductionsConfigured' => false,
@@ -418,6 +432,180 @@ class PayrollDirectory
         }
 
         return Money::format($cents);
+    }
+
+    /**
+     * @return array{id: int, period: string, status: string, rawStatus: string}|null
+     */
+    private function latest(int $companyId): ?array
+    {
+        $run = PayrollRun::query()->inCompany($companyId)->latest('year')->latest('month')->latest('id')->first();
+
+        return $run === null ? null : $this->summary($run);
+    }
+
+    /**
+     * @return array{included: int, excluded: int}|null
+     */
+    private function eligibility(int $companyId, ?int $year, ?int $month): ?array
+    {
+        if ($year === null || $month === null) {
+            return null;
+        }
+
+        $groups = $this->classify($companyId, $this->monthBounds($year, $month));
+
+        return [
+            'included' => count($groups['included']),
+            'excluded' => count($groups['excluded']),
+        ];
+    }
+
+    /**
+     * @return array{source: string, included: list<array{name: string, code: string, reason: string}>, excluded: list<array{name: string, code: string, reason: string}>}
+     */
+    private function membership(PayrollRun $run): array
+    {
+        $groups = $this->classify((int) $run->tenant_id, $this->monthBounds((int) $run->year, (int) $run->month));
+        $saved = $run->items->keyBy('employee_id');
+
+        if ($saved->isEmpty() && $run->status === 'draft') {
+            return [
+                'source' => 'preview',
+                'included' => array_map(fn (array $row): array => $this->publicMember($row), $groups['included']),
+                'excluded' => array_map(fn (array $row): array => $this->publicMember($row), $groups['excluded']),
+            ];
+        }
+
+        $included = [];
+        $excluded = [];
+
+        foreach ([...$groups['included'], ...$groups['excluded']] as $row) {
+            $employeeId = $row['employeeId'];
+            $row = $this->publicMember($row);
+
+            if ($saved->has($employeeId)) {
+                $row['reason'] = 'Included in the saved calculation.';
+                $included[] = $row;
+
+                continue;
+            }
+
+            $excluded[] = $row;
+        }
+
+        return ['source' => 'saved', 'included' => $included, 'excluded' => $excluded];
+    }
+
+    /**
+     * @param  array{employeeId: int, name: string, code: string, reason: string}  $row
+     * @return array{name: string, code: string, reason: string}
+     */
+    private function publicMember(array $row): array
+    {
+        return [
+            'name' => $row['name'],
+            'code' => $row['code'],
+            'reason' => $row['reason'],
+        ];
+    }
+
+    /**
+     * @return array{reliable: bool, currency: string|null, employees: int, gross: string|null, net: string|null, note: string}|null
+     */
+    private function reliableTotals(PayrollRun $run): ?array
+    {
+        if ($run->items->isEmpty()) {
+            return null;
+        }
+
+        $currencies = $run->items->pluck('currency')->unique()->values();
+
+        if ($currencies->count() !== 1) {
+            return [
+                'reliable' => false,
+                'currency' => null,
+                'employees' => $run->items->count(),
+                'gross' => null,
+                'net' => null,
+                'note' => 'Saved rows use more than one currency, so they are not combined.',
+            ];
+        }
+
+        $processed = $run->status === 'processed';
+
+        return [
+            'reliable' => true,
+            'currency' => (string) $currencies->first(),
+            'employees' => $run->items->count(),
+            'gross' => $this->moneySum($run->items->pluck('gross')),
+            'net' => $processed ? $this->moneySum($run->items->pluck('net')) : null,
+            'note' => $processed
+                ? 'Gross and net come from the processed payroll rows.'
+                : 'Gross is the saved basic, HRA, and special allowance. Net payable stays hidden because statutory deductions are not configured.',
+        ];
+    }
+
+    /**
+     * @param  array{start: Carbon, end: Carbon}  $period
+     * @return array{included: list<array{employeeId: int, name: string, code: string, reason: string}>, excluded: list<array{employeeId: int, name: string, code: string, reason: string}>}
+     */
+    private function classify(int $companyId, array $period): array
+    {
+        $included = [];
+        $excluded = [];
+
+        foreach (Employee::query()->inCompany($companyId)->orderBy('employee_code')->get() as $employee) {
+            $row = [
+                'employeeId' => (int) $employee->id,
+                'name' => trim($employee->first_name.' '.$employee->last_name),
+                'code' => (string) $employee->employee_code,
+                'reason' => 'Active employee with a salary record effective for this period.',
+            ];
+
+            if ($employee->status !== 'active') {
+                $row['reason'] = 'Not an active employee.';
+                $excluded[] = $row;
+
+                continue;
+            }
+
+            if ($employee->date_of_joining === null || $employee->date_of_joining->gt($period['start'])) {
+                $row['reason'] = 'Joined during or after this period. Proration is not configured.';
+                $excluded[] = $row;
+
+                continue;
+            }
+
+            $structure = SalaryStructure::query()
+                ->where('tenant_id', $companyId)
+                ->where('employee_id', $employee->id)
+                ->whereDate('effective_from', '<=', $period['end']->toDateString())
+                ->orderByDesc('effective_from')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($structure === null) {
+                $row['reason'] = 'No salary record effective for this period.';
+                $excluded[] = $row;
+
+                continue;
+            }
+
+            $included[] = $row;
+        }
+
+        return ['included' => $included, 'excluded' => $excluded];
+    }
+
+    /**
+     * @return array{start: Carbon, end: Carbon}
+     */
+    private function monthBounds(int $year, int $month): array
+    {
+        $start = Carbon::create($year, $month, 1)->startOfDay();
+
+        return ['start' => $start, 'end' => $start->copy()->endOfMonth()->startOfDay()];
     }
 
     private function canView(User $user): bool

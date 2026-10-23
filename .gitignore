@@ -38,6 +38,7 @@ yarn-error.log
 !/storage/logs/.gitignore
 /storage/app/private/*
 !/storage/app/private/.gitignore
+!/storage/app/private/.htaccess
 
 # Local database dumps and backups
 /database/schema/*.sql

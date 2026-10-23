@@ -29,5 +29,8 @@ class DeploymentSecurityTest extends TestCase
         $this->assertSame([], DeploymentSecurity::trustedProxies('*'));
         $this->assertSame([], DeploymentSecurity::trustedProxies(' * '));
         $this->assertSame(['198.51.100.8'], DeploymentSecurity::trustedProxies('198.51.100.8, *'));
+        $this->assertSame(['198.51.100.8'], DeploymentSecurity::trustedProxies('127.0.0.1, 192.168.0.174, 198.51.100.8'));
+        $this->assertSame([], DeploymentSecurity::trustedProxies('127.0.0.1'));
+        $this->assertSame([], DeploymentSecurity::trustedProxies('192.168.0.174'));
     }
 }

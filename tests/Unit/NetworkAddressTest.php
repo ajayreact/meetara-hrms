@@ -16,6 +16,15 @@ class NetworkAddressTest extends TestCase
         $this->assertTrue(NetworkAddress::matches('2001:db8::10', ['2001:db8::/32']));
         $this->assertFalse(NetworkAddress::matches('198.51.100.5', ['203.0.113.0/24']));
         $this->assertFalse(NetworkAddress::matches('192.168.1.10', ['203.0.113.0/24']));
+        $this->assertTrue(NetworkAddress::matches('103.211.39.102', ['103.211.39.102']));
+        $this->assertTrue(NetworkAddress::matches('103.211.39.102', [' 103.211.39.102/32 ']));
+        $this->assertTrue(NetworkAddress::matches('::ffff:103.211.39.102', ['103.211.39.102']));
+        $this->assertSame('address_not_public', NetworkAddress::denialReason('127.0.0.1', ['103.211.39.102']));
+        $this->assertSame('address_not_public', NetworkAddress::denialReason('192.168.1.10', ['103.211.39.102/32']));
+        $this->assertSame('address_not_approved', NetworkAddress::denialReason('198.51.100.20', ['103.211.39.102']));
+        $this->assertSame('no_approved_network', NetworkAddress::denialReason('103.211.39.102', []));
+        $this->assertNull(NetworkAddress::denialReason('103.211.39.50', ['103.211.39.0/24']));
+        $this->assertNull(NetworkAddress::denialReason('2001:db8::10', ['2001:db8::/32']));
     }
 
     public function test_it_rejects_private_and_oversized_ranges(): void

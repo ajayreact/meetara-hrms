@@ -18,7 +18,7 @@ class ClientAddress
         }
 
         $configured = config('attendance.trusted_proxies', []);
-        $proxies = is_array($configured) ? $configured : [];
+        $proxies = DeploymentSecurity::trustedProxies(is_array($configured) ? implode(',', $configured) : '');
 
         if ($this->forwardedHeaderPresent($request) && ! $this->peerIsTrusted($request, $proxies)) {
             return $this->reject('A forwarded address was received from an untrusted peer.');
@@ -37,6 +37,20 @@ class ClientAddress
         }
 
         return ['ok' => true, 'ip' => $normalized, 'reason' => ''];
+    }
+
+    /**
+     * @return array{remote_addr: mixed, forwarded_header_present: bool, trusted_proxy_configured: bool}
+     */
+    public function context(Request $request): array
+    {
+        $configured = config('attendance.trusted_proxies', []);
+
+        return [
+            'remote_addr' => $request->server->get('REMOTE_ADDR'),
+            'forwarded_header_present' => $this->forwardedHeaderPresent($request),
+            'trusted_proxy_configured' => is_array($configured) && $configured !== [],
+        ];
     }
 
     /**

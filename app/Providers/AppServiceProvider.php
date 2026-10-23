@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\CaptchaVerifier;
+use App\Contracts\MalwareScanner;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -22,6 +24,8 @@ use App\Policies\PayrollPaymentPolicy;
 use App\Policies\PayrollRunPolicy;
 use App\Policies\PayslipPolicy;
 use App\Policies\SalaryStructurePolicy;
+use App\Support\Candidate\ClamAvScanner;
+use App\Support\Candidate\TurnstileVerifier;
 use App\Support\DeploymentSecurity;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
@@ -38,7 +42,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(MalwareScanner::class, ClamAvScanner::class);
+        $this->app->bind(CaptchaVerifier::class, TurnstileVerifier::class);
     }
 
     /**

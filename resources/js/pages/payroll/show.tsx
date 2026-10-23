@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { PayrollNav } from '@/components/hrms/payroll-nav';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -29,12 +30,17 @@ interface Item {
 }
 interface StatutoryItem { key: string; label: string; state: string; action: string }
 interface StatutoryReadiness { ready: boolean; approvalBlocked: boolean; processingBlocked: boolean; items: StatutoryItem[] }
+interface Member { name: string; code: string; reason: string }
+interface Membership { source: string; included: Member[]; excluded: Member[] }
+interface Totals { reliable: boolean; currency: string | null; employees: number; gross: string | null; net: string | null; note: string }
 interface RunDetail {
     id: number;
     period: string;
     status: string;
     rawStatus: string;
     warnings: Warning[];
+    membership: Membership;
+    totals: Totals | null;
     blocked: boolean;
     statutory: StatutoryReadiness;
     deductionsConfigured: boolean;
@@ -50,6 +56,7 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
     return (
         <HrmsLayout workspace={workspace} title="Payroll review">
             <PageIntro title={`Payroll ${run.period}`} subtitle="Calculation uses the saved salary record. Approval and processing stay blocked until statutory readiness is proven." />
+            <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <SectionCard title="Status" extra={<StatusBadge value={run.status} />}>
@@ -108,6 +115,29 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
                 </SectionCard>
             </div>
             </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <SectionCard title={run.membership.source === 'preview' ? 'Employees who would be included' : 'Employees included'}>
+                    <p className="mb-3 text-sm text-slate-500">{run.membership.source === 'preview' ? 'This is a preview. Calculating the run is what saves the result.' : `${run.membership.included.length} employees are in the saved calculation.`}</p>
+                    <MemberList rows={run.membership.included} empty="No employees are included." />
+                </SectionCard>
+                <SectionCard title="Employees excluded">
+                    <MemberList rows={run.membership.excluded} empty="No employees are excluded." />
+                </SectionCard>
+            </div>
+            <div className="mt-4">
+                <SectionCard title="Saved totals" extra={run.totals?.currency ?? undefined}>
+                    {run.totals === null ? (
+                        <p className="text-sm text-slate-500">No saved calculation yet, so gross pay and net payable are not shown.</p>
+                    ) : (
+                        <div className="space-y-1 text-sm text-slate-700">
+                            <p>{run.totals.employees} employee{run.totals.employees === 1 ? '' : 's'}</p>
+                            {run.totals.reliable && run.totals.gross ? <p>Gross {run.totals.currency} {run.totals.gross}</p> : <p>Gross is not combined.</p>}
+                            {run.totals.net ? <p>Net payable {run.totals.currency} {run.totals.net}</p> : null}
+                            <p className="text-slate-500">{run.totals.note}</p>
+                        </div>
+                    )}
+                </SectionCard>
+            </div>
             <div className="mt-4">
                 <SectionCard title="Employees">
                     {run.items.length === 0 ? <p className="text-sm text-slate-500">No calculated employees yet.</p> : (
@@ -132,8 +162,8 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
                                             <td className="px-3 py-3">{run.deductionsConfigured ? item.tds : 'Not configured'}</td>
                                             <td className="px-3 py-3">{run.deductionsConfigured ? item.lop : 'Not configured'}</td>
                                             <td className="px-3 py-3 whitespace-nowrap">{item.currency ?? ''} {item.gross}</td>
-                                            <td className="px-3 py-3">{item.deductions}</td>
-                                            <td className="px-3 py-3">{item.net}</td>
+                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.deductions : 'Not configured'}</td>
+                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.net : 'Not finalized'}</td>
                                             <td className="px-3 py-3">{item.workingDays}</td>
                                             <td className="px-3 py-3">{item.presentDays}</td>
                                             <td className="px-3 py-3">{item.leaveDays}</td>
@@ -146,5 +176,22 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
                 </SectionCard>
             </div>
         </HrmsLayout>
+    );
+}
+
+function MemberList({ rows, empty }: { rows: { name: string; code: string; reason: string }[]; empty: string }) {
+    if (rows.length === 0) {
+        return <p className="text-sm text-slate-500">{empty}</p>;
+    }
+
+    return (
+        <ul className="divide-y divide-slate-100 text-sm">
+            {rows.map((row) => (
+                <li key={`${row.code}-${row.reason}`} className="py-2">
+                    <span className="font-medium text-slate-800">{row.name} · {row.code}</span>
+                    <span className="mt-0.5 block text-slate-500">{row.reason}</span>
+                </li>
+            ))}
+        </ul>
     );
 }

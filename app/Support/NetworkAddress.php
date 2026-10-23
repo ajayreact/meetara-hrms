@@ -101,23 +101,45 @@ class NetworkAddress
      */
     public static function matches(string $ip, array $cidrs): bool
     {
+        return self::denialReason($ip, $cidrs) === null;
+    }
+
+    /**
+     * @param  list<string>  $cidrs
+     */
+    public static function denialReason(string $ip, array $cidrs): ?string
+    {
         if (self::isForbidden($ip)) {
-            return false;
+            return 'address_not_public';
         }
 
         try {
             $ip = self::normalizeIp($ip);
         } catch (\InvalidArgumentException) {
-            return false;
+            return 'address_invalid';
+        }
+
+        if ($cidrs === []) {
+            return 'no_approved_network';
         }
 
         foreach ($cidrs as $cidr) {
-            if (IpUtils::checkIp($ip, $cidr)) {
-                return true;
+            if (! is_string($cidr)) {
+                continue;
+            }
+
+            try {
+                $normalized = self::normalizeCidr($cidr);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            if (IpUtils::checkIp($ip, $normalized)) {
+                return null;
             }
         }
 
-        return false;
+        return 'address_not_approved';
     }
 
     private static function networkBase(string $ip, int $prefix): string

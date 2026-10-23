@@ -35,5 +35,8 @@
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <env name="CANDIDATE_MALWARE_SCAN" value="off" force="true"/>
+        <env name="CANDIDATE_CAPTCHA" value="off" force="true"/>
+        <env name="CANDIDATE_RETENTION_DAYS" value="" force="true"/>
     </php>
 </phpunit>

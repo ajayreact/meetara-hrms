@@ -116,6 +116,11 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
             return;
         }
 
+        if (typeof window !== 'undefined' && window.isSecureContext === false) {
+            setLocationMessage('This page is not a secure context, so the browser will not share a location. Open the app at http://localhost, http://127.0.0.1, or HTTPS. Clock-in was not sent.');
+            return;
+        }
+
         if (!navigator.geolocation) {
             setLocationMessage('This browser cannot provide a location. Clock-in was not sent.');
             return;
@@ -124,22 +129,22 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
         setLocating(true);
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                form.transform((data) => ({
-                    ...data,
+                submit('hrms.attendance.clock-in', {
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
-                }));
-                form.post(route('hrms.attendance.clock-in'), {
-                    preserveScroll: true,
-                    onFinish: () => {
-                        form.transform((data) => data);
-                        setLocating(false);
-                    },
                 });
             },
-            () => {
+            (error) => {
                 setLocating(false);
-                setLocationMessage('The browser did not share a location. Clock-in was not sent.');
+                if (error.code === error.PERMISSION_DENIED) {
+                    setLocationMessage('Location permission was denied. Clock-in was not sent.');
+                    return;
+                }
+                if (error.code === error.TIMEOUT) {
+                    setLocationMessage('The browser did not share a location before the request timed out. Clock-in was not sent.');
+                    return;
+                }
+                setLocationMessage('A browser location is unavailable. Clock-in was not sent.');
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
         );
@@ -183,7 +188,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
             </div>
             <p className="mt-3 text-xs text-slate-500">
                 {timing.officeName ? `Clock-in is checked against the approved public network for ${timing.officeName}.` : 'Clock-in is recorded only after the server verifies an approved office network.'}
-                {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough.' : ''}
+                {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough. The browser can share that location from http://localhost, http://127.0.0.1, or HTTPS. An http LAN address cannot.' : ''}
                 {timing.gpsCapture ? ' Optional GPS capture is on, so a browser location may be saved with this attendance action after the network check.' : ''}
                 {timing.gpsNoticePending ? ' GPS capture is enabled, but it is not requested until the Route Map notice is acknowledged.' : ''}
                 {' '}A Wi-Fi name is not detected.

@@ -1,27 +1,37 @@
 <?php
 
 use App\Http\Controllers\Hrms\AttendanceController;
+use App\Http\Controllers\Hrms\CandidateFormSettingsController;
+use App\Http\Controllers\Hrms\CandidateReviewController;
+use App\Http\Controllers\Hrms\CandidateSubmissionController;
 use App\Http\Controllers\Hrms\CompanyController;
 use App\Http\Controllers\Hrms\CompanyInvitationController;
 use App\Http\Controllers\Hrms\EmployeeController;
 use App\Http\Controllers\Hrms\EmployeeDocumentController;
 use App\Http\Controllers\Hrms\HelpDeskController;
 use App\Http\Controllers\Hrms\HolidayController;
-use App\Http\Controllers\Hrms\InboxController;
-use App\Http\Controllers\Hrms\OvertimeController;
 use App\Http\Controllers\Hrms\HrmsPageController;
+use App\Http\Controllers\Hrms\InboxController;
 use App\Http\Controllers\Hrms\LeaveController;
 use App\Http\Controllers\Hrms\OfferLetterController;
 use App\Http\Controllers\Hrms\OfficeController;
+use App\Http\Controllers\Hrms\OvertimeController;
 use App\Http\Controllers\Hrms\PaymentController;
 use App\Http\Controllers\Hrms\PayrollController;
 use App\Http\Controllers\Hrms\PayrollSettingsController;
 use App\Http\Controllers\Hrms\PayslipController;
 use App\Http\Controllers\Hrms\RouteMapController;
 use App\Http\Controllers\Hrms\SalaryController;
+use App\Http\Middleware\PublicFormHeaders;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/brand/meetara-logo.png', [HrmsPageController::class, 'logo'])->name('brand.logo');
+
+Route::middleware([PublicFormHeaders::class, 'throttle:60,1,candidate-form-read'])->group(function () {
+    Route::get('/apply/{token}', [CandidateSubmissionController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('apply.show');
+    Route::get('/apply/{token}/received', [CandidateSubmissionController::class, 'received'])->where('token', '[a-f0-9]{64}')->name('apply.received');
+});
+Route::middleware([PublicFormHeaders::class, 'throttle:10,1,candidate-form-submit'])->post('/apply/{token}', [CandidateSubmissionController::class, 'store'])->where('token', '[a-f0-9]{64}')->name('apply.store');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HrmsPageController::class, 'dashboard'])->name('dashboard');
@@ -39,6 +49,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/employees/{employee}/documents/{document}/review', [EmployeeDocumentController::class, 'review'])->middleware('throttle:20,1')->whereNumber('document')->name('hrms.employees.documents.review');
     Route::post('/employees/{employee}/onboarding-tasks/{task}/decision', [EmployeeDocumentController::class, 'decide'])->middleware('throttle:20,1')->whereNumber('task')->name('hrms.employees.onboarding-tasks.decide');
     Route::get('/employees/{employee}/documents/{document}', [EmployeeDocumentController::class, 'download'])->whereNumber('document')->name('hrms.employees.documents.download');
+    Route::get('/candidates', [CandidateReviewController::class, 'index'])->name('hrms.candidates');
+    Route::get('/candidates/{submission}', [CandidateReviewController::class, 'show'])->whereNumber('submission')->name('hrms.candidates.show');
+    Route::post('/candidates/{submission}/status', [CandidateReviewController::class, 'status'])->middleware('throttle:20,1')->whereNumber('submission')->name('hrms.candidates.status');
+    Route::post('/candidates/{submission}/operations', [CandidateReviewController::class, 'operations'])->middleware('throttle:20,1')->whereNumber('submission')->name('hrms.candidates.operations');
+    Route::get('/candidates/{submission}/documents/{document}', [CandidateReviewController::class, 'download'])->middleware(['password.confirm:password.confirm,'.(int) config('candidate.password_timeout'), 'throttle:30,1,candidate-document'])->whereNumber('submission')->whereNumber('document')->name('hrms.candidates.document');
+    Route::post('/candidates/{submission}/ssn', [CandidateReviewController::class, 'ssn'])->middleware(['password.confirm:password.confirm,'.(int) config('candidate.password_timeout'), 'throttle:10,1,candidate-ssn'])->whereNumber('submission')->name('hrms.candidates.ssn');
+    Route::post('/candidates/{submission}/banking', [CandidateReviewController::class, 'banking'])->middleware(['password.confirm:password.confirm,'.(int) config('candidate.password_timeout'), 'throttle:10,1,candidate-banking'])->whereNumber('submission')->name('hrms.candidates.banking');
+    Route::post('/candidates/{submission}/identity', [CandidateReviewController::class, 'identity'])->middleware('throttle:10,1,candidate-identity')->whereNumber('submission')->name('hrms.candidates.identity');
     Route::get('/offer-letters', [OfferLetterController::class, 'index'])->name('hrms.offer-letters');
     Route::post('/offer-letters', [OfferLetterController::class, 'store'])->name('hrms.offer-letters.store');
     Route::post('/offer-letters/{letter}/preview', [OfferLetterController::class, 'preview'])->whereNumber('letter')->name('hrms.offer-letters.preview');
@@ -98,9 +116,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/offices/schedule', [OfficeController::class, 'schedule'])->name('hrms.offices.schedule');
     Route::put('/offices/{office}', [OfficeController::class, 'update'])->name('hrms.offices.update');
     Route::post('/offices/{office}/networks', [OfficeController::class, 'storeNetwork'])->name('hrms.offices.networks.store');
+    Route::post('/offices/{office}/networks/detected', [OfficeController::class, 'approveDetected'])->name('hrms.offices.networks.detected');
     Route::delete('/offices/{office}/networks/{network}', [OfficeController::class, 'destroyNetwork'])->name('hrms.offices.networks.destroy');
     Route::get('/company/settings', [HrmsPageController::class, 'companySettings'])->name('hrms.company-settings');
     Route::put('/company/settings/payroll', [PayrollSettingsController::class, 'update'])->name('hrms.company-settings.payroll');
+    Route::put('/company/settings/candidate-form', [CandidateFormSettingsController::class, 'update'])->name('hrms.company-settings.candidate-form');
+    Route::post('/company/settings/candidate-form/token', [CandidateFormSettingsController::class, 'rotate'])->name('hrms.company-settings.candidate-form.rotate');
     Route::get('/companies', [HrmsPageController::class, 'companies'])->name('hrms.companies');
     Route::post('/companies', [CompanyController::class, 'store'])->name('hrms.companies.store');
     Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('hrms.companies.update');

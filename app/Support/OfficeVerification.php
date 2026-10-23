@@ -121,10 +121,18 @@ class OfficeVerification
 
     private static function networkCount(Office $office): int
     {
-        if ($office->relationLoaded('networks')) {
-            return $office->networks->count();
-        }
+        $networks = $office->relationLoaded('networks')
+            ? $office->networks
+            : $office->networks()->get();
 
-        return $office->networks()->count();
+        return $networks->filter(function ($network): bool {
+            try {
+                NetworkAddress::normalizeCidr((string) $network->cidr);
+
+                return true;
+            } catch (\InvalidArgumentException) {
+                return false;
+            }
+        })->count();
     }
 }

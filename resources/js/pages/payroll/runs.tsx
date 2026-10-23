@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { PayrollNav } from '@/components/hrms/payroll-nav';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ const statuses = [
     { value: '', label: 'All' },
     { value: 'draft', label: 'Draft' },
     { value: 'calculated', label: 'Calculated' },
+    { value: 'review', label: 'Awaiting review' },
     { value: 'under_review', label: 'Under review' },
     { value: 'approved', label: 'Approved' },
     { value: 'processed', label: 'Processed' },
@@ -29,18 +31,25 @@ export default function PayrollRuns({ workspace, runs = [], filter = '', year = 
     const form = useForm({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
     const [filterYear, setFilterYear] = useState(year ? String(year) : '');
     const [filterMonth, setFilterMonth] = useState(month ? String(month) : '');
+    const reviewing = filter === 'review';
 
     return (
-        <HrmsLayout workspace={workspace} title="Payroll runs">
-            <PageIntro title="Payroll runs" subtitle="One run is allowed for each company and month. Gross pay is basic salary plus HRA plus special allowance." />
+        <HrmsLayout workspace={workspace} title={reviewing ? 'Payroll review' : 'Payroll runs'}>
+            <PageIntro
+                title={reviewing ? 'Payroll review' : 'Payroll runs'}
+                subtitle={reviewing
+                    ? 'Calculated runs and runs sent for review are listed here. Approval and processing remain blocked while statutory categories are unresolved.'
+                    : 'One run is allowed for each company and month. Gross pay is basic salary plus HRA plus special allowance.'}
+            />
+            <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className={`grid gap-4 ${canPrepare ? 'xl:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]' : ''}`}>
             {canPrepare && (
-                <SectionCard title="Open a month">
+                <SectionCard title="Create a payroll run">
                     <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); form.post('/payroll/runs'); }}>
                         <label className="grid w-28 gap-1 text-sm"><Label htmlFor="year">Year</Label><Input id="year" type="number" value={form.data.year} onChange={(event) => form.setData('year', Number(event.target.value))} /></label>
                         <label className="grid w-28 gap-1 text-sm"><Label htmlFor="month">Month</Label><Input id="month" type="number" min={1} max={12} value={form.data.month} onChange={(event) => form.setData('month', Number(event.target.value))} /></label>
-                        <Button type="submit" disabled={form.processing}>{form.processing ? 'Working…' : 'Open run'}</Button>
+                        <Button type="submit" disabled={form.processing}>{form.processing ? 'Working…' : 'Create payroll run'}</Button>
                     </form>
                 </SectionCard>
             )}
@@ -62,7 +71,7 @@ export default function PayrollRuns({ workspace, runs = [], filter = '', year = 
                             <Link key={status.value || 'all'} href={status.value ? `/payroll/runs?status=${status.value}` : '/payroll/runs'} className={`rounded-full px-3 py-1 text-xs ${filter === status.value ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{status.label}</Link>
                         ))}
                     </div>
-                    {runs.length === 0 ? <p className="text-sm text-slate-500">No payroll runs yet.</p> : (
+                    {runs.length === 0 ? <p className="text-sm text-slate-500">{reviewing ? 'No payroll runs are awaiting review.' : 'No payroll runs yet. Creating a run happens only from the form.'}</p> : (
                         <div className="overflow-x-auto rounded-xl border border-slate-200">
                             <table className="w-full min-w-[640px] text-left text-sm">
                                 <thead className="bg-blue-50 text-xs text-slate-600"><tr><th className="px-3 py-3">Period</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Employees</th><th className="px-3 py-3">Gross</th><th className="px-3 py-3">Net</th></tr></thead>
@@ -72,8 +81,8 @@ export default function PayrollRuns({ workspace, runs = [], filter = '', year = 
                                             <td className="px-3 py-3"><Link href={`/payroll/runs/${run.id}`} className="font-medium text-blue-700">{run.period}</Link></td>
                                             <td className="px-3 py-3"><StatusBadge value={run.status} /></td>
                                             <td className="px-3 py-3">{run.employees}</td>
-                                            <td className="px-3 py-3">{run.gross}</td>
-                                            <td className="px-3 py-3">{run.net}</td>
+                                            <td className="px-3 py-3">{run.employees > 0 ? run.gross : 'Not calculated'}</td>
+                                            <td className="px-3 py-3">{run.status === 'Processed' ? run.net : run.employees > 0 ? 'Not finalized' : 'Not calculated'}</td>
                                         </tr>
                                     ))}
                                 </tbody>

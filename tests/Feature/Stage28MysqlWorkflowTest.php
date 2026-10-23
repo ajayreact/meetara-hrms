@@ -121,7 +121,7 @@ class Stage28MysqlWorkflowTest extends TestCase
             'REMOTE_ADDR' => '198.51.100.8',
             'HTTP_X_FORWARDED_FOR' => '203.0.113.10',
         ])->post('/attendance/clock-in')->assertSessionHasErrors([
-            'attendance' => 'Your office network could not be verified. Contact HR.',
+            'attendance' => 'Clock-in was blocked because a forwarded address arrived from an untrusted connection.',
         ]);
         $this->assertSame($before, DB::table('attendance_logs')->count());
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Hrms\PayrollNoteRequest;
 use App\Http\Requests\Hrms\StorePayrollRunRequest;
 use App\Models\PayrollRun;
+use App\Policies\PayrollRunPolicy;
 use App\Services\Hrms\PayrollDirectory;
 use App\Services\Hrms\PayrollRejected;
 use App\Services\Hrms\PayrollService;
@@ -22,6 +23,7 @@ class PayrollController extends Controller
 
         return Inertia::render('payroll/index', [
             'overview' => $directory->overview($request->user(), $this->year($request), $this->month($request)),
+            'canPrepare' => (new PayrollRunPolicy)->prepare($request->user()),
             'notice' => session('status'),
             'error' => session('error'),
         ]);

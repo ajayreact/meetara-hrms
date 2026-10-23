@@ -6,9 +6,11 @@ use App\Models\PayrollEvent;
 use App\Models\PayrollPayment;
 use App\Models\PayrollRun;
 use App\Models\User;
+use App\Services\Hrms\LeaveCalendar;
 use App\Services\Hrms\PayrollRejected;
 use App\Services\Hrms\PayrollService;
 use App\Services\Hrms\PayrollStatutoryReadiness;
+use App\Support\Money;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +48,42 @@ class PayrollTest extends TestCase
         $this->actingAs($company->employee)->get('/payroll')->assertForbidden();
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();
         $this->actingAs($company->hr)->get('/payroll')->assertForbidden();
+        $this->get('/payroll/review')->assertNotFound();
+        $this->actingAs($company->lead)->get('/payroll/review')->assertNotFound();
+        $this->actingAs($company->employee)->get('/payroll/review')->assertNotFound();
+        $this->actingAs($company->hr)->get('/payroll/review')->assertNotFound();
+        $this->actingAs($company->hr)->get('/payroll/runs?status=review')->assertForbidden();
+        $this->actingAs($company->employee)->get('/payroll/runs?status=review')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payroll/runs?status=review')->assertForbidden();
         $this->actingAs($company->hr)->post('/payments/1', ['paid_on' => '2026-11-30', 'method' => 'cash', 'reference' => 'X'])->assertNotFound();
+    }
+
+    public function test_payroll_review_stays_on_the_runs_list(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
+        $accounts = $this->accounts($company);
+        $before = DB::table('payroll_runs')->count();
+
+        $this->actingAs($accounts)->get('/payroll/review')->assertNotFound();
+        $this->actingAs($this->owner($company))->get('/payroll/review')->assertNotFound();
+
+        $this->actingAs($accounts)->get('/payroll/runs?status=review')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('payroll/runs')
+                ->where('filter', 'review')
+                ->where('canPrepare', true));
+
+        $this->actingAs($this->owner($company))->get('/payroll/runs?status=review')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('payroll/runs')
+                ->where('filter', 'review')
+                ->where('canPrepare', false));
+
+        $this->actingAs($accounts)->get('/dashboard')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('dashboard/accounts'));
+        $this->assertSame($before, DB::table('payroll_runs')->count());
     }
 
     public function test_salary_history_is_appended_and_invalid_input_is_rejected(): void
@@ -75,7 +112,7 @@ class PayrollTest extends TestCase
 
         $rows = DB::table('salary_structures')->where('employee_id', $company->reportEmployeeId)->orderBy('effective_from')->get();
         $this->assertCount(2, $rows);
-        $this->assertSame('10.10', \App\Support\Money::format(\App\Support\Money::cents((string) $rows[0]->basic)));
+        $this->assertSame('10.10', Money::format(Money::cents((string) $rows[0]->basic)));
         $this->assertSame('INR', $rows[0]->currency);
         $this->assertSame($company->id, (int) $rows[0]->tenant_id);
         $this->assertSame(1, DB::table('salary_structure_events')->where('salary_structure_id', $rows[0]->id)->count());
@@ -138,8 +175,8 @@ class PayrollTest extends TestCase
         $this->actingAs($company->employee)->get("/payslips/{$draftItem}/pdf")->assertNotFound();
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
         $this->assertSame(3, DB::table('payroll_items')->where('payroll_run_id', $runId)->count());
-        $this->assertSame('10.30', \App\Support\Money::format(\App\Support\Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net'))));
-        $this->assertSame('0.00', \App\Support\Money::format(\App\Support\Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('lop_amount'))));
+        $this->assertSame('10.30', Money::format(Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net'))));
+        $this->assertSame('0.00', Money::format(Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('lop_amount'))));
         $this->assertEquals($beforeAttendance->map->check_in, DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->orderBy('id')->pluck('check_in'));
         $this->assertEquals($beforeLeave->pluck('status'), DB::table('leave_requests')->where('tenant_id', $company->id)->orderBy('id')->pluck('status'));
         $this->assertEquals($beforeLeave->pluck('payroll_status'), DB::table('leave_requests')->where('tenant_id', $company->id)->orderBy('id')->pluck('payroll_status'));
@@ -180,7 +217,7 @@ class PayrollTest extends TestCase
         $this->assertSame('processed', DB::table('payroll_runs')->where('id', $runId)->value('status'));
 
         $this->from("/payroll/runs/{$runId}")->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertSessionHas('error');
-        $this->assertSame('10.30', \App\Support\Money::format(\App\Support\Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net'))));
+        $this->assertSame('10.30', Money::format(Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net'))));
 
         $itemId = (int) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('id');
         $otherItem = (int) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->outsideEmployeeId)->value('id');
@@ -318,8 +355,8 @@ class PayrollTest extends TestCase
         $this->assertSame(0, DB::table('payroll_items')->where('payroll_run_id', $runId)->whereIn('employee_id', [$company->outsideEmployeeId, $company->leadEmployeeId])->count());
 
         $item = DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->first();
-        $this->assertSame('12.50', \App\Support\Money::format(\App\Support\Money::cents((string) $item->net)));
-        $this->assertSame('0.00', \App\Support\Money::format(\App\Support\Money::cents((string) $item->lop_amount)));
+        $this->assertSame('12.50', Money::format(Money::cents((string) $item->net)));
+        $this->assertSame('0.00', Money::format(Money::cents((string) $item->lop_amount)));
         $this->assertGreaterThan(0, (float) $item->leave_days);
         $this->assertSame('approved', DB::table('leave_requests')->where('employee_id', $company->reportEmployeeId)->where('status', 'approved')->value('status'));
         $this->assertSame($attendanceBefore->check_in, DB::table('attendance_logs')->where('id', $company->attendanceId)->value('check_in'));
@@ -332,7 +369,7 @@ class PayrollTest extends TestCase
         $accounts = $this->accounts($company);
         $this->seedSalaries($company, '10.00', '0.00', '0.00');
         $calls = 0;
-        $this->mock(\App\Services\Hrms\LeaveCalendar::class, function ($mock) use (&$calls): void {
+        $this->mock(LeaveCalendar::class, function ($mock) use (&$calls): void {
             $mock->shouldReceive('workingDays')->andReturnUsing(function () use (&$calls) {
                 $calls++;
                 if ($calls > 1) {
@@ -386,7 +423,7 @@ class PayrollTest extends TestCase
         $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
         $runId = (int) DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 11)->value('id');
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
-        $this->assertSame('0.00', \App\Support\Money::format(\App\Support\Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('pf_employee'))));
+        $this->assertSame('0.00', Money::format(Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('pf_employee'))));
 
         $this->actingAs($accounts)->get('/payroll?year=2026&month=11')->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('overview.period.found', true)
@@ -397,6 +434,60 @@ class PayrollTest extends TestCase
             ->where('overview.period.found', false)
             ->where('overview.period.net', '0.00'));
         $this->actingAs($this->accounts($other))->get('/payroll?year=2026&month=11')->assertInertia(fn (Assert $page) => $page->where('overview.period.found', false));
+    }
+
+    public function test_opening_payroll_does_not_create_a_run_and_hides_unfinalized_net(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
+        $accounts = $this->accounts($company);
+        DB::table('payroll_events')->where('tenant_id', $company->id)->delete();
+        DB::table('payroll_items')->where('tenant_id', $company->id)->delete();
+        DB::table('payroll_runs')->where('tenant_id', $company->id)->delete();
+        $before = DB::table('payroll_runs')->count();
+
+        $this->actingAs($accounts)->get('/payroll')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.runs', 0)
+                ->where('overview.latest', null)
+                ->where('overview.payslips', 0)
+                ->where('overview.eligibility', null)
+                ->where('canPrepare', true)
+                ->where('overview.activeEmployees', fn (int $count): bool => $count > 0));
+        $this->assertSame($before, DB::table('payroll_runs')->count());
+
+        $this->actingAs($this->owner($company))->get('/payroll')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('canPrepare', false)->where('overview.runs', 0));
+        $this->assertSame($before, DB::table('payroll_runs')->count());
+
+        $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
+        $runId = (int) DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 11)->value('id');
+        $this->from('/payroll/runs')->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertSessionHas('error');
+        $this->assertSame(1, DB::table('payroll_runs')->where('tenant_id', $company->id)->where('year', 2026)->where('month', 11)->count());
+
+        $this->actingAs($accounts)->get("/payroll/runs/{$runId}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('run.membership.source', 'preview')
+                ->where('run.totals', null)
+                ->where('run.statutory.approvalBlocked', true));
+
+        $this->seedSalaries($company, '10.00', '0.00', '0.00');
+        $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
+        $this->actingAs($accounts)->get("/payroll/runs/{$runId}")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('run.membership.source', 'saved')
+                ->where('run.totals.reliable', true)
+                ->where('run.totals.net', null)
+                ->where('run.deductionsConfigured', false)
+                ->where('run.statutory.processingBlocked', true));
+        $this->actingAs($accounts)->get('/payroll?year=2026&month=11')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.latest.rawStatus', 'calculated')
+                ->where('overview.processed', 0)
+                ->where('overview.payslips', 0)
+                ->where('overview.period.found', true));
     }
 
     private function seedSalaries(CompanyFixture $company, string $basic, string $hra, string $special): void
@@ -450,7 +541,7 @@ class PayrollTest extends TestCase
         $runId = (int) DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 11)->value('id');
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
         $this->assertSame('calculated', DB::table('payroll_runs')->where('id', $runId)->value('status'));
-        $this->assertSame('0.00', \App\Support\Money::format(\App\Support\Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('pf_employee'))));
+        $this->assertSame('0.00', Money::format(Money::cents((string) DB::table('payroll_items')->where('payroll_run_id', $runId)->value('pf_employee'))));
         $this->actingAs($accounts)->get("/payroll/runs/{$runId}")
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page

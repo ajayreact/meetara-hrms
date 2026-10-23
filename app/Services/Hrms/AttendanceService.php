@@ -17,6 +17,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AttendanceService
 {
@@ -230,7 +231,12 @@ class AttendanceService
         $observed = $this->clientAddress->observe($request);
 
         if (! $observed['ok'] || $observed['ip'] === null) {
-            throw new AttendanceRejected('Your office network could not be verified. Contact HR.');
+            $this->logNetworkDenial($request, $office, $companyId, null, 'address_unresolved');
+            $invalidProxy = str_contains($observed['reason'], 'invalid');
+
+            throw new AttendanceRejected($invalidProxy
+                ? 'Clock-in was blocked because the trusted-proxy configuration is invalid.'
+                : 'Clock-in was blocked because a forwarded address arrived from an untrusted connection.');
         }
 
         $cidrs = LocationNetwork::query()
@@ -239,11 +245,39 @@ class AttendanceService
             ->pluck('cidr')
             ->all();
 
-        if ($cidrs === [] || ! NetworkAddress::matches($observed['ip'], $cidrs)) {
-            throw new AttendanceRejected('You are not connected through an approved office network. Clock-in is blocked.');
+        $failure = NetworkAddress::denialReason($observed['ip'], $cidrs);
+
+        if ($failure !== null) {
+            $this->logNetworkDenial($request, $office, $companyId, $observed['ip'], $failure);
+
+            throw new AttendanceRejected($this->networkDenialMessage($failure, $observed['ip']));
         }
 
         return $observed['ip'];
+    }
+
+    private function networkDenialMessage(string $failure, string $ip): string
+    {
+        if ($failure !== 'address_not_public') {
+            return 'You are not connected through an approved office network. Clock-in is blocked.';
+        }
+
+        $loopback = $ip === '::1' || str_starts_with($ip, '127.');
+
+        return $loopback
+            ? 'Clock-in was blocked because this connection is localhost. The server does not see the office public address.'
+            : 'Clock-in was blocked because this connection is a private network address. The server does not see the office public address.';
+    }
+
+    private function logNetworkDenial(Request $request, Office $office, int $companyId, ?string $resolvedIp, string $reason): void
+    {
+        Log::warning('Clock-in was denied by the approved office network check.', [
+            'reason' => $reason,
+            'resolved_ip' => $resolvedIp,
+            ...$this->clientAddress->context($request),
+            'tenant_id' => $companyId,
+            'office_id' => $office->id,
+        ]);
     }
 
     private function requireLocation(Request $request, Office $office): bool

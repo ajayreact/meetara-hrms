@@ -9,6 +9,7 @@ import {
     LifeBuoy,
     Map,
     Receipt,
+    ClipboardList,
     ScrollText,
     Wallet,
     Settings,
@@ -47,6 +48,7 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     }
     if (workspace.role === 'company_admin' || workspace.role === 'hr') {
         items.push({ label: 'Offer letters', href: '/offer-letters', icon: ScrollText, section: 'People' });
+        items.push({ label: 'Candidate forms', href: '/candidates', icon: ClipboardList, section: 'People' });
     }
 
     items.push({

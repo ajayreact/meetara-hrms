@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { PayrollNav } from '@/components/hrms/payroll-nav';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -19,10 +20,15 @@ interface PayslipRow {
 export default function PayslipsPage({ workspace, payslips = [] }: HrmsPageProps & { payslips?: PayslipRow[] }) {
     return (
         <HrmsLayout workspace={workspace} title="Payslips">
-            <PageIntro title="Payslips" subtitle="Only processed payroll can be viewed or downloaded." />
+            <PageIntro title="Payslips" subtitle="Only processed payroll can be viewed or downloaded. Draft, unapproved, and unprocessed runs stay unavailable." />
+            <PayrollNav workspace={workspace} />
             <SectionCard title="Finalized payslips">
                 {payslips.length === 0 ? (
-                    <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-slate-500">No payslips yet.</p>
+                    <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-slate-500">
+                        {workspace.permissions.payrollView
+                            ? 'No processed payslips yet. Payslips appear after a payroll run is processed.'
+                            : 'No processed payslip is available for your employee record.'}
+                    </p>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
                         <table className="w-full min-w-[720px] text-left text-sm">

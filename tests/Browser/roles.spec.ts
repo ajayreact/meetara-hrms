@@ -3,6 +3,10 @@ import { accounts, denied, finishClean, signIn, signOut, watchPage, type Browser
 
 const data = accounts();
 
+if (data.database !== 'meetara_hrms_browser') {
+    throw new Error('Role browser tests run only against meetara_hrms_browser.');
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test.beforeEach(({ page }, testInfo) => {
@@ -17,7 +21,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test('super admin sees companies and cannot open payroll', async ({ page }) => {
     await signIn(page, data.emails.platform, data.password);
-    await expect(page.getByText('(Super Admin)')).toBeVisible();
+    await expect(page.getByText('Super Admin', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Companies' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Audit log' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
@@ -53,6 +57,8 @@ test('super admin sees companies and cannot open payroll', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Browser North' })).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
     await denied(page, '/payroll', 403);
+    await denied(page, '/payroll/runs', 403);
+    await denied(page, '/payroll/review', 404);
     await denied(page, '/salary', 403);
     await denied(page, '/payments', 403);
     await denied(page, '/payslips', 403);
@@ -65,17 +71,20 @@ test('super admin sees companies and cannot open payroll', async ({ page }) => {
 
 test('employee workflows stay on that employee', async ({ page }) => {
     await signIn(page, data.emails.report, data.password);
-    await expect(page.getByText('(Employee)')).toBeVisible();
+    await expect(page.getByText('Employee · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
     await page.goto('/my-profile');
-    await expect(page.getByText('report@browser-north.test')).toBeVisible();
+    await expect(page.getByText('report@browser-north.test').first()).toBeVisible();
     await expect(page.locator('body')).not.toContainText('outside@browser-north.test');
     await page.goto('/employees');
     await expect(page.getByText('Your account cannot open Employees')).toBeVisible();
     await denied(page, `/employees/${data.ids.northOutside}`, 404);
     await denied(page, `/employees/${data.ids.southReport}`, 404);
     await denied(page, '/payroll', 403);
+    await denied(page, '/payroll/runs', 403);
     await denied(page, '/salary', 403);
+    await page.goto('/payslips');
+    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
     await page.goto('/my-attendance');
     await expect(page.getByRole('heading', { name: 'My Attendance' })).toBeVisible();
 
@@ -135,14 +144,16 @@ test('employee workflows stay on that employee', async ({ page }) => {
     await page.locator('#ot-hours').fill('1.5');
     await page.getByRole('button', { name: 'Submit request' }).click();
     await expect(page.getByText('Overtime request saved. Pay was not calculated.')).toBeVisible();
-    await expect(page.getByText('Requested 1.5 hours. Not calculated.')).toBeVisible();
+    const ownOvertime = page.getByRole('row', { name: /2026-10-23/ });
+    await expect(ownOvertime).toContainText('1.5');
+    await expect(ownOvertime).toContainText('Not calculated');
     expect(await postForm(page, '/overtime', {
         work_date: '2026-10-23',
         hours: '1.5',
         reason: 'Covered the late release window.',
     })).toBe(422);
     await page.goto('/overtime');
-    await expect(page.getByText('Requested 1.5 hours. Not calculated.')).toHaveCount(1);
+    await expect(page.getByRole('row', { name: /2026-10-23/ })).toHaveCount(1);
     await signOut(page);
 });
 
@@ -158,7 +169,7 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
     await signOut(page);
 
     await signIn(page, data.emails.lead, data.password);
-    await expect(page.getByText('(Team Lead)')).toBeVisible();
+    await expect(page.getByText('Team Lead · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Employees' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Salary' })).toHaveCount(0);
@@ -166,21 +177,25 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
     await denied(page, '/salary', 403);
     await denied(page, '/offer-letters', 403);
     await denied(page, '/payroll', 403);
+    await denied(page, '/payroll/runs', 403);
     await denied(page, '/payslips', 403);
     await denied(page, `/employees/${data.ids.northOutside}`, 404);
     await page.goto('/employees');
-    await expect(page.getByText('report@browser-north.test')).toBeVisible();
+    await expect(page.getByText('report@browser-north.test').first()).toBeVisible();
     await expect(page.locator('body')).not.toContainText('outside@browser-north.test');
     await page.goto('/overtime');
     await expect(page.getByText('BRN-OUT')).toHaveCount(0);
-    await expect(page.getByText('Requested 1.5 hours. Not calculated.')).toBeVisible();
+    const teamOvertime = page.getByRole('row', { name: /2026-10-23/ });
+    await expect(teamOvertime).toContainText('1.5');
+    await expect(teamOvertime).toContainText('Not calculated');
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByText('Overtime request approved. Pay was not calculated.')).toBeVisible();
-    await expect(page.getByText('Requested 1.5 hours. Not calculated.')).toBeVisible();
+    await expect(page.getByRole('row', { name: /2026-10-23/ })).toContainText('Not calculated');
     await page.goto('/leave');
-    await page.getByRole('row', { name: /2026-10-22/ }).getByLabel('Decision note').fill('Approved for the team');
-    await page.getByRole('row', { name: /2026-10-22/ }).getByRole('button', { name: 'Approve' }).click();
-    await expect(page.getByRole('row', { name: /2026-10-22/ })).toContainText('Approved');
+    const leaveRow = page.getByRole('row', { name: /Recorded Casual 2026-10-22/ });
+    await leaveRow.getByLabel('Decision note').fill('Approved for the team');
+    await leaveRow.getByRole('button', { name: 'Approve' }).click();
+    await expect(leaveRow).toContainText('Approved');
     await page.locator('#from').fill('2026-10-27');
     await page.locator('#to').fill('2026-10-27');
     await page.locator('#reason').fill('Family event');
@@ -191,7 +206,7 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
 
 test('hr manages help desk and cannot run payroll', async ({ page }) => {
     await signIn(page, data.emails.hr, data.password);
-    await expect(page.getByText('(HR)')).toBeVisible();
+    await expect(page.getByText('HR', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
     await page.getByRole('link', { name: 'Offer letters' }).click();
     await expect(page.getByText('Email delivery is not used for offer letters.')).toBeVisible();
@@ -202,7 +217,11 @@ test('hr manages help desk and cannot run payroll', async ({ page }) => {
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Payments' })).toHaveCount(0);
     await denied(page, '/payroll', 403);
+    await denied(page, '/payroll/runs', 403);
     await denied(page, '/payments', 403);
+    await page.goto('/payslips');
+    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
+    await denied(page, '/payslips/99999', 404);
     await page.goto('/employees');
     await page.getByRole('row', { name: /accounts@browser-north.test/ }).getByRole('button', { name: 'View' }).click();
     await expect(page.getByRole('button', { name: 'Enable Accounts access' })).toHaveCount(0);
@@ -228,17 +247,17 @@ test('hr manages help desk and cannot run payroll', async ({ page }) => {
 
 test('company admin assigns accounts and cannot process payroll', async ({ page }) => {
     await signIn(page, data.emails.accounts, data.password);
-    await expect(page.getByText('(Employee)')).toBeVisible();
+    await expect(page.getByText('Employee · Main office').first()).toBeVisible();
     await denied(page, '/payroll', 403);
     await signOut(page);
 
     await signIn(page, data.emails.owner, data.password);
-    await expect(page.getByText('(Company Admin)')).toBeVisible();
+    await expect(page.getByText('Company Admin · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Browser North' })).toBeVisible();
+    await expect(page.getByText("Here's what's happening at Browser North today.")).toBeVisible();
     await page.goto('/company/settings');
     await expect(page.getByText('Not configured').first()).toBeVisible();
-    await expect(page.getByText('No statutory rate is stored or applied.')).toBeVisible();
+    await expect(page.getByText('PF, ESI, LWF, TDS, and professional tax are not configured. Approval and processing stay blocked.')).toBeVisible();
     await denied(page, `/employees/${data.ids.southReport}`, 404);
     await denied(page, '/payments', 403);
     await page.goto('/employees');
@@ -255,7 +274,7 @@ test('company admin assigns accounts and cannot process payroll', async ({ page 
 
 test('accounts payroll confirmation does not describe a bank transfer', async ({ page }) => {
     await signIn(page, data.emails.accounts, data.password);
-    await expect(page.getByText('(Accounts)')).toBeVisible();
+    await expect(page.getByText('Accounts · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Employees' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await page.goto('/employees');
@@ -282,59 +301,76 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await expect(page.getByText('No payroll runs yet.')).toBeVisible();
     await page.locator('#year').fill('2026');
     await page.locator('#month').fill('10');
-    await page.getByRole('button', { name: 'Open run' }).click();
+    await page.getByRole('button', { name: 'Create payroll run' }).click();
     await expect(page).toHaveURL(/\/payroll\/runs\/\d+$/);
     const runUrl = page.url();
+    const runPath = new URL(runUrl).pathname;
     await page.getByRole('button', { name: 'Calculate' }).click();
     await expect(page.getByText('Not configured').first()).toBeVisible();
+    await expect(page.getByText('Not finalized').first()).toBeVisible();
     await page.locator('label', { hasText: 'Note' }).locator('input').fill('Ready for approval');
     await page.getByRole('button', { name: 'Send for review' }).click();
     await expect(page.getByText('Under Review')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Send for review' })).toHaveCount(0);
-    expect(await postForm(page, `${new URL(runUrl).pathname}/approve`, { note: 'Trying anyway' })).toBe(403);
-    await postForm(page, `${new URL(runUrl).pathname}/review`, { note: 'Ready for approval' }, false);
+    expect(await postForm(page, `${runPath}/approve`, { note: 'Trying anyway' })).toBe(403);
+    await postForm(page, `${runPath}/review`, { note: 'Ready for approval' }, false);
     await page.reload();
     await expect(page.getByText('Calculate this payroll run before sending it for review.')).toBeVisible();
     await signOut(page);
 
     await signIn(page, data.emails.owner, data.password);
     await page.goto(runUrl);
+    await expect(page.getByRole('button', { name: 'Calculate' })).toHaveCount(0);
+    expect(await postForm(page, `${runPath}/calculate`, {})).toBe(403);
+    await page.goto(runUrl);
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    await expect(page.getByText('Statutory readiness is unresolved.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Process payroll' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Approve' }).click();
-    await expect(page.getByText('Payroll approved.')).toBeVisible();
-    expect(await postForm(page, `${new URL(runUrl).pathname}/process`, { note: 'Process now', confirm: 'PROCESS' })).toBe(403);
+    expect(await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' })).toBe(403);
+    await assignCalculator(runPath, data.emails.owner);
+    await postForm(page, `${runPath}/approve`, { note: 'Trying own calculation' }, false);
+    await page.goto(runUrl);
+    await expect(page.getByText('The person who calculated this run cannot approve it.')).toBeVisible();
+    await expect(page.getByText('Under Review')).toBeVisible();
+    await expect(page.getByText('Payroll approved.')).toHaveCount(0);
+    await assignCalculator(runPath, data.emails.accounts);
+    await postForm(page, `${runPath}/approve`, { note: 'Trying unresolved statutory' }, false);
+    await page.goto(runUrl);
+    await expect(page.getByText('Statutory readiness is unresolved for')).toBeVisible();
+    await expect(page.getByText('A missing setting or a zero deduction is not an exemption.')).toBeVisible();
+    await expect(page.getByText('Under Review')).toBeVisible();
+    await expect(page.getByText('Payroll approved.')).toHaveCount(0);
     await signOut(page);
 
     await signIn(page, data.emails.accounts, data.password);
     await page.goto(runUrl);
-    await expect(page.getByRole('button', { name: 'Process payroll' })).toBeDisabled();
-    await page.getByRole('checkbox', { name: /Confirm processing/ }).check();
-    await page.locator('label', { hasText: 'Note' }).locator('input').fill('Process now');
-    await page.getByRole('button', { name: 'Process payroll' }).click();
-    await expect(page.getByText('This run is finalized.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Process payroll' })).toHaveCount(0);
+    await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' }, false);
+    await page.goto(runUrl);
+    await expect(page.getByText('Approve this payroll run before processing it.')).toBeVisible();
+    await expect(page.getByText('This run is finalized.')).toHaveCount(0);
     await page.goto('/payments');
     await expect(page.getByText('It does not send money to a bank.')).toBeVisible();
-    await expect(page.getByText('It is not a bank transfer.').first()).toBeVisible();
-    await page.getByLabel('Payment date').first().fill('2026-10-30');
-    await page.getByLabel('Reference').first().fill('BROWSER-REF');
-    await page.getByRole('checkbox', { name: /not a bank transfer/ }).first().check();
-    await page.getByRole('button', { name: 'Record payment' }).first().click();
-    await expect(page.getByText('Payment recorded. This is a record of confirmation, not a bank transfer.')).toBeVisible();
+    await expect(page.getByText('No payments are waiting.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Record payment' })).toHaveCount(0);
+    await page.goto('/payslips');
+    await expect(page.getByText('No processed payslips yet.')).toBeVisible();
     await signOut(page);
 
     await signIn(page, data.emails.report, data.password);
+    await denied(page, runUrl, 404);
     await page.goto('/payslips');
-    await expect(page.getByText('BRN-REP')).toBeVisible();
+    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
     await expect(page.locator('body')).not.toContainText('BRN-OUT');
+    await expect(page.locator('body')).not.toContainText('10.00');
     await page.goto('/inbox');
     await expect(page.getByRole('heading', { name: 'Help desk ticket updated' })).toBeVisible();
-    await expect(page.locator('body')).not.toContainText('10.00');
     await denied(page, '/payslips/99999', 404);
     await signOut(page);
 
     await signIn(page, data.emails.southHr, data.password);
-    await expect(page.getByRole('heading', { name: 'Browser South' })).toBeVisible();
+    await expect(page.getByText('Browser South · headcount, attendance, and leave from company records.')).toBeVisible();
     await denied(page, `/employees/${data.ids.northReport}`, 404);
     await page.goto('/help-desk');
     await expect(page.getByText('Door badge browser')).toHaveCount(0);
@@ -343,9 +379,8 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
 
 test('linked offer letters follow the employee checklist', async ({ page }) => {
     const { execFileSync } = await import('node:child_process');
-    const browserDatabase = process.env.PLAYWRIGHT_DB_DATABASE ?? 'meetara_hrms_browser';
     execFileSync('php', ['tests/Browser/seed-unlinked-offer.php'], {
-        env: { ...process.env, DB_CONNECTION: 'mysql', DB_DATABASE: browserDatabase },
+        env: disposableEnv(),
     });
 
     await signIn(page, data.emails.hr, data.password);
@@ -368,7 +403,7 @@ test('linked offer letters follow the employee checklist', async ({ page }) => {
     await expect(draft.getByText('DRAFT — NOT APPROVED FOR ISSUANCE')).toBeVisible();
     await expect(draft.getByText('[PLACEHOLDER: approved appointment-letter wording is not on file]')).toBeVisible();
     await expect(page.getByText('Issuance blocked — template approval required')).toBeVisible();
-    await expect(page.getByText('A draft preview is not an approved offer letter.')).toBeVisible();
+    await expect(draft.getByText('A draft preview is not an approved offer letter.').first()).toBeVisible();
     await expect(draft.getByRole('button', { name: 'Issue' })).toHaveCount(0);
 
     await page.goto(`/employees/${data.ids.northReport}`);
@@ -410,6 +445,22 @@ test('linked offer letters follow the employee checklist', async ({ page }) => {
     await denied(page, `/employees/${data.ids.northReport}`, 404);
     await signOut(page);
 });
+
+async function assignCalculator(runPath: string, email: string): Promise<void> {
+    const runId = runPath.split('/').pop() ?? '';
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('php', ['tests/Browser/set-payroll-calculator.php', runId, email], {
+        env: disposableEnv(),
+    });
+}
+
+function disposableEnv(): NodeJS.ProcessEnv {
+    const env = { ...process.env, DB_CONNECTION: 'mysql', DB_DATABASE: data.database };
+    delete env.DB_URL;
+    delete env.DATABASE_URL;
+
+    return env;
+}
 
 async function postForm(page: Page, path: string, form: Record<string, string>, follow = true): Promise<number> {
     return page.evaluate(async ({ path, form, follow }) => {

@@ -34,7 +34,9 @@ class OfficeNetworkRequest extends FormRequest
             }
 
             try {
-                $this->merge(['cidr' => NetworkAddress::normalizeCidr((string) $this->input('cidr'))]);
+                $cidr = NetworkAddress::normalizeCidr((string) $this->input('cidr'));
+                $this->merge(['cidr' => $cidr]);
+                $validator->setData(array_merge($validator->getData(), ['cidr' => $cidr]));
             } catch (\InvalidArgumentException) {
                 $validator->errors()->add('cidr', 'Enter a public IPv4 or IPv6 address, or a public CIDR range.');
             }
