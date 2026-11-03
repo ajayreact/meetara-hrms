@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Hrms\CompanyOnboarding;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use RuntimeException;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
@@ -187,6 +188,75 @@ class CompanyOnboardingTest extends TestCase
 
         $this->post('/invitations/accept', ['token' => 'plain-token-must-stay-hidden', 'password' => 'new-password'])->assertNotFound();
         $this->assertNull($pending->fresh()->invite_accepted_at);
+    }
+
+    public function test_super_admin_creates_a_company_and_its_company_admin_without_changing_other_tenants(): void
+    {
+        $existing = CompanyFixture::make('Northwind', 'northwind');
+        $platform = User::factory()->create();
+        $platform->forceFill(['is_platform_admin' => true, 'tenant_id' => null, 'invite_accepted_at' => now()])->save();
+        $existingName = DB::table('tenants')->where('id', $existing->id)->value('name');
+        $existingUsers = DB::table('users')->where('tenant_id', $existing->id)->count();
+
+        $this->actingAs($platform)->post('/companies', [
+            ...$this->companyPayload(),
+            'name' => 'Harbor People',
+            'legal_name' => 'Harbor People LLC',
+            'slug' => 'harbor-people',
+            'status' => 'active',
+            'admin_name' => 'Harbor Admin',
+            'admin_email' => $existing->hr->email,
+            'admin_password' => 'harbor-pass',
+            'admin_password_confirmation' => 'harbor-pass',
+        ])->assertSessionHasErrors('admin_email');
+        $this->assertDatabaseMissing('tenants', ['slug' => 'harbor-people']);
+        $this->assertSame($existing->id, (int) $existing->hr->fresh()->tenant_id);
+
+        $this->actingAs($platform)->post('/companies', [
+            ...$this->companyPayload(),
+            'name' => 'Harbor People',
+            'legal_name' => 'Harbor People LLC',
+            'slug' => 'harbor-people',
+            'status' => 'inactive',
+            'admin_name' => 'Harbor Admin',
+            'admin_email' => 'admin@harbor.test',
+            'admin_password' => 'harbor-pass',
+            'admin_password_confirmation' => 'harbor-pass',
+        ])->assertRedirect();
+
+        $createdId = (int) DB::table('tenants')->where('slug', 'harbor-people')->value('id');
+        $this->assertNotSame($existing->id, $createdId);
+        $this->assertSame('Harbor People', DB::table('tenants')->where('id', $createdId)->value('name'));
+        $this->assertSame('Harbor People LLC', DB::table('tenants')->where('id', $createdId)->value('legal_name'));
+        $this->assertSame('inactive', DB::table('tenants')->where('id', $createdId)->value('status'));
+        $this->assertSame($existingName, DB::table('tenants')->where('id', $existing->id)->value('name'));
+        $this->assertSame($existingUsers, DB::table('users')->where('tenant_id', $existing->id)->count());
+
+        $admin = User::query()->where('email', 'admin@harbor.test')->first();
+        $this->assertNotNull($admin);
+        $this->assertFalse($admin->isPlatformAdmin());
+        $this->assertSame($createdId, $admin->companyId());
+        $this->assertTrue(Hash::check('harbor-pass', (string) $admin->password));
+        $this->assertSame('Owner', DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $admin->id)
+            ->where('model_has_roles.tenant_id', $createdId)
+            ->value('roles.name'));
+        $this->assertSame(0, DB::table('model_has_roles')->where('model_id', $admin->id)->where('tenant_id', $existing->id)->count());
+
+        $this->browseAsGuest();
+        $this->post('/login', ['email' => 'admin@harbor.test', 'password' => 'harbor-pass'])
+            ->assertSessionHasErrors(['email' => 'This company is not active.']);
+        $this->assertGuest();
+
+        $this->actingAs($platform)->post('/companies/'.$createdId.'/status', [
+            'status' => 'active',
+            'confirm' => 'REACTIVATE',
+        ])->assertRedirect();
+        $this->browseAsGuest();
+        $this->post('/login', ['email' => 'admin@harbor.test', 'password' => 'harbor-pass'])->assertRedirect('/dashboard');
+        $this->actingAs($admin)->get('/companies')->assertOk()->assertDontSee('Northwind');
+        $this->actingAs($existing->hr)->get('/companies')->assertOk()->assertDontSee('Harbor People');
     }
 
     public function test_failed_onboarding_rolls_back_the_company(): void

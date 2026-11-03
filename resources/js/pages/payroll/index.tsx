@@ -75,7 +75,7 @@ export default function PayrollOverview({ workspace, overview, history = [], can
     const next = !monthChosen
         ? 'Select the payroll month, then upload the completed Excel or CSV from the external payroll system.'
         : legacy
-            ? 'This month has a legacy payroll record calculated inside Meetara. It was not replaced.'
+            ? 'This month has a legacy payroll record calculated inside Veltrix HRMS. It was not replaced.'
             : period.rawStatus === 'import_review'
                 ? 'Review the uploaded rows. Payslips are created only after you confirm the import.'
                 : period.rawStatus === 'processed'
@@ -84,7 +84,7 @@ export default function PayrollOverview({ workspace, overview, history = [], can
 
     return (
         <HrmsLayout workspace={workspace} title="Payroll">
-            <PageIntro title="Payroll" subtitle="Record a completed monthly payroll file and generate payslips. Meetara does not calculate salary or send payments." />
+            <PageIntro title="Payroll" subtitle="Record a completed monthly payroll file and generate payslips. Veltrix HRMS does not calculate salary or send payments." />
             <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950">{next}</div>

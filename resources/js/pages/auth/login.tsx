@@ -26,7 +26,7 @@ export default function Login({ status, canResetPassword }: { status?: string; c
             <Head title="Log in" />
             <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm md:grid-cols-[1.1fr_0.9fr]">
                 <div className="hidden flex-col justify-between bg-slate-950 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.35),transparent_42%)] p-10 text-white md:flex">
-                    <img src="/brand/meetara-logo.png" alt="Meetara" className="h-10 w-auto max-w-[180px] bg-white object-contain p-1" />
+                    <img src="/brand/veltrix-logo.png" alt="Veltrix" className="h-10 w-auto max-w-[180px] bg-white object-contain p-1" />
                     <div>
                         <p className="text-sm text-blue-200">Human Resource Management</p>
                         <h1 className="mt-2 text-3xl font-semibold tracking-tight">One workspace for every company you support.</h1>
@@ -35,9 +35,9 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                     <p className="text-xs text-slate-400">Access is issued by your company administrator.</p>
                 </div>
                 <div className="p-6 sm:p-10">
-                    <img src="/brand/meetara-logo.png" alt="Meetara" className="mb-6 h-10 w-auto object-contain md:hidden" />
+                    <img src="/brand/veltrix-logo.png" alt="Veltrix" className="mb-6 h-10 w-auto object-contain md:hidden" />
                     <h2 className="text-2xl font-semibold text-slate-900">Log in</h2>
-                    <p className="mt-1 text-sm text-slate-500">Use the work email and password for your Meetara account.</p>
+                    <p className="mt-1 text-sm text-slate-500">Use the work email and password for your Veltrix HRMS account.</p>
                     {status && <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{status}</p>}
                     <form className="mt-6 space-y-4" onSubmit={submit}>
                         <div className="grid gap-1.5">

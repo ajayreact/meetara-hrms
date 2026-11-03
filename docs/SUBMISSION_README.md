@@ -1,6 +1,6 @@
-# Meetara HRMS
+# Veltrix HRMS
 
-Meetara HRMS is a multi-company human-resources application. People sign in, work inside one company, and see only the screens their role allows. The local WAMP installation is the demonstration environment. It is not a production deployment.
+Veltrix HRMS is a multi-company human-resources application. People sign in, work inside one company, and see only the screens their role allows. The local WAMP installation is the demonstration environment. It is not a production deployment.
 
 ## Stack
 

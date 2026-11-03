@@ -16,7 +16,7 @@ class PasswordResetMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Reset your Meetara HRMS password');
+        return new Envelope(subject: 'Reset your Veltrix HRMS password');
     }
 
     public function content(): Content

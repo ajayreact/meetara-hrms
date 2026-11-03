@@ -96,7 +96,7 @@ export default function PayrollImportReview({ workspace, review, canImport = fal
                     ))}
                 </dl>
                 {review.rawStatus === 'import_review' && (
-                    <p className="mt-4 text-sm text-slate-700">Valid rows total gross {money('gross').toFixed(2)}, deductions {money('deductions').toFixed(2)}, net {money('net').toFixed(2)}. Confirming stores these uploaded amounts and generates a payslip for each valid row. Meetara does not recalculate them.</p>
+                    <p className="mt-4 text-sm text-slate-700">Valid rows total gross {money('gross').toFixed(2)}, deductions {money('deductions').toFixed(2)}, net {money('net').toFixed(2)}. Confirming stores these uploaded amounts and generates a payslip for each valid row. Veltrix HRMS does not recalculate them.</p>
                 )}
                 {review.fileError && <p className="mt-2 text-sm text-rose-700">{review.fileError}</p>}
                 {canImport && review.rawStatus === 'import_review' && (

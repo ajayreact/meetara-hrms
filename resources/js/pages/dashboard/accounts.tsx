@@ -82,7 +82,7 @@ export default function AccountsDashboard({ workspace, payrollBoard }: HrmsPageP
     );
 }
 
-const payrollGuidance = 'Upload the completed monthly payroll Excel from Payroll. Meetara records the imported amounts and generates payslips. It does not calculate salary or transfer money. Older calculated runs stay under Legacy payroll.';
+const payrollGuidance = 'Upload the completed monthly payroll Excel from Payroll. Veltrix HRMS records the imported amounts and generates payslips. It does not calculate salary or transfer money. Older calculated runs stay under Legacy payroll.';
 
 function PayrollLinks() {
     return (

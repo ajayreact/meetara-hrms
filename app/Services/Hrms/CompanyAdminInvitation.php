@@ -149,6 +149,48 @@ class CompanyAdminInvitation
         ];
     }
 
+    public function provisionOwner(User $actor, int $companyId, string $name, string $email, string $password): User
+    {
+        $this->authorize($actor);
+        $email = $this->normalizeEmail($email);
+        if ($email === '' || trim($name) === '' || $password === '') {
+            throw ValidationException::withMessages([
+                'admin_email' => 'Enter the Company Admin name, email, and password together.',
+            ]);
+        }
+        if ($this->emailTaken($email)) {
+            throw ValidationException::withMessages([
+                'admin_email' => 'This email is already registered. Company creation cannot change an existing account.',
+            ]);
+        }
+
+        $user = new User;
+        $user->forceFill([
+            'name' => trim($name),
+            'email' => $email,
+            'password' => $password,
+            'tenant_id' => $companyId,
+            'is_platform_admin' => false,
+            'invite_token' => null,
+            'invited_at' => null,
+            'invite_accepted_at' => now(),
+            'email_verified_at' => now(),
+        ]);
+
+        try {
+            $user->save();
+        } catch (QueryException) {
+            throw ValidationException::withMessages([
+                'admin_email' => 'This email is already registered. Company creation cannot change an existing account.',
+            ]);
+        }
+
+        $this->assignOwner((int) $actor->id, $user, $companyId);
+        $this->audit((int) $actor->id, $companyId, 'admin_created', $email);
+
+        return $user;
+    }
+
     public function accept(string $token, string $name, string $password): User
     {
         if (! $this->validTokenShape($token) || ! Schema::hasTable('company_admin_invitations')) {

@@ -36,7 +36,7 @@ export default function AcceptEmployeeInvitation({
         <div className="flex min-h-screen items-center justify-center bg-[#eef3f9] px-4 py-10">
             <Head title="Set your password" />
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
-                <img src="/brand/meetara-logo.png" alt="Meetara" className="mb-6 h-10 w-auto object-contain" />
+                <img src="/brand/veltrix-logo.png" alt="Veltrix" className="mb-6 h-10 w-auto object-contain" />
                 <h1 className="text-2xl font-semibold text-slate-950">Set your password</h1>
                 {state !== 'ready' ? (
                     <p className="mt-3 text-sm leading-6 text-slate-600">{messages[state] ?? messages.invalid}</p>

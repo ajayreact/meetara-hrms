@@ -52,7 +52,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                 <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} ${compact ? 'md:w-[76px]' : 'md:w-60'} no-print fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm transition-[width,transform] md:sticky md:top-0 md:h-dvh md:translate-x-0 md:self-start md:shadow-none`}>
                     <div className={`flex items-center gap-2 px-3 pt-4 pb-3 ${compact ? 'md:flex-col' : ''}`}>
                         <Link href="/dashboard" className="flex min-w-0 flex-1 justify-center md:justify-start" onClick={() => setOpen(false)}>
-                            <img src="/brand/meetara-logo.png" alt="Meetara" className={`h-9 w-auto object-contain ${compact ? 'max-w-[148px] md:max-w-10' : 'max-w-[148px]'}`} />
+                            <img src="/brand/veltrix-logo.png" alt="Veltrix" className={`h-9 w-auto object-contain ${compact ? 'max-w-[148px] md:max-w-10' : 'max-w-[148px]'}`} />
                         </Link>
                         <Button type="button" variant="ghost" size="icon" className="hidden md:inline-flex" aria-label={compact ? 'Expand navigation' : 'Collapse navigation'} onClick={toggleCompact}>
                             {compact ? <PanelLeftOpen /> : <PanelLeftClose />}
@@ -89,7 +89,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                                 <Building2 className="size-4" />
                             </span>
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-slate-950">{workspace.companyName ?? 'Meetara platform'}</p>
+                                <p className="truncate text-sm font-semibold text-slate-950">{workspace.companyName ?? 'Veltrix platform'}</p>
                                 <p className="truncate text-xs text-slate-500">{workspace.roleLabel}{workspace.officeName ? ` · ${workspace.officeName}` : ''} · {title}</p>
                             </div>
                         </div>
@@ -135,7 +135,7 @@ export function PageIntro({ title, subtitle, actions, mark }: { title: string; s
             <div className="flex min-w-0 items-start gap-3">
                 {mark}
                 <div className="min-w-0">
-                    <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Meetara</p>
+                    <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Veltrix</p>
                     <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
                     {subtitle && <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>}
                 </div>

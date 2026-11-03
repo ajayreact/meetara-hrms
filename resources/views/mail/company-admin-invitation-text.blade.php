@@ -1,4 +1,4 @@
-You have been invited to administer {{ $companyName }} in Meetara.
+You have been invited to administer {{ $companyName }} in Veltrix HRMS.
 
 Accept the invitation: {{ $url }}
 

@@ -20,6 +20,7 @@ class UpdateCompanyRequest extends FormRequest
     {
         $this->merge([
             'name' => trim((string) $this->input('name', '')),
+            'legal_name' => trim((string) $this->input('legal_name', '')),
         ]);
     }
 
@@ -30,6 +31,7 @@ class UpdateCompanyRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:191'],
+            'legal_name' => ['nullable', 'string', 'max:191'],
             'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
             'email' => ['nullable', 'email', 'max:191'],
             'phone' => ['nullable', 'string', 'max:191'],

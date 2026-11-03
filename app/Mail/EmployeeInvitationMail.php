@@ -21,7 +21,7 @@ class EmployeeInvitationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Set your Meetara HRMS password');
+        return new Envelope(subject: 'Set your Veltrix HRMS password');
     }
 
     public function content(): Content

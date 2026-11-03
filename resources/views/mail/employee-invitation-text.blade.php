@@ -1,6 +1,6 @@
 Hello {{ $employeeName }},
 
-{{ $companyName }} invited you to Meetara HRMS. Open this link to set your password and activate your account:
+{{ $companyName }} invited you to Veltrix HRMS. Open this link to set your password and activate your account:
 
 {{ $url }}
 

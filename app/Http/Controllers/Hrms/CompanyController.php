@@ -13,9 +13,13 @@ class CompanyController extends Controller
 {
     public function store(StoreCompanyRequest $request, CompanyOnboarding $onboarding): RedirectResponse
     {
-        $company = $onboarding->create($request->user(), $request->validated());
+        $validated = $request->validated();
+        $company = $onboarding->create($request->user(), $validated);
+        $message = trim((string) ($validated['admin_email'] ?? '')) !== ''
+            ? 'Company saved. The Company Admin account was created for this company.'
+            : 'Company saved. No invitation email was sent.';
 
-        return redirect()->route('hrms.companies', ['company' => $company->id])->with('status', 'Company saved. No invitation email was sent.');
+        return redirect()->route('hrms.companies', ['company' => $company->id])->with('status', $message);
     }
 
     public function update(UpdateCompanyRequest $request, int $company, CompanyOnboarding $onboarding): RedirectResponse

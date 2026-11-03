@@ -41,7 +41,7 @@ export default function PayslipShow({ workspace, payslip }: HrmsPageProps & { pa
             </div>
             <article className="payslip-sheet mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <img src="/brand/meetara-logo.png" alt="Meetara" className="h-10 w-auto" />
+                    <img src="/brand/veltrix-logo.png" alt="Veltrix" className="h-10 w-auto" />
                     <div className="text-right text-sm">
                         <p className="font-semibold">{payslip.company}</p>
                         <p className="text-slate-500">{payslip.reference}</p>

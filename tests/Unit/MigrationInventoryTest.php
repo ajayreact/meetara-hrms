@@ -14,7 +14,9 @@ class MigrationInventoryTest extends TestCase
         $this->assertTrue($inventory->schemaDumpMatchesRelease());
         $this->assertCount(49, $inventory->dumpNames());
         $this->assertSame(MigrationInventory::MISSING_HISTORICAL, $inventory->missingFiles());
-        $this->assertSame([], $inventory->filesAfterDump());
+        $this->assertSame([
+            '2026_11_03_220000_add_company_legal_name',
+        ], $inventory->filesAfterDump());
     }
 
     public function test_an_unrestricted_migrate_would_apply_unreviewed_files_to_the_documented_ledger(): void
@@ -66,13 +68,14 @@ class MigrationInventoryTest extends TestCase
             '2026_11_02_310000_add_i983_signatures',
             '2026_11_03_120000_add_offer_candidate_address_and_usa_employment_type',
             '2026_11_03_160000_add_i983_student_certifications',
+            '2026_11_03_220000_add_company_legal_name',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());
         $dump = (string) file_get_contents(dirname(__DIR__, 2).'/database/schema/mysql-schema.sql');
         $this->assertStringContainsString('company_lifecycle_events', $dump);
         $this->assertStringContainsString('company_admin_invitations', $dump);
-        $this->assertSame(49, preg_match_all("/^INSERT INTO `migrations`/m", $dump));
+        $this->assertSame(49, preg_match_all('/^INSERT INTO `migrations`/m', $dump));
         $docs = (string) file_get_contents(dirname(__DIR__, 2).'/docs/production.md');
         $this->assertStringContainsString(
             '`2026_10_20_120000_add_company_lifecycle_events` must run before `2026_10_20_140000_add_company_admin_invitations`',

@@ -332,7 +332,7 @@ class PayrollImport
             $this->consistent($mapping, $supplied, $errors);
 
             if (! isset($supplied['net'])) {
-                $errors[] = 'Net salary is required. Meetara does not calculate it.';
+                $errors[] = 'Net salary is required. Veltrix HRMS does not calculate it.';
             }
 
             $parsed[] = [

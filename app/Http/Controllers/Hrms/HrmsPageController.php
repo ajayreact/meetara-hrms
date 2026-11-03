@@ -30,11 +30,11 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class HrmsPageController extends Controller
 {
     /**
-     * Serve the existing Meetara logo without copying or moving the file.
+     * Serve the original Veltrix logo. The previous Meetara file stays on disk and is not deleted.
      */
     public function logo(): BinaryFileResponse
     {
-        $path = base_path('images/logo/meetara-logo.png');
+        $path = public_path('images/logo/veltrix-logo.png');
         abort_unless(is_file($path), 404);
 
         return response()->file($path, [
@@ -168,6 +168,7 @@ class HrmsPageController extends Controller
                 ? app(CompanyAdminInvitation::class)->summary($request->integer('company'))
                 : null,
             'mailConfigured' => app(CompanyAdminInvitation::class)->mailIsConfigured(),
+            'openForm' => $request->boolean('create'),
         ]);
     }
 

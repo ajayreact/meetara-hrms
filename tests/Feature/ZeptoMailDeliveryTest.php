@@ -43,7 +43,7 @@ class ZeptoMailDeliveryTest extends TestCase
             $html = $mail->render();
 
             return $mail->hasTo('mail.invite@example.test')
-                && str_contains($html, 'Meetara HRMS')
+                && str_contains($html, 'Veltrix HRMS')
                 && str_contains($html, 'Veltrix Digital Solutions Inc')
                 && str_contains($html, 'New Person')
                 && str_contains($html, '72 hours')
@@ -85,8 +85,8 @@ class ZeptoMailDeliveryTest extends TestCase
             'mail.mailers.smtp.host' => 'smtp.zeptomail.in',
             'mail.mailers.smtp.username' => 'emailapikey',
             'mail.mailers.smtp.password' => '',
-            'mail.from.address' => 'hr@meetara.net',
-            'mail.sender_domain' => 'meetara.net',
+            'mail.from.address' => 'hr@veltrixds.com',
+            'mail.sender_domain' => 'veltrixds.com',
         ]);
         Mail::fake();
 
@@ -103,7 +103,7 @@ class ZeptoMailDeliveryTest extends TestCase
             'mail.mailers.smtp.password' => 'sample-secret',
             'mail.from.address' => 'person@gmail.com',
         ]);
-        $this->assertStringContainsString('meetara.net', (string) app(MailTransport::class)->problem());
+        $this->assertStringContainsString('veltrixds.com', (string) app(MailTransport::class)->problem());
         $this->assertStringNotContainsString('sample-secret', (string) app(MailTransport::class)->problem());
     }
 
@@ -113,7 +113,7 @@ class ZeptoMailDeliveryTest extends TestCase
         $mail = (new ResetPassword('reset-token-value'))->toMail($user);
         $this->assertInstanceOf(PasswordResetMail::class, $mail);
         $html = $mail->render();
-        $this->assertStringContainsString('Meetara HRMS', $html);
+        $this->assertStringContainsString('Veltrix HRMS', $html);
         $this->assertStringContainsString('Asha Rao', $html);
         $this->assertStringContainsString('60 minutes', $html);
         $this->assertStringContainsString('Reset your password', $html);

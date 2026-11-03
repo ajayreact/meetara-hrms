@@ -30,7 +30,7 @@ const filters = [
 export default function PaymentsPage({ workspace, payments = [], filter = '', notice, error }: HrmsPageProps & { payments?: PaymentRow[]; filter?: string; notice?: string | null; error?: string | null }) {
     return (
         <HrmsLayout workspace={workspace} title="Payments">
-            <PageIntro title="Payments" subtitle="Recording a payment confirms it in Meetara. It does not send money to a bank." />
+            <PageIntro title="Payments" subtitle="Recording a payment confirms it in Veltrix HRMS. It does not send money to a bank." />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <SectionCard title="Payroll payments">
                 <div className="mb-4 flex flex-wrap gap-2">
@@ -72,7 +72,7 @@ function PaymentEditor({ payment }: { payment: PaymentRow }) {
                         <option value="other">Other</option>
                     </select>
                     <Input aria-label="Reference" value={form.data.reference} onChange={(event) => form.setData('reference', event.target.value)} placeholder="Reference" />
-                    <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" checked={confirmPay} onChange={(event) => setConfirmPay(event.target.checked)} /> This records a confirmation inside Meetara. It is not a bank transfer.</label>
+                    <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" checked={confirmPay} onChange={(event) => setConfirmPay(event.target.checked)} /> This records a confirmation inside Veltrix HRMS. It is not a bank transfer.</label>
                     <InputError message={form.errors.paid_on || form.errors.reference || form.errors.method} />
                     <Button type="submit" disabled={form.processing || !confirmPay}>{form.processing ? 'Working…' : 'Record payment'}</Button>
                 </form>

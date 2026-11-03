@@ -32,11 +32,18 @@ The files that do exist, `0001_01_01_000000_create_users_table` through `0001_01
 
 ### Current schema baseline
 
-On 3 November 2026 the reviewed schema-only file replaced the 18-row dump. `database/schema/mysql-schema.sql` is 163,031 bytes and its SHA-256 is `565ff15940792a4530297648e3b7106061a76a0e6fd54e2d3721a84580542836`. It creates 124 InnoDB tables and inserts the 49 migration names recorded on the verified `meetara_hrms` catalog, including the seven names whose PHP files are absent. The only data statements are those `migrations` rows. It has no company, user, employee, payroll, or I-983 rows. `App\Support\MigrationInventory` reads that file and `database/migrations` without opening a database. Every PHP file under `database/migrations` is already named in the dump, so loading it leaves nothing pending.
+On 3 November 2026 the reviewed schema-only file replaced the 18-row dump. `database/schema/mysql-schema.sql` is 163,031 bytes and its SHA-256 is `565ff15940792a4530297648e3b7106061a76a0e6fd54e2d3721a84580542836`. It creates 124 InnoDB tables and inserts the 49 migration names recorded on the verified `meetara_hrms` catalog, including the seven names whose PHP files are absent. The only data statements are those `migrations` rows. It has no company, user, employee, payroll, or I-983 rows. `App\Support\MigrationInventory` reads that file and `database/migrations` without opening a database. The dump records 49 migration names. `2026_11_03_220000_add_company_legal_name` is not one of those names. A fresh `php artisan migrate` loads the dump and then runs that file.
 
 ### New installation
 
-Create an empty MySQL database whose name is not `meetara_hrms`. Copy `.env.example` to `.env`, generate a new `APP_KEY`, and set `DB_DATABASE` to that empty name. Confirm `SELECT DATABASE()` returns that name, then run `php artisan migrate`. Laravel loads `database/schema/mysql-schema.sql` only when no migration is recorded, then runs no further PHP files. Run `php artisan migrate` again and confirm it reports nothing to migrate. Copy the official I-983 PDF to `storage/app/private/i983/official-i983.pdf`; that file stays outside Git. Create the first company administrator in the application. Do not import a data dump, and do not point an existing installation's `.env` at `meetara_hrms` for this command.
+Create an empty MySQL database whose name is not `meetara_hrms`. Copy `.env.example` to `.env` in the application root, generate a new `APP_KEY`, and set `DB_DATABASE` to that empty name. `$APP_ROOT` is that root. Run every `php artisan` command there. From that directory, confirm MySQL selected `$DB_DATABASE`:
+
+```bash
+cd "$APP_ROOT"
+mysql --batch --skip-column-names -e "SELECT DATABASE();" "$DB_DATABASE"
+```
+
+Stop unless the only output line equals `$DB_DATABASE`. Then, still in `$APP_ROOT`, run `php artisan migrate`. Laravel loads `database/schema/mysql-schema.sql` only when no migration is recorded. That load inserts the 49 migration names in the dump. The same command then runs `2026_11_03_220000_add_company_legal_name`, which adds nullable `tenants.legal_name`. Run `php artisan migrate` again and confirm it reports nothing to migrate. The database must still have no company or user rows. Copy the official I-983 PDF to `storage/app/private/i983/official-i983.pdf`; that file stays outside Git. It is 119,842 bytes and its SHA-256 is `c1fffede432651cf1d6b5c9a0647d0aad96754b28ae9b40d5fd2d6d8ca0d7202`. Create the Platform Super Admin on the host, then create companies from that account. Do not import a data dump, and do not point this command at `meetara_hrms`.
 
 Do not import `database/schema/mysql-schema.sql` into `meetara_hrms`. The file contains `DROP TABLE IF EXISTS`. Do not run `migrate:fresh`, `db:wipe`, or `migrate:rollback`.
 
@@ -44,7 +51,7 @@ Earlier rehearsals on `meetara_hrms_baseline_20261020` and `meetara_hrms_stage27
 
 ### Existing database
 
-`meetara_hrms` already has these 49 migration rows. `php artisan migrate` does not reload the schema file once any migration is recorded, and this baseline leaves no PHP file pending. Do not import the schema file into that database. Do not insert rows into `migrations` by hand, and do not recreate the seven missing historical files.
+`meetara_hrms` already recorded the 49 names in the schema dump. `php artisan migrate` does not reload the schema file once any migration is recorded. It can still apply `2026_11_03_220000_add_company_legal_name` when that name is absent from the ledger. Do not run that command against `meetara_hrms` as part of the production release. The production database is a new empty `veltrix_hrms`. Do not import the schema file into `meetara_hrms`. Do not insert rows into `migrations` by hand, and do not recreate the seven missing historical files.
 
 The October notes below describe the ledger before this baseline. They are not the install procedure. On that older reading the ledger had 21 migration rows, and `2026_10_20_120000_add_company_lifecycle_events` and `2026_10_20_140000_add_company_admin_invitations` were still unrecorded. Both names are now included in the 49-row baseline. Do not apply them again.
 
@@ -107,9 +114,9 @@ When the migration history is incomplete, do not roll forward or roll back to "c
 
 ### Logo packaging
 
-`npm run build` does not publish the logo. The release must include `images/logo/meetara-logo.png` at that path. `HrmsPageController::logo` serves it at `GET /brand/meetara-logo.png` (`brand.logo`). The file in this tree is 42,032 bytes. Do not move it under `public/` or into the Vite build.
+`npm run build` does not publish the logo. The release must include `public/images/logo/veltrix-logo.png`. `HrmsPageController::logo` serves that file at `GET /brand/veltrix-logo.png` (`brand.logo`). `GET /brand/meetara-logo.png` serves the same file so an older link still loads. Do not put the logo into the Vite build. The previous Meetara image remains in `images/logo/meetara-logo.png` and is not deleted.
 
-`composer.json` allows PHP `^8.2`. The suite and local server run on PHP 8.3.28. Use 8.3 on a future host. The local build used Node.js 24.19.0 and npm 11.17.0 with `package-lock.json`. `storage/` and `bootstrap/cache/` must be writable by the PHP user and not writable by the public. On this WAMP install those two directories accepted a write probe, which was removed. That does not prove a remote host's permissions.
+`composer.json` allows PHP `^8.2`. The suite and local server run on PHP 8.3.28. Use PHP 8.3 on Ubuntu 24.04. `package.json` does not set `engines`. GitHub Actions installs Node.js 22, and the local lockfile was built with Node.js 24.19.0 and npm 11.17.0. Install Node.js 22 on the VPS before `npm ci`. The Ubuntu 24.04 Node package is older than that CI version. `storage/` and `bootstrap/cache/` must be writable by the PHP user and not writable by the public. On this WAMP install those two directories accepted a write probe, which was removed. That does not prove a remote host's permissions.
 
 This baseline was checked on the local WAMP MySQL instance. It does not make this application ready for a staging or production host. The local server default engine is still MyISAM, so a later `CREATE TABLE` on this server can still be MyISAM unless that statement sets `ENGINE=InnoDB`. `REFERENCES` for the migration account was not independently re-tested.
 
@@ -177,7 +184,7 @@ On the empty `meetara_hrms_stage27_20261020` database, with the process environm
 
 ## Route Map and GPS retention
 
-Two migrations support Route Map: `2026_10_21_150000_add_office_location_verification` (office latitude, longitude, verification radius, and the GPS verification flag on `locations`), then `2026_10_22_120000_add_route_map_gps_capture` (`locations.map_label`, the company GPS setting and its audit rows, employee acknowledgements, clock-in and clock-out location records, view audit rows, and retention audit rows). On 22 October 2026 both were rehearsed in order on the new empty database `meetara_hrms_routemap_20261022`, using `quarantine/stage59-review/rehearsal-migrations` plus the two files with `--path` and a schema path that does not exist. The run exited 0, every table is InnoDB, and a second run reported nothing to migrate. The same two files were then applied with `--path`, in that order, to `meetara_hrms`. Do not roll them back there. Rollback was exercised on sqlite only. `down()` drops the GPS tables and every stored location, so do not roll back a database that holds records you need. A later unrestricted `php artisan migrate` can still apply other unrecorded files. Do not run that command to finish this feature.
+Two migrations support Route Map: `2026_10_21_150000_add_office_location_verification` (office latitude, longitude, verification radius, and the GPS verification flag on `locations`), then `2026_10_22_120000_add_route_map_gps_capture` (`locations.map_label`, the company GPS setting and its audit rows, employee acknowledgements, clock-in and clock-out location records, view audit rows, and retention audit rows). On 22 October 2026 both were rehearsed in order on the new empty database `meetara_hrms_routemap_20261022`, using `quarantine/stage59-review/rehearsal-migrations` plus the two files with `--path` and a schema path that does not exist. The run exited 0, every table is InnoDB, and a second run reported nothing to migrate. The same two files were then applied with `--path`, in that order, to `meetara_hrms`. Do not roll them back there. Rollback was exercised on sqlite only. `down()` drops the GPS tables and every stored location, so do not roll back a database that holds records you need. The 3 November 2026 schema baseline already records both files. A new empty database loads that baseline and does not run them again. Do not run `php artisan migrate` against the local `meetara_hrms` database to finish this feature.
 
 GPS capture is off for every company until a Company Admin turns it on in Company settings. It is requested only during clock-in or clock-out, only after the employee acknowledges the notice on Route Map, and only after the existing network check has passed. It does not replace the approved public-network check, and a browser location can be inaccurate or spoofed. The current notice version is `2026-10-22.1` plus the retention period. Changing the notice text or the retention period requires a new acknowledgement.
 
@@ -185,7 +192,7 @@ Saved attendance coordinates are rounded to five decimal places, about 1.1 meter
 
 Precise locations are kept for `hrms.gps_location_retention_days`, 30 days by default, set through `HRMS_GPS_RETENTION_DAYS`. This default needs company and legal review before capture is enabled. Values outside 1 to 3650 stop collection and stop the cleanup without deleting anything. The acknowledged notice version includes the retention period, so a changed period requires a new acknowledgement. `php artisan hrms:prune-gps-locations` deletes expired `attendance_location_records` one company at a time. The cutoff is the application clock minus that many days. The clock is `config('app.timezone')` (`APP_TIMEZONE`, default `UTC`), not the office timezone. A record captured at 09:00 expires 30 times 24 hours later, not at local midnight. The command writes one `attendance_location_retention_events` row per company with the count and cutoff only. It does not delete attendance logs, acknowledgements, view events, or retention events. `--dry-run` counts without deleting. A second run deletes nothing and adds no audit row. An invalid retention value exits 1 and deletes nothing. The output names the timezone and the counts. It does not print coordinates.
 
-The command is registered daily at 00:00 in the application timezone, with `withoutOverlapping`. Registration is not the same as execution. Production needs `php artisan schedule:run` every minute from cron or Task Scheduler. This repository cannot confirm that a production scheduler is running. Do not run the command against `meetara_hrms` to test deletion.
+The command is registered daily at 00:00 in the application timezone, with `withoutOverlapping`. Registration is not the same as execution. Production must run `php artisan schedule:run` every minute from cron. No queue worker is required for this command. This repository cannot confirm that a production scheduler is running. Do not run the command against `meetara_hrms` to test deletion.
 
 A view of coordinates writes one `attendance_location_view_events` row for that company and actor. The existing `subject` column is 40 characters, so the row stores a compact label rather than a new set of columns: `s`, `t`, or `c` for self, team, or company; `e{id}` when one employee's coordinates were returned; `n{count}` when more than one employee was returned; and the requested dates as `YYYYMMDD`. The row is written only when coordinates were actually returned. It does not store latitude, longitude, or the request body. Ordinary users have no screen or route that edits these rows. Listing every employee id for a wide company view would need a new column or child table. That migration was not added.
 
@@ -290,19 +297,49 @@ The probe result must be `InnoDB`. The local WAMP server still defaults to MyISA
 
 ## Deploy
 
-1. Prepare the host, PHP 8.3, and a TLS certificate for the real origin. Keep the host private until the smoke checks pass.
-2. Install PHP dependencies from the lock file: `composer install --no-dev --optimize-autoloader`.
-3. Install Node dependencies from the lock file and build assets: `npm ci` and `npm run build`.
-4. Write the production environment on the host. Confirm `APP_ENV=production`, `APP_DEBUG=false`, the HTTPS `APP_URL`, an empty session-encryption override, and the runtime database account.
-5. Test that account against an isolated database, as above.
-6. Stop writes with `php artisan down`. The maintenance driver is the file driver unless the host sets another `APP_MAINTENANCE_DRIVER`. `GET /up` stays available because the health route is excluded from maintenance mode.
-7. Take a fresh logical backup of the target database while maintenance mode is on, so the dump matches the database that will be migrated. Check the dump exit status, file size, and the `Dump completed` line. Restore it with `--one-database` into a new database name and compare table counts, migration rows, and key business counts. Keep earlier backups. Stop the deployment if the copy does not match.
-8. Do not run `php artisan migrate` or `php artisan migrate --force` without `--path`. Follow the schema-change preflight. Apply one approved file with `php artisan migrate --force --path=database/migrations/<approved-file>.php` after the backup checksum is recorded and the connected database name is confirmed. `2026_10_20_120000_add_company_lifecycle_events` and `2026_10_20_140000_add_company_admin_invitations` are not approved for `meetara_hrms`. An empty database must not be created with an unrestricted migrate. Do not run `migrate:fresh`, `db:wipe`, `migrate:rollback`, or a seeder.
-9. After the environment values are confirmed, run `php artisan config:cache`, `php artisan route:cache`, and `php artisan view:cache`. Do this only on the host. A cache built from the local `.env` would freeze `APP_ENV=local`, debug output, and `SESSION_ENCRYPT=false`. A cache built from the wrong environment must be removed with `php artisan optimize:clear` before the corrected values are cached. HTTP route actions are controllers, redirects, or Inertia's controller, so `route:cache` can serialize them. Group closures and the `inspire` console command are not HTTP actions. Do not leave a route or config cache on the local WAMP install.
-10. Check `GET /up` for HTTP 200, sign in with a non-production account if one exists on that host, load the logo and built assets, confirm logs exclude secret values, and confirm HTTPS as described below.
-11. Run `php artisan up` only after those checks pass. No queue worker or scheduler is required for the current code: `app/` does not dispatch jobs, and `routes/console.php` registers no schedule. The Composer `dev` script starts a queue listener for local development; do not use it as the production process. Add a supervised worker and a scheduler cron when the first queued job or scheduled command is introduced.
+These steps are for Ubuntu 24.04 with PHP 8.3, MySQL 8, Node.js 22, and Nginx. `$APP_ROOT` is the release directory, for example `/var/www/veltrix-hrms`. The Git repository name stays `meetara-hrms`. Run every `php artisan` command only after `cd "$APP_ROOT"`. Keep the site private until the smoke checks pass.
 
-`storage/` and `bootstrap/cache/` must be writable by the PHP user.
+1. Install PHP 8.3, Composer, Node, MySQL 8, and Nginx. Point the Nginx `root` at `$APP_ROOT/public` and use `try_files $uri $uri/ /index.php?$query_string;` with PHP 8.3-FPM. Do not deploy `public/hot`.
+2. From `$APP_ROOT`, install locked PHP dependencies: `composer install --no-dev --optimize-autoloader`.
+3. From `$APP_ROOT`, install locked Node dependencies and build assets: `npm ci` and `npm run build`.
+4. Write the production environment in `$APP_ROOT/.env`. Confirm `APP_ENV=production`, `APP_DEBUG=false`, the HTTPS `APP_URL`, an empty session-encryption override, and the database account for this step.
+5. Test that account against an isolated database, as above.
+6. From `$APP_ROOT`, stop writes with `php artisan down`. The maintenance driver is the file driver unless the host sets another `APP_MAINTENANCE_DRIVER`. `GET /up` stays available because the health route is excluded from maintenance mode.
+7. Back up the target database and `storage/app/private` while maintenance mode is on. Check the dump exit status, file size, and the `Dump completed` line. Record both SHA-256 checksums. Restore the SQL dump with `--one-database` into a new database name and compare table counts, migration rows, and key business counts. Restore the private archive into a separate directory and compare the file count, including the official I-983 PDF. Keep earlier backups off the database host. Stop the deployment if a copy does not match.
+8. Choose one database path. Do not run `migrate:fresh`, `db:wipe`, `migrate:rollback`, or a seeder. Do not import `database/schema/mysql-schema.sql` into a database that already has tables or rows. Before either path, from `$APP_ROOT`, confirm the selected database:
+
+```bash
+cd "$APP_ROOT"
+mysql --batch --skip-column-names -e "SELECT DATABASE();" "$DB_DATABASE"
+```
+
+Stop unless the only output line equals `$DB_DATABASE`.
+
+- Fresh database: `$DB_DATABASE` is `veltrix_hrms`, a new empty database, not `meetara_hrms` and not an existing production database. From `$APP_ROOT`, run `php artisan migrate --force` with the migration account. Laravel loads `database/schema/mysql-schema.sql` because no migration is recorded. That load inserts the 49 names in the dump, including the seven historical names whose PHP files are absent. The same command then runs `2026_11_03_220000_add_company_legal_name`. Run `php artisan migrate --force` again and confirm it reports nothing to migrate. Confirm `tenants` and `users` are empty. Switch `.env` to the runtime account, which has only `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+- Existing database: read its `migrations` rows before any migrate command. If the 49 dump names are present and `2026_11_03_220000_add_company_legal_name` is absent, `php artisan migrate` from `$APP_ROOT` does not reload the schema and applies only that file. If that name is already recorded, migrate reports nothing to migrate. If the 49 names do not match, stop. Do not load the schema file. This production release does not use an existing database and does not copy local company or user rows.
+
+9. Place the official I-983 PDF at `$APP_ROOT/storage/app/private/i983/official-i983.pdf`. It is 119,842 bytes and its SHA-256 is `c1fffede432651cf1d6b5c9a0647d0aad96754b28ae9b40d5fd2d6d8ca0d7202`. Copy any existing private archive into `$APP_ROOT/storage/app/private` without replacing that PDF with a different file. The PHP user must own `storage/` and `bootstrap/cache/`, and the web server must not be able to list those directories as public URLs.
+10. After the environment values are confirmed, from `$APP_ROOT` run `php artisan config:cache`, `php artisan route:cache`, and `php artisan view:cache`. Do this only on the host. A cache built from the local `.env` would freeze `APP_ENV=local`, debug output, and `SESSION_ENCRYPT=false`. A cache built from the wrong environment must be removed with `php artisan optimize:clear` from `$APP_ROOT` before the corrected values are cached. HTTP route actions are controllers, redirects, or Inertia's controller, so `route:cache` can serialize them. Group closures and the `inspire` console command are not HTTP actions. Do not leave a route or config cache on the local WAMP install.
+11. Check `GET /up` for HTTP 200, sign in with a non-production account if one exists on that host, load the logo and built assets, confirm logs exclude secret values, and confirm HTTPS as described below.
+12. From `$APP_ROOT`, run `php artisan up` only after those checks pass. No queue worker is required: application mail is sent synchronously and `app/` does not dispatch jobs. `routes/console.php` registers `hrms:prune-gps-locations` daily at 00:00 in `APP_TIMEZONE`, with `withoutOverlapping`. Run this cron every minute, from the application root:
+
+```cron
+* * * * * cd /var/www/veltrix-hrms && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Replace `/var/www/veltrix-hrms` with the real `$APP_ROOT`. Cron does not expand that variable.
+
+The Composer `dev` script is not the production process. When Nginx terminates TLS, set `TRUSTED_PROXIES=127.0.0.1` before `config:cache`. A wildcard is discarded.
+
+## Veltrix production host
+
+The production application URL is `https://hrms.veltrixds.com`. The primary domain is `veltrixds.com`. Set `APP_NAME="Veltrix HRMS"` and `APP_URL=https://hrms.veltrixds.com`. Leave the local application on `http://127.0.0.1:8000` until this deployment is approved.
+
+Nginx uses `server_name hrms.veltrixds.com;` and `root $APP_ROOT/public;`. The site block needs a certificate for that exact name. Certbot can request it with `certbot --nginx -d hrms.veltrixds.com` after the DNS A record points at the host. Do not change DNS from this repository. Redirect port 80 to HTTPS. The PHP location passes the request to PHP 8.3-FPM, and `try_files $uri $uri/ /index.php?$query_string;` stays in the HTTPS server. Do not deploy `public/hot`.
+
+Trusted hosts are the host from `APP_URL`, `localhost`, and `127.0.0.1`. Subdomains of `veltrixds.com` are not trusted automatically. There is no separate CORS configuration: the browser application is same-origin. Authentication and password-reset links are generated from `APP_URL`. Leave `SESSION_DOMAIN` empty so the session cookie is sent only to `hrms.veltrixds.com`. Do not set it to `.veltrixds.com`. When Nginx terminates TLS, set `TRUSTED_PROXIES=127.0.0.1` before `config:cache`.
+
+Mail from-addresses must be verified on `veltrixds.com` before `MAIL_FROM_ADDRESS` is set. The fresh production database is `veltrix_hrms`. Do not rename or import `meetara_hrms`. The GitHub repository stays `meetara-hrms`.
 
 ## HTTPS and proxies
 
@@ -325,11 +362,12 @@ The current application expects `tickets.assignee_id` to reference `users`, and 
 
 When a deployment must be undone:
 
-1. Leave maintenance mode on.
-2. Restore the last verified backup into a new database name. Do not restore it over the database that is still being diagnosed.
-3. Deploy the application revision that matches that backup's schema.
-4. Point `DB_DATABASE` at the restored database and rebuild the config cache.
-5. Repeat the smoke checks, then open traffic.
+1. Leave maintenance mode on. From `$APP_ROOT`, that is `php artisan down`.
+2. Restore the last verified SQL backup into a new database name. Do not restore it over the database that is still being diagnosed.
+3. Restore the matching `storage/app/private` archive into the rollback release, not over the private directory still being diagnosed. Confirm `official-i983.pdf` is 119,842 bytes and its SHA-256 is `c1fffede432651cf1d6b5c9a0647d0aad96754b28ae9b40d5fd2d6d8ca0d7202`.
+4. Deploy the application revision that matches that backup's schema. The revision before `4316a86` is `cadda91`.
+5. Point `DB_DATABASE` at the restored database. From `$APP_ROOT`, confirm `mysql --batch --skip-column-names -e "SELECT DATABASE();" "$DB_DATABASE"` prints that name, then rebuild the config cache.
+6. Repeat the smoke checks, then open traffic with `php artisan up` from `$APP_ROOT`.
 
 The pre-migration backup `D:\wamp64\backups\meetara_hrms-before-live-migration-20261020.sql` matches the schema from before migrations `260000` and `270000`. Restoring it requires the application revision from before those migrations. Changes made after that dump are absent from that file.
 

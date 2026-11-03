@@ -19,7 +19,7 @@ class CompanyAdminInvitationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'You are invited to administer a Meetara company');
+        return new Envelope(subject: 'You are invited to administer a Veltrix HRMS company');
     }
 
     public function content(): Content

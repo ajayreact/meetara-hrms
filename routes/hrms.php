@@ -33,7 +33,8 @@ use App\Http\Controllers\Hrms\WorkTaskController;
 use App\Http\Middleware\PublicFormHeaders;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/brand/meetara-logo.png', [HrmsPageController::class, 'logo'])->name('brand.logo');
+Route::get('/brand/veltrix-logo.png', [HrmsPageController::class, 'logo'])->name('brand.logo');
+Route::get('/brand/meetara-logo.png', [HrmsPageController::class, 'logo']);
 
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,candidate-form-read'])->group(function () {
     Route::get('/apply/{token}', [CandidateSubmissionController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('apply.show');

@@ -311,6 +311,12 @@ class HrmsSchema
             });
         }
 
+        if (Schema::hasTable('tenants') && ! Schema::hasColumn('tenants', 'legal_name')) {
+            Schema::table('tenants', function (Blueprint $table) {
+                $table->string('legal_name')->nullable();
+            });
+        }
+
         if (Schema::hasTable('tenants') && Schema::hasTable('users') && ! Schema::hasTable('company_lifecycle_events')) {
             Schema::create('company_lifecycle_events', function (Blueprint $table) {
                 $table->id();

@@ -1,6 +1,6 @@
 Hello{{ $name !== '' ? ' '.$name : '' }},
 
-A password reset was requested for your Meetara HRMS account. Open this link to choose a new password:
+A password reset was requested for your Veltrix HRMS account. Open this link to choose a new password:
 
 {{ $url }}
 

@@ -70,7 +70,7 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
 
     return (
         <HrmsLayout workspace={workspace} title="Payroll review">
-            <PageIntro title={`Payroll ${run.period}`} subtitle={run.legacy === false ? 'Imported payroll. The amounts were stored as uploaded and were not recalculated.' : 'Legacy payroll processing. This run was calculated inside Meetara. New monthly payroll is uploaded from Excel.'} />
+            <PageIntro title={`Payroll ${run.period}`} subtitle={run.legacy === false ? 'Imported payroll. The amounts were stored as uploaded and were not recalculated.' : 'Legacy payroll processing. This run was calculated inside Veltrix HRMS. New monthly payroll is uploaded from Excel.'} />
             <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">

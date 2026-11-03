@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Middleware\EnsureActiveCompany;
-use App\Support\CandidateForm;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequireProductionHttps;
+use App\Support\CandidateForm;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +19,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trustHosts(at: function (): array {
+            $configured = parse_url((string) config('app.url'), PHP_URL_HOST);
+            $hosts = array_filter([
+                is_string($configured) ? $configured : null,
+                'localhost',
+                '127.0.0.1',
+            ]);
+
+            return array_values(array_unique(array_map(
+                fn (string $host): string => '^'.preg_quote($host).'$',
+                $hosts,
+            )));
+        }, subdomains: false);
+
         $middleware->web(prepend: [
             RequireProductionHttps::class,
         ]);
@@ -30,8 +44,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        $exceptions->dontFlash(CandidateForm::sensitiveKeys());
-        $exceptions->reportable(function (\Throwable $exception) {
+        $exceptions->dontFlash([
+            ...CandidateForm::sensitiveKeys(),
+            'admin_password',
+            'admin_password_confirmation',
+        ]);
+        $exceptions->reportable(function (Throwable $exception) {
             $request = request();
 
             if (! $request instanceof Request) {

@@ -21,6 +21,10 @@ class StoreCompanyRequest extends FormRequest
         $this->merge([
             'slug' => CompanyOnboarding::normalizeSlug((string) $this->input('slug', '')),
             'name' => trim((string) $this->input('name', '')),
+            'legal_name' => trim((string) $this->input('legal_name', '')),
+            'admin_name' => trim((string) $this->input('admin_name', '')),
+            'admin_email' => strtolower(trim((string) $this->input('admin_email', ''))),
+            'status' => trim((string) $this->input('status', 'active')) ?: 'active',
         ]);
     }
 
@@ -31,14 +35,18 @@ class StoreCompanyRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:191'],
+            'legal_name' => ['nullable', 'string', 'max:191'],
             'slug' => ['required', 'string', 'max:191', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/', Rule::unique('tenants', 'slug')],
             'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
             'email' => ['nullable', 'email', 'max:191'],
             'phone' => ['nullable', 'string', 'max:191'],
             'address' => ['nullable', 'string', 'max:2000'],
+            'status' => ['required', Rule::in(['active', 'inactive'])],
             'week_off' => ['nullable', 'array'],
             'week_off.*' => ['string', Rule::in(CompanyOnboarding::DAYS)],
-            'status' => ['prohibited'],
+            'admin_name' => ['nullable', 'required_with:admin_email,admin_password', 'string', 'max:191'],
+            'admin_email' => ['nullable', 'required_with:admin_name,admin_password', 'email', 'max:191', Rule::unique('users', 'email')],
+            'admin_password' => ['nullable', 'required_with:admin_name,admin_email', 'string', 'min:8', 'confirmed'],
             'tenant_id' => ['prohibited'],
             'role' => ['prohibited'],
             'user_id' => ['prohibited'],

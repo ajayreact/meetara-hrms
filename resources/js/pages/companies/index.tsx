@@ -50,6 +50,7 @@ function PeopleCount({ value }: { value: number }) {
 interface CompanyRow {
     id: number;
     name: string;
+    legalName: string;
     status: string;
     timezone: string;
     headcount: number;
@@ -91,6 +92,7 @@ export default function CompaniesPage({
     error = null,
     invitation = null,
     mailConfigured = false,
+    openForm = false,
 }: HrmsPageProps & {
     companies?: CompanyRow[];
     page?: number;
@@ -103,9 +105,10 @@ export default function CompaniesPage({
     error?: string | null;
     invitation?: CompanyInvitation | null;
     mailConfigured?: boolean;
+    openForm?: boolean;
 }) {
     const [term, setTerm] = useState(search);
-    const [creating, setCreating] = useState(false);
+    const [creating, setCreating] = useState(openForm);
 
     function visit(next: { search?: string; status?: string; page?: number; company?: number }) {
         router.get('/companies', {
@@ -194,6 +197,7 @@ export default function CompaniesPage({
                     <SectionCard divided title={detail.name}>
                         <dl className="grid gap-4 sm:grid-cols-2">
                             {([
+                                ['Legal name', detail.legalName],
                                 ['Slug', detail.slug],
                                 ['Status', detail.status],
                                 ['Time zone', detail.timezone],
@@ -222,11 +226,43 @@ export default function CompaniesPage({
 }
 
 function CreateCompany({ timezones }: { timezones: string[] }) {
-    const form = useForm({ name: '', slug: '', timezone: 'Asia/Kolkata', email: '', phone: '', address: '', week_off: ['saturday', 'sunday'] as string[] });
+    const form = useForm({
+        name: '',
+        legal_name: '',
+        slug: '',
+        timezone: 'Asia/Kolkata',
+        email: '',
+        phone: '',
+        address: '',
+        status: 'active',
+        week_off: ['saturday', 'sunday'] as string[],
+        admin_name: '',
+        admin_email: '',
+        admin_password: '',
+        admin_password_confirmation: '',
+    });
 
     return (
         <SectionCard divided title="New company" className="mb-4 max-w-3xl">
             <CompanyFields form={form} timezones={timezones} slug />
+            <label className="mb-4 grid gap-1.5 text-sm">
+                <Label htmlFor="company-status">Status</Label>
+                <select id="company-status" className="h-10 rounded-lg border border-input bg-white px-3 text-sm" value={form.data.status} onChange={(event) => form.setData('status', event.target.value)}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+                <InputError message={form.errors.status} />
+            </label>
+            <fieldset className="mb-4 grid gap-3">
+                <legend className="text-sm font-medium text-slate-700">Company Admin</legend>
+                <p className="text-sm text-slate-500">Leave these blank to save the company without an administrator. The account belongs only to this company.</p>
+                <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-name">Administrator name</Label><Input id="admin-name" value={form.data.admin_name} onChange={(event) => form.setData('admin_name', event.target.value)} autoComplete="off" /><InputError message={form.errors.admin_name} /></label>
+                <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-email">Administrator email</Label><Input id="admin-email" type="email" value={form.data.admin_email} onChange={(event) => form.setData('admin_email', event.target.value)} autoComplete="off" /><InputError message={form.errors.admin_email} /></label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-password">Temporary password</Label><Input id="admin-password" type="password" value={form.data.admin_password} onChange={(event) => form.setData('admin_password', event.target.value)} autoComplete="new-password" /><InputError message={form.errors.admin_password} /></label>
+                    <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-password-confirmation">Confirm password</Label><Input id="admin-password-confirmation" type="password" value={form.data.admin_password_confirmation} onChange={(event) => form.setData('admin_password_confirmation', event.target.value)} autoComplete="new-password" /><InputError message={form.errors.admin_password_confirmation} /></label>
+                </div>
+            </fieldset>
             <Button type="button" disabled={form.processing} onClick={() => form.post('/companies')}>{form.processing ? 'Saving…' : 'Save company'}</Button>
         </SectionCard>
     );
@@ -236,6 +272,7 @@ function CompanyEditor({ detail, timezones }: { detail: CompanyDetail; timezones
     const blank = (value: string) => (value === 'Not recorded' ? '' : value);
     const form = useForm({
         name: detail.name,
+        legal_name: blank(detail.legalName),
         timezone: detail.timezone,
         email: blank(detail.email),
         phone: blank(detail.phone),
@@ -251,7 +288,7 @@ function CompanyEditor({ detail, timezones }: { detail: CompanyDetail; timezones
     );
 }
 
-function CompanyFields<T extends { name: string; timezone: string; email: string; phone: string; address: string; week_off: string[]; slug?: string }>({ form, timezones, slug = false }: { form: InertiaFormProps<T>; timezones: string[]; slug?: boolean }) {
+function CompanyFields<T extends { name: string; legal_name: string; timezone: string; email: string; phone: string; address: string; week_off: string[]; slug?: string }>({ form, timezones, slug = false }: { form: InertiaFormProps<T>; timezones: string[]; slug?: boolean }) {
     function toggleDay(day: string) {
         const current = form.data.week_off;
         form.setData('week_off', current.includes(day) ? current.filter((item) => item !== day) : [...current, day]);
@@ -260,6 +297,7 @@ function CompanyFields<T extends { name: string; timezone: string; email: string
     return (
         <div className="mb-4 grid gap-3">
             <label className="grid gap-1.5 text-sm"><Label htmlFor={slug ? 'company-name' : 'edit-company-name'}>Company name</Label><Input id={slug ? 'company-name' : 'edit-company-name'} value={form.data.name} onChange={(event) => form.setData('name', event.target.value)} /><InputError message={form.errors.name} /></label>
+            <label className="grid gap-1.5 text-sm"><Label htmlFor={slug ? 'company-legal-name' : 'edit-company-legal-name'}>Legal company name</Label><Input id={slug ? 'company-legal-name' : 'edit-company-legal-name'} value={form.data.legal_name} onChange={(event) => form.setData('legal_name', event.target.value)} /><InputError message={form.errors.legal_name} /></label>
             {slug && <label className="grid gap-1.5 text-sm"><Label htmlFor="company-slug">Slug</Label><Input id="company-slug" value={form.data.slug ?? ''} onChange={(event) => form.setData('slug', event.target.value)} /><InputError message={form.errors.slug} /></label>}
             <label className="grid gap-1.5 text-sm"><Label htmlFor={slug ? 'company-timezone' : 'edit-company-timezone'}>Time zone</Label>
                 <select id={slug ? 'company-timezone' : 'edit-company-timezone'} className="h-10 rounded-lg border border-input bg-white px-3 text-sm" value={form.data.timezone} onChange={(event) => form.setData('timezone', event.target.value)}>

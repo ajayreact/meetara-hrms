@@ -299,6 +299,7 @@ class PlatformDirectory
         $row = [
             'id' => $id,
             'name' => (string) $company->name,
+            'legalName' => $this->optionalText($company, 'legal_name'),
             'status' => (string) $company->status === 'active' ? 'Active' : 'Inactive',
             'statusKey' => (string) $company->status === 'active' ? 'active' : 'inactive',
             'slug' => (string) ($company->slug ?? ''),

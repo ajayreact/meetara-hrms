@@ -172,7 +172,7 @@ class PayrollImportTest extends TestCase
         $this->actingAs($company->lead)->get('/payroll/template')->assertForbidden();
 
         $workbook = $this->actingAs($company->hr)->get('/payroll/template')->assertOk();
-        $workbook->assertHeader('content-disposition', 'attachment; filename="Meetara_India_Payroll_Template.xlsx"');
+        $workbook->assertHeader('content-disposition', 'attachment; filename="Veltrix_India_Payroll_Template.xlsx"');
         $path = tempnam(sys_get_temp_dir(), 'template');
         file_put_contents($path, $workbook->getContent());
         $zip = new ZipArchive;
@@ -190,7 +190,7 @@ class PayrollImportTest extends TestCase
         $this->assertSame(['SAMPLE-001', 'Sample Employee A', '30000.00', '12000.00', '5000.00', '2000.00', '49000.00', '1800.00', '368.00', '200.00', '1500.00', '500.00', '4368.00', '44632.00'], $table['rows'][0]);
 
         $csv = $this->actingAs($accounts)->get('/payroll/template?format=csv')->assertOk();
-        $csv->assertHeader('content-disposition', 'attachment; filename="Meetara_India_Payroll_Template.csv"');
+        $csv->assertHeader('content-disposition', 'attachment; filename="Veltrix_India_Payroll_Template.csv"');
         $this->assertStringContainsString('Employee ID', $csv->getContent());
         $this->assertStringContainsString('SAMPLE-002', $csv->getContent());
     }

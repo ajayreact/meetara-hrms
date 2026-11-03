@@ -33,14 +33,14 @@ class PayrollTemplate
     {
         if ($format === 'csv') {
             return [
-                'name' => 'Meetara_India_Payroll_Template.csv',
+                'name' => 'Veltrix_India_Payroll_Template.csv',
                 'type' => 'text/csv; charset=UTF-8',
                 'body' => $this->csv(),
             ];
         }
 
         return [
-            'name' => 'Meetara_India_Payroll_Template.xlsx',
+            'name' => 'Veltrix_India_Payroll_Template.xlsx',
             'type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'body' => $this->xlsx(),
         ];
@@ -165,13 +165,13 @@ class PayrollTemplate
     private function instructions(): array
     {
         return [
-            'Meetara India payroll template',
+            'Veltrix HRMS India payroll template',
             'Remove both sample rows on Payroll Data before uploading a real file. SAMPLE-001 and SAMPLE-002 are examples only and are not employees.',
-            'Meetara stores the amounts in the file. It does not calculate salary, deductions, or payments.',
+            'Veltrix HRMS stores the amounts in the file. It does not calculate salary, deductions, or payments.',
             'The payroll month is the year and month selected on the Payroll page. This workbook does not contain a month column.',
-            'Employee ID is required. It must match the employee ID in Meetara for this company. Names are not used for matching.',
-            'Employee Name is optional. If it does not match the employee record, Meetara keeps the record name on the payslip and shows a warning.',
-            'Net Salary is required. Enter the final payable amount already calculated outside Meetara.',
+            'Employee ID is required. It must match the employee ID in Veltrix HRMS for this company. Names are not used for matching.',
+            'Employee Name is optional. If it does not match the employee record, Veltrix HRMS keeps the record name on the payslip and shows a warning.',
+            'Net Salary is required. Enter the final payable amount already calculated outside Veltrix HRMS.',
             'Basic Salary, HRA, Special Allowance, Other Earnings, and Gross Salary are optional. When all five are present, gross must equal basic + HRA + special allowance + other earnings.',
             'PF, ESI, Professional Tax, TDS, Other Deductions, and Total Deductions are optional. When all six are present, total deductions must equal the five deduction columns.',
             'When Gross Salary, Total Deductions, and Net Salary are all present, net must equal gross minus total deductions.',

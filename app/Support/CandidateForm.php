@@ -80,7 +80,7 @@ class CandidateForm
     {
         return [
             'This form collects identity, contact, bank, work-authorization, training, and supporting documents so authorized staff at the company that gave you this link can review a candidate submission.',
-            'Authorized company personnel review the submission inside Meetara HRMS. The submission is not published.',
+            'Authorized company personnel review the submission inside Veltrix HRMS. The submission is not published.',
             'Questions about a submission or about privacy should be directed to the company that gave you this link. This form does not provide a separate privacy inbox.',
             'Submitting this form does not establish employment and does not guarantee approval.',
             'The notice wording, how long submissions are kept, and collection of Social Security numbers and bank details still need legal and privacy review before production use.',

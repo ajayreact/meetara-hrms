@@ -14,7 +14,7 @@ export default function AuthSimpleLayout({ children, title, description }: AuthL
                 <div className="flex flex-col gap-8">
                     <div className="flex flex-col items-center gap-4">
                         <Link href={route('login')} className="flex flex-col items-center gap-2 font-medium">
-                            <img src="/brand/meetara-logo.png" alt="Meetara" className="h-10 w-auto object-contain" />
+                            <img src="/brand/veltrix-logo.png" alt="Veltrix" className="h-10 w-auto object-contain" />
                             <span className="sr-only">{title}</span>
                         </Link>
 

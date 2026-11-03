@@ -45,10 +45,10 @@ export async function finishClean(page: Page): Promise<void> {
 
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
     for (let attempt = 0; attempt < 2; attempt++) {
-        const logoResponse = page.waitForResponse((response) => response.url().includes('/brand/meetara-logo.png'));
+        const logoResponse = page.waitForResponse((response) => response.url().includes('/brand/veltrix-logo.png'));
         await page.goto('/login');
-        expect((await logoResponse).status(), 'Meetara logo request').toBe(200);
-        const logo = page.getByRole('img', { name: 'Meetara' }).first();
+        expect((await logoResponse).status(), 'Veltrix logo request').toBe(200);
+        const logo = page.getByRole('img', { name: 'Veltrix' }).first();
         await expect(logo).toBeVisible();
         await expect.poll(() => logo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
         await page.getByLabel('Work email').fill(email);

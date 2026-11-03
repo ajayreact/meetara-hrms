@@ -27,15 +27,17 @@ class CompanyOnboarding
                 $company = new Company;
                 $company->forceFill([
                     'name' => $this->name($data),
+                    'legal_name' => $this->nullableText($data['legal_name'] ?? null),
                     'slug' => $this->slug((string) $data['slug']),
                     'timezone' => $this->timezone((string) $data['timezone']),
-                    'status' => 'active',
+                    'status' => $this->status($data['status'] ?? 'active'),
                     'week_off' => $this->weekOff($data['week_off'] ?? ['saturday', 'sunday']),
                     'email' => $this->nullableText($data['email'] ?? null),
                     'phone' => $this->nullableText($data['phone'] ?? null),
                     'address' => $this->nullableText($data['address'] ?? null),
                 ]);
                 $company->save();
+                $this->provisionAdmin($actor, (int) $company->id, $data);
                 $this->record($actor, (int) $company->id, 'created');
 
                 return $company;
@@ -56,6 +58,7 @@ class CompanyOnboarding
             $company = $this->lock($companyId);
             $company->forceFill([
                 'name' => $this->name($data),
+                'legal_name' => $this->nullableText($data['legal_name'] ?? null),
                 'timezone' => $this->timezone((string) $data['timezone']),
                 'week_off' => $this->weekOff($data['week_off'] ?? []),
                 'email' => $this->nullableText($data['email'] ?? null),
@@ -128,6 +131,37 @@ class CompanyOnboarding
     /**
      * @param  array<string, mixed>  $data
      */
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function provisionAdmin(User $actor, int $companyId, array $data): void
+    {
+        $email = trim((string) ($data['admin_email'] ?? ''));
+        if ($email === '') {
+            return;
+        }
+
+        app(CompanyAdminInvitation::class)->provisionOwner(
+            $actor,
+            $companyId,
+            trim((string) ($data['admin_name'] ?? '')),
+            $email,
+            (string) ($data['admin_password'] ?? ''),
+        );
+    }
+
+    private function status(mixed $value): string
+    {
+        $status = trim((string) $value);
+        if (! in_array($status, ['active', 'inactive'], true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Choose Active or Inactive.',
+            ]);
+        }
+
+        return $status;
+    }
+
     private function name(array $data): string
     {
         return trim((string) $data['name']);
