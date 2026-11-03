@@ -1,3 +1,4 @@
+import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
@@ -14,7 +15,8 @@ interface LeaveQueue {
     status: string;
 }
 
-export default function HrDashboard({ workspace, companyStats, attendanceRoster, leaveBoard }: HrmsPageProps & {
+export default function HrDashboard({ workspace, companyStats, attendanceRoster, leaveBoard, workplace }: HrmsPageProps & {
+    workplace?: WorkplacePayload;
     companyStats?: { headcount: number; invited: number };
     attendanceRoster?: { counts: { review: number } } | null;
     leaveBoard?: { queue: LeaveQueue[] };
@@ -73,6 +75,7 @@ export default function HrDashboard({ workspace, companyStats, attendanceRoster,
                     )}
                 </SectionCard>
             </div>
+            <WorkplacePanels workplace={workplace} />
         </HrmsLayout>
     );
 }

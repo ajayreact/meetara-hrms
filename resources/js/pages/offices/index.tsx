@@ -443,7 +443,7 @@ function OfficeCard({ office, timezones, locationFieldsAvailable, mapLabelAvaila
                                 {detectedAddress.approvable && <Button type="button" className="mt-2" size="sm" disabled={detected.processing || !detected.data.confirm_detected} onClick={approveDetected}>Approve detected address</Button>}
                                 {detected.errors.confirm_detected && <p className="mt-2 text-xs text-rose-600">{detected.errors.confirm_detected}</p>}
                             </div>
-                            <p className="text-xs text-slate-500">These are public IP addresses or CIDR ranges. A private address such as 192.168.1.10 is not the address the server can verify. Wi-Fi names are not collected. Removing an address stops future clock-ins from it and does not rewrite existing attendance.</p>
+                            <p className="text-xs text-slate-500">These are public IP addresses or CIDR ranges. A private address such as 192.168.1.10 is not the address the server can verify. Wi-Fi names are not collected. Removing an address stops future clock-ins and clock-outs from it and does not rewrite existing attendance.</p>
                             {office.networks.length === 0 ? (
                                 <p className="text-sm text-slate-500">No approved network is configured. Clock-in at this office is blocked.</p>
                             ) : (

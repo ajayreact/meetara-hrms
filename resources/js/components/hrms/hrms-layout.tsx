@@ -80,7 +80,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                 {open && <button type="button" aria-label="Close menu" className="fixed inset-0 z-30 bg-slate-900/40 md:hidden" onClick={() => setOpen(false)} />}
 
                 <div className="min-w-0 flex-1">
-                    <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+                    <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
                         <Button type="button" variant="outline" size="icon" className="md:hidden" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
                             {open ? <X /> : <Menu />}
                         </Button>
@@ -90,7 +90,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                             </span>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-slate-950">{workspace.companyName ?? 'Meetara platform'}</p>
-                                <p className="truncate text-xs text-slate-500">{workspace.roleLabel}{workspace.officeName ? ` · ${workspace.officeName}` : ''}</p>
+                                <p className="truncate text-xs text-slate-500">{workspace.roleLabel}{workspace.officeName ? ` · ${workspace.officeName}` : ''} · {title}</p>
                             </div>
                         </div>
                         <div className="flex min-w-0 items-center gap-2">
@@ -120,7 +120,7 @@ function NavLink({ item, url, compact, onNavigate }: { item: SidebarItem; url: s
             href={item.href}
             onClick={onNavigate}
             title={item.label}
-            className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${compact ? 'md:justify-center md:px-2' : ''} ${active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            className={`flex items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${compact ? 'md:justify-center md:border-l-0 md:px-2' : ''} ${active ? 'border-blue-700 bg-blue-50 text-blue-800' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             aria-current={active ? 'page' : undefined}
         >
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
@@ -131,10 +131,11 @@ function NavLink({ item, url, compact, onNavigate }: { item: SidebarItem; url: s
 
 export function PageIntro({ title, subtitle, actions, mark }: { title: string; subtitle?: string; actions?: React.ReactNode; mark?: React.ReactNode }) {
     return (
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
                 {mark}
                 <div className="min-w-0">
+                    <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">Meetara</p>
                     <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
                     {subtitle && <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>}
                 </div>

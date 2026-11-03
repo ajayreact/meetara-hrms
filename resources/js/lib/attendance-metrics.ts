@@ -25,6 +25,9 @@ export interface MonthSummary {
     absent: number;
     late: number;
     earlyOut: number;
+    holiday?: number;
+    holidayWork?: number;
+    weeklyOff?: number;
 }
 
 export function formatDuration(totalMinutes: number): string {

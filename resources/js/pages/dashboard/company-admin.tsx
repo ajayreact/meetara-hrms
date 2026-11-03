@@ -1,3 +1,4 @@
+import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { HrmsLayout } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
@@ -46,7 +47,8 @@ function dateZone(zones: string[], officeName: string | null, role: string): str
     return officeName ?? role;
 }
 
-export default function CompanyAdminDashboard({ workspace, companyStats, payrollBoard }: HrmsPageProps & {
+export default function CompanyAdminDashboard({ workspace, companyStats, payrollBoard, workplace }: HrmsPageProps & {
+    workplace?: WorkplacePayload;
     companyStats?: { headcount: number; offices: number; pendingNetworks: number; officeList: OfficeCard[] };
     payrollBoard?: PayrollBoard;
 }) {
@@ -168,6 +170,7 @@ export default function CompanyAdminDashboard({ workspace, companyStats, payroll
                     </ul>
                 </SectionCard>
             </div>
+            <WorkplacePanels workplace={workplace} />
         </HrmsLayout>
     );
 }

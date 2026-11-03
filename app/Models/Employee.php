@@ -29,6 +29,7 @@ class Employee extends Model
         'work_mode',
         'holiday_calendar',
         'date_of_joining',
+        'date_of_birth',
         'status',
     ];
 
@@ -39,6 +40,7 @@ class Employee extends Model
     {
         return [
             'date_of_joining' => 'date',
+            'date_of_birth' => 'date',
         ];
     }
 

@@ -9,14 +9,17 @@ use App\Http\Requests\Hrms\UpdateEmployeeRequest;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Hrms\EmployeeDirectory;
+use App\Services\Hrms\EmployeeInvitation;
 use App\Services\Hrms\EmployeeOnboarding;
 use App\Services\Hrms\EmployeeProvisioner;
+use App\Services\Hrms\FollowUps;
 use App\Services\Hrms\OfferLetters;
 use App\Services\Hrms\RoleAssignment;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,6 +28,7 @@ class EmployeeController extends Controller
     public function __construct(
         private readonly EmployeeDirectory $directory,
         private readonly EmployeeProvisioner $provisioner,
+        private readonly EmployeeInvitation $invitations,
         private readonly EmployeeOnboarding $onboarding,
         private readonly OfferLetters $offerLetters,
     ) {}
@@ -49,7 +53,9 @@ class EmployeeController extends Controller
             'options' => $user->can('create', Employee::class) ? $this->directory->options($user) : $this->emptyOptions(),
             'canManage' => $user->can('create', Employee::class),
             'canExport' => $user->can('export', Employee::class),
+            'followups' => app(FollowUps::class)->page($user),
             'notice' => $request->session()->get('status'),
+            'noticeTone' => $request->session()->get('notice_tone', 'success'),
         ]);
     }
 
@@ -57,9 +63,15 @@ class EmployeeController extends Controller
     {
         $user = $this->actor($request);
 
+        $detail = $this->directory->detail($employee);
+
+        if ($user->can('update', $employee) && Schema::hasColumn('employees', 'date_of_birth')) {
+            $detail['dateOfBirth'] = optional($employee->date_of_birth)->toDateString() ?? '';
+        }
+
         return Inertia::render('employees/show', [
             'workspace' => AuthenticatedWorkspace::resolve($user),
-            'employee' => $this->directory->detail($employee),
+            'employee' => $detail,
             'options' => $user->can('update', $employee) ? $this->directory->options($user, (int) $employee->id) : $this->emptyOptions(),
             'canManage' => $user->can('update', $employee),
             'onboarding' => $this->onboarding->present($user, $employee),
@@ -69,24 +81,40 @@ class EmployeeController extends Controller
             ],
             'activity' => $this->onboarding->activity($user, $employee),
             'notice' => $request->session()->get('status'),
+            'noticeTone' => $request->session()->get('notice_tone', 'success'),
         ]);
     }
 
     public function store(StoreEmployeeRequest $request): RedirectResponse
     {
-        $employee = $this->provisioner->create($this->actor($request), $request->validated());
-        $message = $employee->status === 'invited'
-            ? 'Employee saved. A login was created for this company, but no invitation email was sent and sign-in stays closed until the invitation is accepted.'
-            : 'Employee saved.';
+        $actor = $this->actor($request);
+        $employee = $this->provisioner->create($actor, $request->validated());
+        $message = 'Employee saved.';
+        $tone = 'success';
+        if ($employee->status === 'invited' && $employee->user_id !== null) {
+            $delivery = $this->invitations->send($actor, $employee);
+            $message .= ' '.$delivery['message'];
+            $tone = $delivery['sent'] ? 'success' : 'error';
+        }
 
-        return redirect()->route('hrms.employees.show', $employee)->with('status', $message);
+        return redirect()->route('hrms.employees.show', $employee)->with('status', $message)->with('notice_tone', $tone);
     }
 
     public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
-        $this->provisioner->update($this->actor($request), $employee, $request->validated());
+        $actor = $this->actor($request);
+        $linked = $employee->user_id !== null;
+        $this->provisioner->update($actor, $employee, $request->validated());
+        $employee->refresh();
+        $message = 'Employee updated.';
+        $tone = 'success';
+        if (! $linked && $employee->user_id !== null) {
+            $delivery = $this->invitations->send($actor, $employee);
+            $message .= ' '.$delivery['message'];
+            $tone = $delivery['sent'] ? 'success' : 'error';
+        }
 
-        return redirect()->route('hrms.employees.show', $employee)->with('status', 'Employee updated.');
+        return redirect()->route('hrms.employees.show', $employee)->with('status', $message)->with('notice_tone', $tone);
     }
 
     public function status(ChangeEmployeeStatusRequest $request, Employee $employee): RedirectResponse
@@ -95,6 +123,13 @@ class EmployeeController extends Controller
         $this->provisioner->changeStatus($this->actor($request), $employee, $status);
 
         return back()->with('status', $status === 'active' ? 'Employee activated.' : 'Employee deactivated.');
+    }
+
+    public function invitation(Request $request, Employee $employee): RedirectResponse
+    {
+        $result = $this->invitations->send($this->actor($request), $employee);
+
+        return back()->with('status', $result['message'])->with('notice_tone', $result['sent'] ? 'success' : 'error');
     }
 
     public function enableAccounts(Request $request, RoleAssignment $roles): RedirectResponse

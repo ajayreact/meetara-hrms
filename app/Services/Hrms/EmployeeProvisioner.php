@@ -5,7 +5,9 @@ namespace App\Services\Hrms;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeProvisioner
 {
@@ -49,7 +51,7 @@ class EmployeeProvisioner
         return DB::transaction(function () use ($actor, $employee, $data, $companyId): Employee {
             $employee->fill($this->attributes($data));
 
-                if ($employee->user_id === null && ($data['create_login'] ?? false)) {
+            if ($employee->user_id === null && ($data['create_login'] ?? false)) {
                 $employee->forceFill([
                     'user_id' => $this->createLogin($actor, $data, $companyId),
                     'status' => 'invited',
@@ -80,6 +82,15 @@ class EmployeeProvisioner
         $companyId = $actor->companyId();
         abort_if($companyId === null || (int) $employee->tenant_id !== $companyId, 404);
 
+        if ($status === 'active' && $employee->user_id !== null) {
+            $login = User::query()->whereKey($employee->user_id)->where('tenant_id', $companyId)->first();
+            if ($login !== null && $login->invited_at !== null && $login->invite_accepted_at === null) {
+                throw ValidationException::withMessages([
+                    'status' => 'This employee becomes active only after the invitation is accepted.',
+                ]);
+            }
+        }
+
         $employee->forceFill(['status' => $status])->save();
 
         return $employee;
@@ -102,10 +113,26 @@ class EmployeeProvisioner
             'location_id' => $data['location_id'] ?? null,
             'manager_id' => $data['manager_id'] ?? null,
             'date_of_joining' => $data['date_of_joining'],
+            ...$this->birthday($data),
             'holiday_calendar' => $data['holiday_calendar'],
             'employment_type' => $data['employment_type'],
             'work_mode' => $data['work_mode'],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function birthday(array $data): array
+    {
+        if (! Schema::hasColumn('employees', 'date_of_birth') || ! array_key_exists('date_of_birth', $data)) {
+            return [];
+        }
+
+        $value = trim((string) $data['date_of_birth']);
+
+        return ['date_of_birth' => $value === '' ? null : $value];
     }
 
     /**
@@ -124,9 +151,11 @@ class EmployeeProvisioner
             'password' => Str::password(40),
             'tenant_id' => $companyId,
             'is_platform_admin' => false,
-            'invite_token' => Str::random(40),
+            'invite_token' => null,
             'invited_at' => now(),
             'invite_accepted_at' => null,
+            'invite_expires_at' => null,
+            'invite_sent_at' => null,
         ]);
         $user->save();
         $this->roles->assign($actor, $user, $companyId, (string) $data['role']);

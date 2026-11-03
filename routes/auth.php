@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\CompanyInvitationAcceptanceController;
+use App\Http\Controllers\Auth\EmployeeInvitationAcceptanceController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -35,6 +36,16 @@ Route::get('invitations/accept/{token}', [CompanyInvitationAcceptanceController:
     ->where('token', '[A-Za-z0-9]+')
     ->middleware('throttle:5,1')
     ->name('invitations.accept');
+
+Route::get('employee-invitations/{token}', [EmployeeInvitationAcceptanceController::class, 'create'])
+    ->where('token', '[a-f0-9]{64}')
+    ->middleware('throttle:5,1')
+    ->name('employee-invitations.accept');
+
+Route::post('employee-invitations/{token}', [EmployeeInvitationAcceptanceController::class, 'store'])
+    ->where('token', '[a-f0-9]{64}')
+    ->middleware('throttle:5,1')
+    ->name('employee-invitations.store');
 
 Route::post('invitations/accept/{token}', [CompanyInvitationAcceptanceController::class, 'store'])
     ->where('token', '[A-Za-z0-9]+')

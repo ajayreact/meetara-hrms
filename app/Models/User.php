@@ -53,6 +53,8 @@ class User extends Authenticatable
             'is_platform_admin' => 'boolean',
             'invited_at' => 'datetime',
             'invite_accepted_at' => 'datetime',
+            'invite_expires_at' => 'datetime',
+            'invite_sent_at' => 'datetime',
         ];
     }
 

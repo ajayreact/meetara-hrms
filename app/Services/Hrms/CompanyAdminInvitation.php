@@ -4,9 +4,10 @@ namespace App\Services\Hrms;
 
 use App\Mail\CompanyAdminInvitationMail;
 use App\Models\User;
+use App\Support\MailTransport;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -74,7 +75,7 @@ class CompanyAdminInvitation
         $email = '';
         $companyName = '';
 
-        DB::transaction(function () use ($actor, $companyId, $invitationId, $token, &$email, &$companyName): void {
+        DB::transaction(function () use ($companyId, $invitationId, $token, &$email, &$companyName): void {
             $company = $this->lockCompany($companyId);
             $invitation = $this->lockInvitation($companyId, $invitationId);
             $this->assertOpen($invitation);
@@ -269,25 +270,7 @@ class CompanyAdminInvitation
 
     public function mailIsConfigured(): bool
     {
-        $mailer = (string) config('mail.default');
-        if (app()->runningUnitTests() && $mailer === 'array') {
-            return true;
-        }
-
-        $from = strtolower(trim((string) config('mail.from.address')));
-        if ($from === '' || $from === 'hello@example.com') {
-            return false;
-        }
-
-        if (! in_array($mailer, ['smtp', 'sendmail', 'ses', 'ses-v2', 'postmark', 'resend', 'mailgun'], true)) {
-            return false;
-        }
-
-        if ($mailer === 'smtp' && trim((string) config('mail.mailers.smtp.host')) === '') {
-            return false;
-        }
-
-        return true;
+        return app(MailTransport::class)->ready();
     }
 
     protected function deliver(string $email, string $token, string $companyName): void
@@ -302,13 +285,13 @@ class CompanyAdminInvitation
     {
         try {
             $this->deliver($email, $token, $companyName);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             DB::table('company_admin_invitations')->where('id', $invitationId)->update([
                 'token_hash' => null,
                 'sent_at' => null,
                 'updated_at' => now(),
             ]);
-            Log::warning('Company admin invitation email was not sent.', [
+            app(MailTransport::class)->logFailure('Company admin invitation', $exception, [
                 'invitation_id' => $invitationId,
                 'company_id' => $companyId,
             ]);
@@ -456,7 +439,7 @@ class CompanyAdminInvitation
         if ($invitation->revoked_at !== null) {
             return 'revoked';
         }
-        if ($invitation->expires_at !== null && now()->greaterThan(\Illuminate\Support\Carbon::parse($invitation->expires_at))) {
+        if ($invitation->expires_at !== null && now()->greaterThan(Carbon::parse($invitation->expires_at))) {
             return 'expired';
         }
 

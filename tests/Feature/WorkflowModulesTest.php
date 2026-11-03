@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Hrms\CompanyNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
@@ -67,6 +68,66 @@ class WorkflowModulesTest extends TestCase
         $this->actingAs($company->employee)->post('/inbox/'.$id.'/read')->assertRedirect();
         $this->assertNotNull(DB::table('notifications')->where('id', $id)->value('read_at'));
         $this->actingAs($company->employee)->get('/inbox')->assertInertia(fn (Assert $page) => $page->where('notifications.0.read', true));
+    }
+
+    public function test_internal_mail_stays_inside_the_company_and_is_not_sent_by_smtp(): void
+    {
+        Mail::fake();
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
+        $other = CompanyFixture::make('Deep Data Inc', 'deep');
+
+        $this->actingAs($company->hr)->get('/inbox')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('canCompose', true)->has('recipients', 3));
+
+        $this->from('/inbox')->actingAs($company->hr)->post('/inbox', [
+            'recipient_id' => $other->employee->id,
+            'subject' => 'Cross company',
+            'message' => 'This must stay inside Veltrix.',
+        ])->assertSessionHasErrors('recipient_id');
+
+        $this->from('/inbox')->actingAs($company->hr)->post('/inbox', [
+            'recipient_id' => $company->employee->id,
+            'subject' => 'Welcome note',
+            'message' => 'Your desk is ready on the second floor.',
+            'tenant_id' => $other->id,
+        ])->assertSessionHasErrors('tenant_id');
+
+        $this->from('/inbox')->actingAs($company->hr)->post('/inbox', [
+            'recipient_id' => $company->hr->id,
+            'subject' => 'To myself',
+            'message' => 'Not allowed.',
+        ])->assertSessionHasErrors('recipient_id');
+
+        $this->actingAs($company->hr)->post('/inbox', [
+            'recipient_id' => $company->employee->id,
+            'subject' => 'Welcome note',
+            'message' => 'Your desk is ready on the second floor.',
+        ])->assertRedirect()->assertSessionHas('status', 'Message delivered inside the app.');
+
+        Mail::assertNothingSent();
+
+        $incoming = DB::table('notifications')->where('notifiable_id', $company->employee->id)->where('data->direction', 'in')->first();
+        $outgoing = DB::table('notifications')->where('notifiable_id', $company->hr->id)->where('data->direction', 'out')->first();
+        $this->assertNotNull($incoming);
+        $this->assertNotNull($outgoing);
+        $this->assertNull($incoming->read_at);
+        $this->assertNotNull($outgoing->read_at);
+        $this->assertSame(0, DB::table('notifications')->where('notifiable_id', $other->employee->id)->where('data->title', 'Welcome note')->count());
+        $this->assertSame(0, DB::table('notifications')->where('notifiable_id', $other->hr->id)->where('data->title', 'Welcome note')->count());
+
+        $this->actingAs($company->employee)->get('/inbox')->assertInertia(fn (Assert $page) => $page
+            ->where('notifications.0.title', 'Welcome note')
+            ->where('notifications.0.message', 'Your desk is ready on the second floor.')
+            ->where('notifications.0.from', $company->hr->name)
+            ->where('notifications.0.direction', 'in')
+            ->where('notifications.0.read', false));
+
+        $this->actingAs($company->hr)->get('/inbox')->assertInertia(fn (Assert $page) => $page
+            ->where('notifications.0.title', 'Welcome note')
+            ->where('notifications.0.direction', 'out')
+            ->where('notifications.0.to', $company->employee->name)
+            ->where('notifications.0.read', true));
     }
 
     public function test_overtime_review_does_not_calculate_pay(): void

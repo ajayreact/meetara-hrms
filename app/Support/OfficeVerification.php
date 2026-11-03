@@ -69,9 +69,9 @@ class OfficeVerification
         }
 
         if ($ready && $gpsEnabled) {
-            $message = 'Clock-in is allowed only from an approved public network and a browser location inside the saved radius. GPS alone is not accepted as proof of presence.';
+            $message = 'Clock-in and clock-out are allowed only from an approved public network and a browser location inside the saved radius. GPS alone is not accepted as proof of presence.';
         } elseif ($ready) {
-            $message = 'Clock-in is allowed only from an approved public network. GPS verification is off.';
+            $message = 'Clock-in and clock-out are allowed only from an approved public network. GPS verification is off.';
         } else {
             $message = implode(' ', $blockers);
         }

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Hrms;
 
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceLog;
+use App\Models\Employee;
 use App\Models\User;
+use App\Services\Hrms\AttendanceCorrection;
 use App\Services\Hrms\AttendanceDirectory;
 use App\Services\Hrms\AttendanceRejected;
 use App\Services\Hrms\AttendanceService;
@@ -21,6 +23,7 @@ class AttendanceController extends Controller
     public function __construct(
         private readonly AttendanceDirectory $directory,
         private readonly AttendanceService $attendance,
+        private readonly AttendanceCorrection $corrections,
     ) {}
 
     public function mine(Request $request): Response
@@ -31,6 +34,7 @@ class AttendanceController extends Controller
             'workspace' => AuthenticatedWorkspace::resolve($user),
             'timing' => $this->directory->timing($user),
             'history' => $this->directory->month($user, $request->query('month')),
+            'corrections' => $this->corrections->forEmployee($user),
             'notice' => $request->session()->get('status'),
         ]);
     }
@@ -67,6 +71,9 @@ class AttendanceController extends Controller
             ],
             'canCorrect' => in_array($user->applicationRole(), ['company_admin', 'hr'], true),
             'canExport' => $user->can('export', AttendanceLog::class),
+            'corrections' => $this->corrections->forCompany($user),
+            'authorizations' => $user->applicationRole() === 'team_lead' ? [] : $this->corrections->authorizations($user),
+            'people' => $this->people($user),
             'notice' => $request->session()->get('status'),
         ]);
     }
@@ -123,6 +130,60 @@ class AttendanceController extends Controller
         });
     }
 
+    public function storeCorrection(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'work_date' => ['required', 'date'],
+            'type' => ['required', 'string'],
+            'check_in' => ['nullable', 'string'],
+            'check_out' => ['nullable', 'string'],
+            'reason' => ['required', 'string'],
+        ]);
+        $this->corrections->submit($this->actor($request), $data);
+
+        return back()->with('status', 'Correction request submitted. Attendance was not changed.');
+    }
+
+    public function cancelCorrection(Request $request, int $correction): RedirectResponse
+    {
+        $this->corrections->cancel($this->actor($request), $correction);
+
+        return back()->with('status', 'Correction request cancelled.');
+    }
+
+    public function approveCorrection(Request $request, int $correction): RedirectResponse
+    {
+        $this->corrections->approve($this->actor($request), $correction, (string) $request->input('review_reason', ''));
+
+        return back()->with('status', 'Correction approved. The attendance record was updated.');
+    }
+
+    public function rejectCorrection(Request $request, int $correction): RedirectResponse
+    {
+        $this->corrections->reject($this->actor($request), $correction, (string) $request->input('review_reason', ''));
+
+        return back()->with('status', 'Correction rejected. The attendance record was not changed.');
+    }
+
+    public function authorizeHolidayWork(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'work_date' => ['required', 'date'],
+            'kind' => ['required', 'string'],
+            'reason' => ['nullable', 'string'],
+        ]);
+        $this->corrections->authorizeWork(
+            $this->actor($request),
+            (int) $data['employee_id'],
+            (string) $data['work_date'],
+            (string) $data['kind'],
+            $data['reason'] ?? null,
+        );
+
+        return back()->with('status', 'Holiday work was authorized for that employee only.');
+    }
+
     public function export(Request $request): HttpResponse
     {
         $user = $this->actor($request);
@@ -152,6 +213,22 @@ class AttendanceController extends Controller
         }
 
         return back()->with('status', $message);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, code: string}>
+     */
+    private function people(User $user): array
+    {
+        if (! in_array($user->applicationRole(), ['company_admin', 'hr'], true) || $user->companyId() === null) {
+            return [];
+        }
+
+        return Employee::query()->inCompany($user->companyId())->orderBy('first_name')->limit(200)->get()->map(fn (Employee $employee) => [
+            'id' => (int) $employee->id,
+            'name' => trim($employee->first_name.' '.$employee->last_name),
+            'code' => (string) $employee->employee_code,
+        ])->all();
     }
 
     private function actor(Request $request): User

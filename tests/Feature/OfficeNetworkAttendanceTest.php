@@ -383,7 +383,8 @@ class OfficeNetworkAttendanceTest extends TestCase
         DB::table('employees')->where('id', $company->reportEmployeeId)->update(['status' => 'inactive']);
         $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
             ->post('/attendance/clock-in')
-            ->assertSessionHasErrors(['attendance' => 'This account cannot record attendance.']);
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => 'This account is not active.']);
         DB::table('employees')->where('id', $company->reportEmployeeId)->update(['status' => 'active']);
 
         $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])->post('/attendance/clock-in')->assertSessionHasNoErrors();
@@ -413,10 +414,14 @@ class OfficeNetworkAttendanceTest extends TestCase
         $this->actingAs($company->employee)->post('/attendance/break-end')->assertSessionHasErrors(['attendance' => 'You do not have an active break.']);
 
         Carbon::setTestNow('2026-10-19 11:00:00');
-        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])->post('/attendance/clock-out')->assertSessionHasNoErrors();
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])->post('/attendance/clock-out')->assertSessionHasErrors(['attendance' => 'You are not connected through an approved office network. Clock-out is blocked.']);
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '192.168.0.174'])->post('/attendance/clock-out')->assertSessionHasErrors(['attendance' => 'Clock-out was blocked because this connection is a private network address. The server does not see the office public address.']);
+        $this->assertNull(DB::table('attendance_logs')->whereDate('work_date', '2026-10-19')->value('check_out'));
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])->post('/attendance/clock-out', ['ip' => '198.51.100.20', 'verified' => true])->assertSessionHasNoErrors();
 
         $log = DB::table('attendance_logs')->whereDate('work_date', '2026-10-19')->first();
         $this->assertSame($checkIn, $log->check_in);
+        $this->assertSame('203.0.113.10', $log->check_out_ip);
         $this->assertSame('2026-10-19 11:00:00', $log->check_out);
         $this->assertSame(110, (int) $log->minutes);
         $this->assertSame(1, DB::table('attendance_breaks')->where('attendance_log_id', $log->id)->count());

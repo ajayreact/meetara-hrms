@@ -9,6 +9,12 @@ return [
     'company_admin_invitation_hours' => 168,
 
     /*
+    | Employee invitation links expire after this many hours.
+    | Resend replaces the previous token and starts this interval again.
+    */
+    'employee_invitation_hours' => 72,
+
+    /*
     | Precise clock-in and clock-out locations are deleted this many days after capture.
     | The 30-day default is subject to company and legal review. Values outside
     | 1 to 3650 stop the cleanup instead of deleting records.

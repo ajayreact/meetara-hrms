@@ -82,13 +82,13 @@ export default function AccountsDashboard({ workspace, payrollBoard }: HrmsPageP
     );
 }
 
-const payrollGuidance = 'Accounts can create and calculate payroll from Payroll Runs. Payroll Review lists runs awaiting review. Approval and processing remain blocked while statutory categories are unresolved. Opening this dashboard does not create a payroll run.';
+const payrollGuidance = 'Upload the completed monthly payroll Excel from Payroll. Meetara records the imported amounts and generates payslips. It does not calculate salary or transfer money. Older calculated runs stay under Legacy payroll.';
 
 function PayrollLinks() {
     return (
         <span className="flex flex-wrap gap-3 text-sm">
-            <Link href="/payroll/runs" className="font-medium text-blue-700 hover:underline">Payroll Runs</Link>
-            <Link href="/payroll/runs?status=review" className="font-medium text-blue-700 hover:underline">Payroll Review</Link>
+            <Link href="/payroll" className="font-medium text-blue-700 hover:underline">Payroll</Link>
+            <Link href="/payroll/runs" className="font-medium text-blue-700 hover:underline">Legacy payroll</Link>
         </span>
     );
 }

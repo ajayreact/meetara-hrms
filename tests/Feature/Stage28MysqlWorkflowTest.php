@@ -287,7 +287,7 @@ class Stage28MysqlWorkflowTest extends TestCase
             ]);
         }
 
-        $this->actingAs($this->hr)->get('/payroll')->assertForbidden();
+        $this->actingAs($this->hr)->get('/payroll')->assertOk();
         $this->actingAs($this->platform)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertForbidden();
         $this->actingAs($this->accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
         $runId = (int) DB::table('payroll_runs')->where('tenant_id', $this->northId)->where('month', 11)->value('id');

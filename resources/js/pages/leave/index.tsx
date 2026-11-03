@@ -153,6 +153,24 @@ export default function LeavePage({
                     </SectionCard>
                 )}
             </div>
+            {!canManagePolicies && (
+                <div className="mt-4">
+                    <SectionCard title="Leave policies">
+                        {policies.length === 0 ? (
+                            <p className="text-sm text-slate-500">No leave policies are recorded.</p>
+                        ) : (
+                            <ul className="space-y-2 text-sm">
+                                {policies.map((policy) => (
+                                    <li key={policy.id} className="rounded-xl border border-slate-100 px-3 py-2">
+                                        <span className="font-medium">{policy.type ?? policy.name}</span>
+                                        <span className="mt-0.5 block text-xs text-slate-500">Accrual {policy.accrual}. Available after {policy.applicableAfterDays} days.</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </SectionCard>
+                </div>
+            )}
             {canManagePolicies && (
                 <div className="mt-4">
                     <SectionCard title="Leave policies">

@@ -199,7 +199,7 @@ export function LocationMap({ markers, selectedId, tiles, onSelect }: { markers:
         <div className="grid gap-2">
             <div ref={frame} className="relative h-80 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                 {tileImages.map((tile) => (
-                    <img key={tile.key} alt="" src={tileUrl(template, zoom, tile.x, tile.y)} referrerPolicy="no-referrer" className="absolute max-w-none" style={{ left: tile.left, top: tile.top, width: TILE, height: TILE }} draggable={false} onError={() => setTilesFailed(true)} />
+                    <img key={tile.key} alt="" src={tileUrl(template, zoom, tile.x, tile.y)} referrerPolicy="origin" className="absolute max-w-none" style={{ left: tile.left, top: tile.top, width: TILE, height: TILE }} draggable={false} onError={() => setTilesFailed(true)} />
                 ))}
                 {tilesFailed && (
                     <p role="status" className="absolute inset-x-3 top-3 z-20 rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-700 shadow">

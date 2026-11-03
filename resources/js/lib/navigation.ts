@@ -6,10 +6,12 @@ import {
     CalendarRange,
     Inbox,
     LayoutDashboard,
+    Megaphone,
     LifeBuoy,
     Map,
     Receipt,
     ClipboardList,
+    FileText,
     ScrollText,
     Wallet,
     Settings,
@@ -41,6 +43,7 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, section: 'Workspace' },
         { label: 'My Profile', href: '/my-profile', icon: UserRound, section: 'Workspace' },
         { label: 'Inbox', href: '/inbox', icon: Inbox, section: 'Workspace' },
+        { label: 'Announcements', href: '/announcements', icon: Megaphone, section: 'Workspace' },
     ];
 
     if (workspace.permissions.employees) {
@@ -48,6 +51,9 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     }
     if (workspace.role === 'company_admin' || workspace.role === 'hr') {
         items.push({ label: 'Offer letters', href: '/offer-letters', icon: ScrollText, section: 'People' });
+        items.push({ label: 'Offer templates', href: '/offer-letters/templates', icon: ScrollText, section: 'People' });
+        items.push({ label: 'USA offers', href: '/usa-offers', icon: ScrollText, section: 'People' });
+        items.push({ label: 'STEM I-983', href: '/i983', icon: ClipboardList, section: 'People' });
         items.push({ label: 'Candidate forms', href: '/candidates', icon: ClipboardList, section: 'People' });
     }
 
@@ -64,6 +70,14 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
 
     items.push({ label: 'Leave', href: '/leave', icon: CalendarRange, section: 'Time' });
 
+    if (workspace.role === 'employee') {
+        items.push({ label: 'My Documents', href: '/my-documents', icon: FileText, section: 'People' });
+    }
+
+    if (workspace.role === 'company_admin' || workspace.role === 'hr') {
+        items.push({ label: 'Documents', href: '/documents', icon: FileText, section: 'People' });
+    }
+
     if (workspace.permissions.routeMap) {
         items.push({ label: 'Route Map', href: '/route-map', icon: Map, section: 'Time' });
     }
@@ -72,10 +86,12 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         items.push({ label: 'Salary', href: '/salary', icon: Wallet, section: 'Pay' });
     }
 
-    if (workspace.permissions.payrollView) {
+    if (workspace.permissions.payrollView || workspace.permissions.payrollImport) {
         items.push({ label: 'Payroll', href: '/payroll', icon: Receipt, section: 'Pay' });
-        items.push({ label: 'Payroll Runs', href: '/payroll/runs', icon: Receipt, section: 'Pay' });
-        items.push({ label: 'Payroll Review', href: '/payroll/runs?status=review', icon: Receipt, section: 'Pay' });
+    }
+
+    if (workspace.permissions.payrollView) {
+        items.push({ label: 'Legacy payroll', href: '/payroll/runs', icon: Receipt, section: 'Pay' });
     }
 
     if (workspace.permissions.payrollPay) {
@@ -88,7 +104,7 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     );
 
     if (workspace.role !== 'team_lead') {
-        items.push({ label: 'Payslips', href: '/payslips', icon: Receipt, section: 'Pay' });
+        items.push({ label: workspace.role === 'employee' ? 'My Payslips' : 'Payslips', href: '/payslips', icon: Receipt, section: 'Pay' });
     }
 
     items.push({ label: 'Help Desk', href: '/help-desk', icon: LifeBuoy, section: 'Support' });

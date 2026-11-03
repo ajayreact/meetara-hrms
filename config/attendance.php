@@ -18,6 +18,17 @@ return [
 
     'trusts_all_proxies' => trim((string) env('TRUSTED_PROXIES', '')) === '*',
 
+    /*
+    | How many past days an employee may ask to correct. Future dates are never accepted.
+    */
+    'correction_days' => max(1, (int) env('ATTENDANCE_CORRECTION_DAYS', 14)),
+
+    /*
+    | Used only when both the assigned office and the company have no valid timezone.
+    | An India office with a blank timezone follows the company timezone first.
+    */
+    'fallback_timezone' => 'Asia/Kolkata',
+
     'trusted_proxies' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env('TRUSTED_PROXIES', ''))

@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\User;
+use App\Services\Hrms\OfferLetterReadiness;
 use App\Services\Hrms\OfferLetters;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
 
@@ -158,7 +162,7 @@ class OfferLetterTest extends TestCase
         $owner = $this->owner($company);
         $accounts = $this->accountsUser($company);
 
-        $this->actingAs($company->hr)->get('/offer-letters')->assertOk()->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $this->actingAs($company->hr)->get('/offer-letters')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->where('employees', fn ($rows) => collect($rows)->pluck('id')->contains($employee->id) && ! collect($rows)->pluck('id')->contains($other->reportEmployeeId)));
 
         $this->actingAs($company->hr)->post('/offer-letters', $this->payload('bench_sales_recruiter', $other->reportEmployeeId))
@@ -231,12 +235,12 @@ class OfferLetterTest extends TestCase
         DB::table('tenants')->where('id', $company->id)->update([
             'address' => 'A typed address is not verification',
         ]);
-        $readiness = app(\App\Services\Hrms\OfferLetterReadiness::class);
+        $readiness = app(OfferLetterReadiness::class);
         $this->assertFalse($readiness->ready());
         $this->assertSame(['template_approval', 'company_legal_details'], array_column($readiness->issues(), 'key'));
         $this->assertSame(['not_configured'], array_values(array_unique(array_column($readiness->issues(), 'state'))));
 
-        $this->actingAs($company->hr)->get('/offer-letters')->assertOk()->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $this->actingAs($company->hr)->get('/offer-letters')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
             ->where('issuance.ready', false)
             ->where('issuance.canIssue', false)
             ->where('issuance.status', 'Issuance blocked — template approval required')
@@ -258,7 +262,7 @@ class OfferLetterTest extends TestCase
         try {
             app(OfferLetters::class)->issue($company->hr, $letterId);
             $this->fail('A direct issuance call should stay blocked.');
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             $this->assertStringContainsString('Template approval is not on file', $exception->errors()['letter'][0]);
             $this->assertStringNotContainsString('45000', json_encode($exception->errors()));
             $this->assertStringNotContainsString((string) $employee->first_name, json_encode($exception->errors()));
@@ -297,6 +301,65 @@ class OfferLetterTest extends TestCase
         Storage::disk('local')->assertDirectoryEmpty('employee-documents');
     }
 
+    public function test_offer_details_stay_on_the_letter_and_a_notice_can_be_thirty_days(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix-offer-days');
+        $employee = Employee::query()->findOrFail($company->reportEmployeeId);
+        $joining = $employee->date_of_joining?->toDateString();
+        $departmentId = $employee->department_id;
+
+        $this->actingAs($company->hr)->post('/offer-letters', [
+            ...$this->payload('opt_recruiter', $employee->id),
+            'salary_in_words' => 'Rupees Wrong Only',
+        ])->assertSessionHasErrors('salary_in_words');
+
+        $this->assertSame(0, DB::table('offer_letters')->count());
+
+        $this->actingAs($company->hr)->post('/offer-letters', [
+            ...$this->payload('opt_recruiter', $employee->id),
+            'country' => 'india',
+            'notice_unit' => 'days',
+            'notice_days' => 30,
+            'joining_date' => '2026-06-01',
+            'department' => 'Offer only department',
+            'designation' => 'Offer only role',
+            'reporting_manager' => 'Offer only manager',
+            'monthly_salary' => '50000',
+            'basic_salary' => '25000',
+            'hra' => '15000',
+            'special_allowance' => '10000',
+            'date_of_issue' => '2026-05-01',
+        ])->assertRedirect();
+
+        $letter = DB::table('offer_letters')->where('employee_id', $employee->id)->first();
+        $this->assertSame(30, (int) $letter->notice_days);
+        $this->assertSame(0, (int) $letter->notice_months);
+        $this->assertEquals(600000, (float) $letter->annual_ctc);
+        $this->assertSame('Offer only department', $letter->department_name);
+        $this->assertSame('Offer only role', $letter->designation_name);
+        $this->assertSame('Offer only manager', $letter->reporting_manager_name);
+        $this->assertStringStartsWith('2026-06-01', (string) $letter->joining_date);
+        $employee->refresh();
+        $this->assertSame($joining, $employee->date_of_joining?->toDateString());
+        $this->assertSame($departmentId, $employee->department_id);
+
+        $this->actingAs($company->hr)->post('/offer-letters/'.$letter->id.'/preview')->assertRedirect();
+        $body = (string) DB::table('offer_letters')->where('id', $letter->id)->value('preview_body');
+        $this->assertStringContainsString('Notice period: 30 days', $body);
+
+        $this->actingAs($company->hr)->post('/offer-letters', [
+            ...$this->payload('bench_sales_recruiter', $employee->id),
+            'country' => 'usa',
+            'hourly_rate' => '25.00',
+            'monthly_salary' => '1000',
+            'basic_salary' => '999',
+        ])->assertRedirect();
+        $usa = DB::table('offer_letters')->where('position_code', 'bench_sales_recruiter')->first();
+        $this->assertSame('usa', $usa->country);
+        $this->assertEquals(52000, (float) $usa->annual_ctc);
+        $this->assertNull($usa->basic_salary);
+    }
+
     /**
      * @return array<string, int|string>
      */
@@ -312,9 +375,9 @@ class OfferLetterTest extends TestCase
         ];
     }
 
-    private function owner(CompanyFixture $company): \App\Models\User
+    private function owner(CompanyFixture $company): User
     {
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
         $user->forceFill([
             'tenant_id' => $company->id,
             'is_platform_admin' => false,
@@ -322,7 +385,7 @@ class OfferLetterTest extends TestCase
         ])->save();
         DB::table('model_has_roles')->insert([
             'role_id' => DB::table('roles')->where('tenant_id', $company->id)->where('name', 'Owner')->value('id'),
-            'model_type' => \App\Models\User::class,
+            'model_type' => User::class,
             'model_id' => $user->id,
             'tenant_id' => $company->id,
         ]);
@@ -330,7 +393,7 @@ class OfferLetterTest extends TestCase
         return $user->refresh();
     }
 
-    private function accountsUser(CompanyFixture $company): \App\Models\User
+    private function accountsUser(CompanyFixture $company): User
     {
         $roleId = DB::table('roles')->insertGetId([
             'tenant_id' => $company->id,
@@ -339,7 +402,7 @@ class OfferLetterTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
         $user->forceFill([
             'tenant_id' => $company->id,
             'is_platform_admin' => false,
@@ -347,7 +410,7 @@ class OfferLetterTest extends TestCase
         ])->save();
         DB::table('model_has_roles')->insert([
             'role_id' => $roleId,
-            'model_type' => \App\Models\User::class,
+            'model_type' => User::class,
             'model_id' => $user->id,
             'tenant_id' => $company->id,
         ]);

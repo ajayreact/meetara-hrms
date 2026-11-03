@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\CaptchaVerifier;
 use App\Contracts\MalwareScanner;
+use App\Mail\PasswordResetMail;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -27,6 +28,7 @@ use App\Policies\SalaryStructurePolicy;
 use App\Support\Candidate\ClamAvScanner;
 use App\Support\Candidate\TurnstileVerifier;
 use App\Support\DeploymentSecurity;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -52,6 +54,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        ResetPassword::toMailUsing(function (object $notifiable, string $token) {
+            return new PasswordResetMail(
+                $token,
+                (string) $notifiable->getEmailForPasswordReset(),
+                trim((string) ($notifiable->name ?? '')),
+            );
+        });
 
         if (DeploymentSecurity::requiresHttps($this->app->environment())) {
             URL::forceScheme('https');

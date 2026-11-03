@@ -21,6 +21,7 @@ class EmployeeOnboarding
         'document_reviewed' => 'Document reviewed',
         'welcome_notified' => 'Welcome notice',
     ];
+
     public const TASKS = [
         'profile' => 'Employee profile completed',
         'offer_issued' => 'Offer letter generated/issued',
@@ -434,11 +435,16 @@ class EmployeeOnboarding
         $manager = $employee->manager && (int) $employee->manager->tenant_id === $companyId
             ? trim($employee->manager->first_name.' '.$employee->manager->last_name)
             : 'Not assigned';
+        $name = trim($employee->first_name.' '.$employee->last_name);
         $payload = [
             'employeeId' => (int) $employee->id,
-            'title' => 'New employee joined',
-            'message' => trim($employee->first_name.' '.$employee->last_name).' joined as '.$designation.' in '.$department.' on '.optional($employee->date_of_joining)->toDateString().'. Reporting manager: '.$manager.'.',
+            'title' => 'Welcome Our New Team Member!',
+            'message' => "Let's welcome {$name} to our team! We are excited to have them onboard. Please join us in welcoming our new colleague.",
+            'initials' => strtoupper(substr((string) $employee->first_name, 0, 1).substr((string) $employee->last_name, 0, 1)),
             'url' => route('hrms.employees.show', $employee),
+            'designation' => $designation,
+            'department' => $department,
+            'manager' => $manager,
         ];
         $notification = new EmployeeJoinedNotification($payload);
 
@@ -465,16 +471,14 @@ class EmployeeOnboarding
             ->where('users.tenant_id', $companyId)
             ->whereIn('roles.name', ['Owner', 'HR'])
             ->pluck('users.id');
+        $active = DB::table('employees')
+            ->where('tenant_id', $companyId)
+            ->where('status', 'active')
+            ->whereNotNull('user_id')
+            ->pluck('user_id');
+        $ids = $ids->merge($active)->unique()->reject(fn ($id) => (int) $id === (int) $employee->user_id);
 
-        if ($employee->manager && (int) $employee->manager->tenant_id === $companyId && $employee->manager->user_id) {
-            $managerUser = User::query()->whereKey($employee->manager->user_id)->where('tenant_id', $companyId)->value('id');
-
-            if ($managerUser) {
-                $ids->push($managerUser);
-            }
-        }
-
-        return User::query()->whereIn('id', $ids->unique()->all())->where('tenant_id', $companyId)->get()->all();
+        return User::query()->whereIn('id', $ids->all())->where('tenant_id', $companyId)->get()->all();
     }
 
     /**

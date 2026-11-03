@@ -10,9 +10,9 @@ class MigrationInventory
 {
     public const SCHEMA_DUMP = 'database/schema/mysql-schema.sql';
 
-    public const SCHEMA_DUMP_SHA256 = 'A1F8AA7ED4DF6B386068D2D1984D018FD8544F4697F4D76AFEBC69BEC8AE5CBB';
+    public const SCHEMA_DUMP_SHA256 = '565FF15940792A4530297648E3B7106061A76A0E6FD54E2D3721A84580542836';
 
-    public const SCHEMA_DUMP_BYTES = 84502;
+    public const SCHEMA_DUMP_BYTES = 163031;
 
     /**
      * Names recorded in the schema dump whose PHP files are not in the repository.

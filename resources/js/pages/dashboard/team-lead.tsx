@@ -1,3 +1,4 @@
+import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
@@ -10,7 +11,8 @@ interface Roster {
     counts: { showing: number; present: number };
 }
 
-export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBoard }: HrmsPageProps & {
+export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBoard, workplace }: HrmsPageProps & {
+    workplace?: WorkplacePayload;
     attendanceRoster?: Roster | null;
     leaveBoard?: { queue: { id: number; employee: string | null; type: string | null; start: string; end: string; status: string }[] };
 }) {
@@ -57,6 +59,7 @@ export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBo
                     )}
                 </SectionCard>
             </div>
+            <WorkplacePanels workplace={workplace} />
         </HrmsLayout>
     );
 }

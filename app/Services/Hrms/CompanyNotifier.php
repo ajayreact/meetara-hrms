@@ -25,20 +25,40 @@ class CompanyNotifier
             return;
         }
 
-        DB::table('notifications')->insert([
-            'id' => (string) Str::uuid(),
-            'type' => 'App\\Notifications\\WorkspaceNotification',
-            'notifiable_type' => User::class,
-            'notifiable_id' => $userId,
-            'data' => json_encode([
-                'key' => $key,
-                'title' => $title,
-                'message' => $message,
-                'url' => $url,
-            ]),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->write($userId, [
+            'key' => $key,
+            'title' => $title,
+            'message' => $message,
+            'url' => $url,
+        ], null);
+    }
+
+    public function mail(User $sender, User $recipient, string $subject, string $message): void
+    {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $thread = (string) Str::uuid();
+        $shared = [
+            'kind' => 'mail',
+            'title' => $subject,
+            'message' => $message,
+            'url' => '',
+            'from_name' => $sender->name,
+            'from_user_id' => $sender->id,
+            'to_name' => $recipient->name,
+            'to_user_id' => $recipient->id,
+        ];
+
+        $this->write($recipient->id, array_merge($shared, [
+            'key' => 'mail-'.$thread.'-in',
+            'direction' => 'in',
+        ]), null);
+        $this->write($sender->id, array_merge($shared, [
+            'key' => 'mail-'.$thread.'-out',
+            'direction' => 'out',
+        ]), now());
     }
 
     /**
@@ -73,5 +93,22 @@ class CompanyNotifier
             ->pluck('model_id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function write(int $userId, array $data, mixed $readAt): void
+    {
+        DB::table('notifications')->insert([
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\WorkspaceNotification',
+            'notifiable_type' => User::class,
+            'notifiable_id' => $userId,
+            'data' => json_encode($data),
+            'read_at' => $readAt,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

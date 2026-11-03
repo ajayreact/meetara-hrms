@@ -19,6 +19,13 @@ class HrmsSchema
             });
         }
 
+        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'invite_expires_at')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->timestamp('invite_expires_at')->nullable();
+                $table->timestamp('invite_sent_at')->nullable();
+            });
+        }
+
         if (! Schema::hasTable('tenants')) {
             Schema::create('tenants', function (Blueprint $table) {
                 $table->id();
@@ -26,7 +33,14 @@ class HrmsSchema
                 $table->string('slug')->nullable();
                 $table->string('timezone')->default('Asia/Kolkata');
                 $table->string('status')->default('active');
+                $table->boolean('offer_approval_required')->default(true);
                 $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('tenants') && ! Schema::hasColumn('tenants', 'offer_approval_required')) {
+            Schema::table('tenants', function (Blueprint $table) {
+                $table->boolean('offer_approval_required')->default(true);
             });
         }
 
@@ -117,6 +131,12 @@ class HrmsSchema
                 $table->string('work_mode')->default('office');
                 $table->string('check_in_ip', 45)->nullable();
                 $table->string('check_out_ip', 45)->nullable();
+                $table->decimal('check_in_latitude', 10, 7)->nullable();
+                $table->decimal('check_in_longitude', 10, 7)->nullable();
+                $table->unsignedInteger('check_in_distance_meters')->nullable();
+                $table->decimal('check_out_latitude', 10, 7)->nullable();
+                $table->decimal('check_out_longitude', 10, 7)->nullable();
+                $table->unsignedInteger('check_out_distance_meters')->nullable();
                 $table->string('verified_as', 20)->nullable();
                 $table->string('status')->default('present');
                 $table->unsignedSmallInteger('minutes')->nullable();
@@ -125,6 +145,17 @@ class HrmsSchema
                 $table->text('recovery_note')->nullable();
                 $table->timestamps();
                 $table->unique(['employee_id', 'work_date']);
+            });
+        }
+
+        if (Schema::hasTable('attendance_logs') && ! Schema::hasColumn('attendance_logs', 'check_in_latitude')) {
+            Schema::table('attendance_logs', function (Blueprint $table) {
+                $table->decimal('check_in_latitude', 10, 7)->nullable();
+                $table->decimal('check_in_longitude', 10, 7)->nullable();
+                $table->unsignedInteger('check_in_distance_meters')->nullable();
+                $table->decimal('check_out_latitude', 10, 7)->nullable();
+                $table->decimal('check_out_longitude', 10, 7)->nullable();
+                $table->unsignedInteger('check_out_distance_meters')->nullable();
             });
         }
 
@@ -586,6 +617,8 @@ class HrmsSchema
                 $table->string('title');
                 $table->string('file_path');
                 $table->string('original_name');
+                $table->string('reference', 80)->nullable();
+                $table->text('description')->nullable();
                 $table->string('review_status', 40)->default('pending');
                 $table->unsignedBigInteger('uploaded_by')->nullable();
                 $table->unsignedBigInteger('reviewed_by')->nullable();
@@ -593,6 +626,28 @@ class HrmsSchema
                 $table->text('review_note')->nullable();
                 $table->unsignedBigInteger('replaces_document_id')->nullable();
                 $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('employee_documents') && ! Schema::hasColumn('employee_documents', 'reference')) {
+            Schema::table('employee_documents', function (Blueprint $table) {
+                $table->string('reference', 80)->nullable();
+                $table->text('description')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('document_category_settings')) {
+            Schema::create('document_category_settings', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('category_key', 40);
+                $table->string('name', 80);
+                $table->string('group_key', 30);
+                $table->boolean('is_required')->default(false);
+                $table->boolean('is_active')->default(true);
+                $table->unsignedSmallInteger('sort_order')->default(0);
+                $table->timestamps();
+                $table->unique(['tenant_id', 'category_key']);
             });
         }
 
@@ -847,6 +902,701 @@ class HrmsSchema
                 $table->unsignedBigInteger('tenant_id');
                 $table->unsignedBigInteger('submission_id')->nullable();
                 $table->unsignedBigInteger('actor_id')->nullable();
+                $table->string('action', 40);
+                $table->string('subject', 80)->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('company_legal_profiles')) {
+            Schema::create('company_legal_profiles', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('country', 10)->default('india');
+                $table->string('legal_name');
+                $table->text('legal_address');
+                $table->string('registration_details')->nullable();
+                $table->string('signatory_name');
+                $table->string('signatory_designation');
+                $table->string('hr_email');
+                $table->string('logo_path')->nullable();
+                $table->string('signature_path')->nullable();
+                $table->boolean('signature_enabled')->default(false);
+                $table->boolean('signature_active')->default(false);
+                $table->unsignedInteger('signature_version')->default(0);
+                $table->unsignedBigInteger('signature_uploaded_by')->nullable();
+                $table->timestamp('signature_uploaded_at')->nullable();
+                $table->unsignedSmallInteger('signature_width')->default(140);
+                $table->unsignedSmallInteger('signature_height')->default(48);
+                $table->string('signature_align', 10)->default('left');
+                $table->unsignedSmallInteger('signature_gap_before')->default(8);
+                $table->unsignedSmallInteger('signature_gap_after')->default(6);
+                $table->string('status', 20)->default('draft');
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->unsignedBigInteger('verified_by')->nullable();
+                $table->timestamp('verified_at')->nullable();
+                $table->timestamps();
+                $table->unique(['tenant_id', 'country']);
+            });
+        }
+
+        if (! Schema::hasTable('company_legal_profile_events')) {
+            Schema::create('company_legal_profile_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('action', 40);
+                $table->json('previous_values')->nullable();
+                $table->json('updated_values')->nullable();
+                $table->timestamp('created_at')->nullable();
+                $table->index(['tenant_id', 'created_at']);
+            });
+        }
+
+        if (! Schema::hasTable('offer_letterheads')) {
+            Schema::create('offer_letterheads', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('country', 10);
+                $table->unsignedInteger('version');
+                $table->string('source_path');
+                $table->string('background_path')->nullable();
+                $table->string('mime', 80);
+                $table->string('original_name');
+                $table->string('status', 20)->default('active');
+                $table->string('page_size', 10)->default('A4');
+                $table->decimal('page_width', 8, 2)->nullable();
+                $table->decimal('page_height', 8, 2)->nullable();
+                $table->unsignedSmallInteger('header_height')->nullable();
+                $table->unsignedSmallInteger('footer_height')->nullable();
+                $table->unsignedSmallInteger('margin_top')->default(120);
+                $table->unsignedSmallInteger('margin_right')->default(48);
+                $table->unsignedSmallInteger('margin_bottom')->default(56);
+                $table->unsignedSmallInteger('margin_left')->default(48);
+                $table->unsignedBigInteger('uploaded_by')->nullable();
+                $table->string('printed_legal_name')->nullable();
+                $table->text('printed_address')->nullable();
+                $table->timestamps();
+                $table->unique(['tenant_id', 'country', 'version']);
+            });
+        }
+
+        if (Schema::hasTable('offer_letterheads') && ! Schema::hasColumn('offer_letterheads', 'printed_legal_name')) {
+            Schema::table('offer_letterheads', function (Blueprint $table) {
+                $table->string('printed_legal_name')->nullable();
+                $table->text('printed_address')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('hr_announcements')) {
+            Schema::create('hr_announcements', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('title');
+                $table->text('description');
+                $table->string('category', 30);
+                $table->string('visibility', 20)->default('company');
+                $table->string('status', 20)->default('draft');
+                $table->timestamp('publish_at')->nullable();
+                $table->date('expires_on')->nullable();
+                $table->timestamp('published_at')->nullable();
+                $table->string('attachment_path')->nullable();
+                $table->string('attachment_name')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+                $table->index(['tenant_id', 'status', 'publish_at']);
+            });
+        }
+
+        if (! Schema::hasTable('offer_letter_corrections')) {
+            Schema::create('offer_letter_corrections', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('offer_letter_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('reason', 500);
+                $table->json('previous_values')->nullable();
+                $table->json('updated_values')->nullable();
+                $table->timestamp('created_at')->nullable();
+                $table->index(['tenant_id', 'offer_letter_id']);
+            });
+        }
+
+        if (! Schema::hasTable('offer_letter_templates')) {
+            Schema::create('offer_letter_templates', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('country', 10);
+                $table->string('name');
+                $table->string('status', 20)->default('draft');
+                $table->unsignedInteger('current_version')->default(1);
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('offer_letter_template_versions')) {
+            Schema::create('offer_letter_template_versions', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('template_id');
+                $table->unsignedInteger('version');
+                $table->string('country', 10);
+                $table->text('body');
+                $table->unsignedBigInteger('letterhead_id')->nullable();
+                $table->string('status', 20)->default('draft');
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('submitted_by')->nullable();
+                $table->timestamp('submitted_at')->nullable();
+                $table->unsignedBigInteger('approved_by')->nullable();
+                $table->timestamp('approved_at')->nullable();
+                $table->timestamps();
+                $table->unique(['template_id', 'version']);
+            });
+        }
+
+        if (! Schema::hasTable('offer_letter_downloads')) {
+            Schema::create('offer_letter_downloads', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('offer_letter_id');
+                $table->unsignedBigInteger('user_id');
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('employees') && ! Schema::hasColumn('employees', 'date_of_birth')) {
+            Schema::table('employees', function (Blueprint $table) {
+                $table->date('date_of_birth')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('followup_candidates')) {
+            Schema::create('followup_candidates', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('owner_employee_id');
+                $table->string('name');
+                $table->string('email');
+                $table->string('phone')->nullable();
+                $table->string('university')->nullable();
+                $table->string('state')->nullable();
+                $table->text('remarks')->nullable();
+                $table->date('follow_up_on')->nullable();
+                $table->string('status', 30)->default('new');
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+                $table->unique(['tenant_id', 'email']);
+                $table->index(['tenant_id', 'owner_employee_id', 'status']);
+            });
+        }
+
+        if (! Schema::hasTable('followup_reminders')) {
+            Schema::create('followup_reminders', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('candidate_id');
+                $table->dateTime('remind_at');
+                $table->text('notes')->nullable();
+                $table->string('status', 20)->default('open');
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('completed_by')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('followup_events')) {
+            Schema::create('followup_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('candidate_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('action', 40);
+                $table->text('note')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('work_tasks')) {
+            Schema::create('work_tasks', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('assignee_employee_id');
+                $table->string('title');
+                $table->text('description')->nullable();
+                $table->string('priority', 20)->default('medium');
+                $table->date('start_on')->nullable();
+                $table->date('due_on')->nullable();
+                $table->date('expected_on')->nullable();
+                $table->text('remarks')->nullable();
+                $table->string('status', 20)->default('assigned');
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->unsignedBigInteger('assigned_by')->nullable();
+                $table->unsignedBigInteger('completed_by')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('work_task_events')) {
+            Schema::create('work_task_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('task_id');
+                $table->unsignedBigInteger('actor_id');
+                $table->string('action', 40);
+                $table->text('note')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('offer_letters') && ! Schema::hasColumn('offer_letters', 'country')) {
+            Schema::table('offer_letters', function (Blueprint $table) {
+                $table->string('country', 10)->default('india');
+                $table->string('reference_code', 40)->nullable();
+                $table->unsignedBigInteger('template_version_id')->nullable();
+                $table->string('employee_email')->nullable();
+                $table->string('compensation_type', 20)->nullable();
+                $table->decimal('hourly_rate', 12, 2)->nullable();
+                $table->decimal('basic_salary', 12, 2)->nullable();
+                $table->decimal('hra', 12, 2)->nullable();
+                $table->decimal('special_allowance', 12, 2)->nullable();
+                $table->unsignedTinyInteger('probation_months')->nullable();
+                $table->string('department_name')->nullable();
+                $table->string('work_location')->nullable();
+                $table->string('employment_type')->nullable();
+                $table->string('work_mode')->nullable();
+                $table->string('working_hours')->nullable();
+                $table->unsignedBigInteger('submitted_by')->nullable();
+                $table->timestamp('submitted_at')->nullable();
+                $table->unsignedBigInteger('approved_by')->nullable();
+                $table->timestamp('approved_at')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('offer_letters') && ! Schema::hasColumn('offer_letters', 'notice_days')) {
+            Schema::table('offer_letters', function (Blueprint $table) {
+                $table->unsignedSmallInteger('notice_days')->nullable();
+                $table->date('date_of_issue')->nullable();
+                $table->string('designation_name')->nullable();
+                $table->string('reporting_manager_name')->nullable();
+                $table->string('employee_phone', 40)->nullable();
+                $table->text('offer_notes')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('offer_letters') && ! Schema::hasColumn('offer_letters', 'salutation')) {
+            Schema::table('offer_letters', function (Blueprint $table) {
+                $table->string('salutation', 20)->nullable();
+            });
+        }
+
+        if (Schema::hasTable('offer_letters') && ! Schema::hasColumn('offer_letters', 'candidate_address')) {
+            Schema::table('offer_letters', function (Blueprint $table) {
+                $table->text('candidate_address')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('company_legal_profiles') && ! Schema::hasColumn('company_legal_profiles', 'letterhead_confirmed_by')) {
+            Schema::table('company_legal_profiles', function (Blueprint $table) {
+                $table->unsignedBigInteger('letterhead_confirmed_by')->nullable();
+                $table->timestamp('letterhead_confirmed_at')->nullable();
+                $table->unsignedBigInteger('letterhead_confirmed_id')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('payroll_runs') && ! Schema::hasColumn('payroll_runs', 'source')) {
+            Schema::table('payroll_runs', function (Blueprint $table) {
+                $table->string('source', 20)->default('calculated');
+                $table->string('original_name')->nullable();
+                $table->string('file_path')->nullable();
+                $table->unsignedBigInteger('uploaded_by')->nullable();
+                $table->timestamp('uploaded_at')->nullable();
+                $table->unsignedBigInteger('confirmed_by')->nullable();
+                $table->string('payslip_status', 20)->nullable();
+                $table->json('import_rows')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('attendance_correction_requests')) {
+            Schema::create('attendance_correction_requests', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->unsignedBigInteger('attendance_log_id')->nullable();
+                $table->date('work_date');
+                $table->string('type', 40);
+                $table->dateTime('requested_check_in')->nullable();
+                $table->dateTime('requested_check_out')->nullable();
+                $table->text('reason');
+                $table->string('status', 20)->default('pending');
+                $table->unsignedBigInteger('requested_by');
+                $table->unsignedBigInteger('reviewed_by')->nullable();
+                $table->timestamp('reviewed_at')->nullable();
+                $table->text('review_reason')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('attendance_correction_audits')) {
+            Schema::create('attendance_correction_audits', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->unsignedBigInteger('attendance_log_id')->nullable();
+                $table->unsignedBigInteger('request_id');
+                $table->dateTime('original_check_in')->nullable();
+                $table->dateTime('original_check_out')->nullable();
+                $table->dateTime('corrected_check_in')->nullable();
+                $table->dateTime('corrected_check_out')->nullable();
+                $table->unsignedSmallInteger('original_late_minutes')->nullable();
+                $table->unsignedSmallInteger('corrected_late_minutes')->nullable();
+                $table->unsignedBigInteger('changed_by')->nullable();
+                $table->unsignedBigInteger('approved_by')->nullable();
+                $table->text('employee_reason');
+                $table->text('review_reason')->nullable();
+                $table->string('decision', 20);
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('holiday_work_authorizations')) {
+            Schema::create('holiday_work_authorizations', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->date('work_date');
+                $table->string('kind', 20);
+                $table->unsignedBigInteger('holiday_id')->nullable();
+                $table->text('reason')->nullable();
+                $table->unsignedBigInteger('authorized_by');
+                $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('payroll_items') && ! Schema::hasColumn('payroll_items', 'import_supplied')) {
+            Schema::table('payroll_items', function (Blueprint $table) {
+                $table->decimal('other_earnings', 12, 2)->nullable();
+                $table->decimal('professional_tax', 12, 2)->nullable();
+                $table->decimal('other_deductions', 12, 2)->nullable();
+                $table->string('payslip_path')->nullable();
+                $table->text('payslip_error')->nullable();
+                $table->json('import_supplied')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('usa_offer_designations')) {
+            Schema::create('usa_offer_designations', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('designation_key', 80);
+                $table->string('name', 120);
+                $table->string('group_key', 30);
+                $table->json('responsibilities');
+                $table->json('factory_responsibilities');
+                $table->boolean('is_active')->default(true);
+                $table->boolean('is_builtin')->default(false);
+                $table->unsignedSmallInteger('sort_order')->default(0);
+                $table->timestamps();
+                $table->unique(['tenant_id', 'designation_key']);
+                $table->unique(['tenant_id', 'name']);
+            });
+        }
+
+        if (! Schema::hasTable('usa_offer_profiles')) {
+            Schema::create('usa_offer_profiles', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id')->unique();
+                $table->string('company_name');
+                $table->string('address_line')->nullable();
+                $table->string('city_line')->nullable();
+                $table->string('country_line')->nullable();
+                $table->string('website')->nullable();
+                $table->string('email')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('e_verify', 40)->nullable();
+                $table->string('federal_id', 40)->nullable();
+                $table->string('manager_name')->nullable();
+                $table->string('manager_title')->nullable();
+                $table->string('manager_email')->nullable();
+                $table->string('manager_phone')->nullable();
+                $table->string('hr_name')->nullable();
+                $table->string('hr_title')->nullable();
+                $table->string('hr_phone')->nullable();
+                $table->string('letterhead_path')->nullable();
+                $table->string('letterhead_name')->nullable();
+                $table->string('signature_path')->nullable();
+                $table->string('signature_name')->nullable();
+                $table->string('template_version', 40);
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('usa_offers')) {
+            Schema::create('usa_offers', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('designation_id')->nullable();
+                $table->string('designation_name');
+                $table->json('responsibilities');
+                $table->string('candidate_name');
+                $table->string('candidate_email')->nullable();
+                $table->string('candidate_phone')->nullable();
+                $table->text('candidate_address')->nullable();
+                $table->string('pay_type', 20);
+                $table->decimal('pay_amount', 12, 2);
+                $table->string('working_hours', 80);
+                $table->string('work_arrangement', 120);
+                $table->string('university', 160);
+                $table->date('start_date');
+                $table->date('issue_date');
+                $table->json('profile_snapshot')->nullable();
+                $table->string('template_version', 40);
+                $table->string('status', 20)->default('draft');
+                $table->string('file_path')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('usa_offers') && ! Schema::hasColumn('usa_offers', 'employment_type')) {
+            Schema::table('usa_offers', function (Blueprint $table) {
+                $table->string('employment_type', 80)->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('i983_cases')) {
+            Schema::create('i983_cases', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->string('reference', 20);
+                $table->string('candidate_name', 120);
+                $table->string('candidate_email', 191);
+                $table->char('email_hash', 64);
+                $table->string('status', 30)->default('awaiting_student');
+                $table->timestamp('student_submitted_at')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamps();
+                $table->unique(['tenant_id', 'reference']);
+            });
+        }
+
+        if (! Schema::hasTable('i983_links')) {
+            Schema::create('i983_links', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->char('token_hash', 64)->unique();
+                $table->timestamp('expires_at');
+                $table->timestamp('revoked_at')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('i983_students')) {
+            Schema::create('i983_students', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id')->unique();
+                $table->string('surname', 80)->nullable();
+                $table->string('given_name', 80)->nullable();
+                $table->string('middle_name', 80)->nullable();
+                $table->string('email', 191)->nullable();
+                $table->string('school_recommending', 191)->nullable();
+                $table->string('school_degree', 191)->nullable();
+                $table->string('sevis_school_code', 20)->nullable();
+                $table->string('dso_name', 120)->nullable();
+                $table->string('dso_email', 191)->nullable();
+                $table->string('dso_phone', 40)->nullable();
+                $table->text('sevis_id_ciphertext')->nullable();
+                $table->date('opt_start')->nullable();
+                $table->date('opt_end')->nullable();
+                $table->string('major_cip', 160)->nullable();
+                $table->string('degree_level', 80)->nullable();
+                $table->date('degree_awarded_on')->nullable();
+                $table->boolean('prior_degree')->nullable();
+                $table->text('ead_ciphertext')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('i983_employers')) {
+            Schema::create('i983_employers', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id')->unique();
+                $table->string('legal_name', 191)->nullable();
+                $table->string('street', 191)->nullable();
+                $table->string('suite', 40)->nullable();
+                $table->string('website', 191)->nullable();
+                $table->string('city', 80)->nullable();
+                $table->string('state', 2)->nullable();
+                $table->string('zip', 10)->nullable();
+                $table->text('ein_ciphertext')->nullable();
+                $table->unsignedInteger('employee_count')->nullable();
+                $table->string('naics', 10)->nullable();
+                $table->unsignedTinyInteger('opt_hours')->nullable();
+                $table->decimal('salary', 12, 2)->nullable();
+                $table->string('salary_frequency', 40)->nullable();
+                $table->text('other_compensation')->nullable();
+                $table->date('start_date')->nullable();
+                $table->timestamp('finalized_at')->nullable();
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('i983_training_plans')) {
+            Schema::create('i983_training_plans', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id')->unique();
+                $table->string('student_name', 160)->nullable();
+                $table->string('employer_name', 191)->nullable();
+                $table->string('site_name', 191)->nullable();
+                $table->string('site_address', 300)->nullable();
+                $table->string('official_name', 120)->nullable();
+                $table->string('official_title', 120)->nullable();
+                $table->string('official_email', 191)->nullable();
+                $table->string('official_phone', 40)->nullable();
+                $table->text('student_role')->nullable();
+                $table->text('goals')->nullable();
+                $table->text('oversight')->nullable();
+                $table->text('measures')->nullable();
+                $table->text('remarks')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('i983_field_revisions')) {
+            Schema::create('i983_field_revisions', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->string('field_name', 40);
+                $table->text('previous_value')->nullable();
+                $table->text('new_value')->nullable();
+                $table->string('actor_type', 20);
+                $table->unsignedBigInteger('actor_id')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('i983_certifications')) {
+            Schema::create('i983_certifications', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->string('party', 20);
+                $table->string('printed_name', 160)->nullable();
+                $table->string('title', 120)->nullable();
+                $table->date('certified_on')->nullable();
+                $table->string('signature_path')->nullable();
+                $table->boolean('acknowledged')->default(false);
+                $table->timestamps();
+                $table->unique(['case_id', 'party']);
+            });
+        }
+
+        if (! Schema::hasTable('i983_student_certifications')) {
+            Schema::create('i983_student_certifications', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->unsignedBigInteger('link_id');
+                $table->unsignedInteger('version');
+                $table->string('printed_name', 160);
+                $table->string('student_email', 191);
+                $table->boolean('acknowledged');
+                $table->char('statements_sha256', 64);
+                $table->date('certified_on');
+                $table->timestamp('certified_at');
+                $table->string('timezone', 64);
+                $table->string('signature_path');
+                $table->char('signature_sha256', 64);
+                $table->char('upload_sha256', 64);
+                $table->timestamp('created_at')->nullable();
+                $table->unique(['case_id', 'version']);
+                $table->index('signature_sha256');
+                $table->index('upload_sha256');
+            });
+        }
+
+        if (! Schema::hasTable('i983_evaluations')) {
+            Schema::create('i983_evaluations', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->string('kind', 20);
+                $table->date('date_from')->nullable();
+                $table->date('date_to')->nullable();
+                $table->text('narrative')->nullable();
+                $table->date('student_signed_on')->nullable();
+                $table->date('employer_signed_on')->nullable();
+                $table->string('student_signature_path')->nullable();
+                $table->string('employer_signature_path')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('i983_documents')) {
+            Schema::create('i983_documents', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->string('kind', 20);
+                $table->unsignedInteger('version')->default(1);
+                $table->char('sha256', 64)->nullable();
+                $table->string('file_path');
+                $table->string('original_name', 191);
+                $table->string('mime', 80);
+                $table->unsignedInteger('size');
+                $table->unsignedBigInteger('source_document_id')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamp('created_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('i983_signatories')) {
+            Schema::create('i983_signatories', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id')->unique();
+                $table->string('signatory_name', 160);
+                $table->string('signatory_title', 120);
+                $table->string('image_path');
+                $table->string('image_mime', 40);
+                $table->unsignedInteger('image_width');
+                $table->unsignedInteger('image_height');
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('i983_corrections')) {
+            Schema::create('i983_corrections', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id');
+                $table->text('reason');
+                $table->unsignedBigInteger('requested_by')->nullable();
+                $table->timestamp('requested_at');
+                $table->timestamp('resolved_at')->nullable();
+            });
+        }
+
+        if (! Schema::hasTable('i983_events')) {
+            Schema::create('i983_events', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('case_id')->nullable();
+                $table->unsignedBigInteger('actor_id')->nullable();
+                $table->string('actor_type', 20);
                 $table->string('action', 40);
                 $table->string('subject', 80)->nullable();
                 $table->timestamp('created_at')->nullable();

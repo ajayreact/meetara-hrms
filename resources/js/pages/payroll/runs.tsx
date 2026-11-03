@@ -39,7 +39,7 @@ export default function PayrollRuns({ workspace, runs = [], filter = '', year = 
                 title={reviewing ? 'Payroll review' : 'Payroll runs'}
                 subtitle={reviewing
                     ? 'Calculated runs and runs sent for review are listed here. Approval and processing remain blocked while statutory categories are unresolved.'
-                    : 'One run is allowed for each company and month. Gross pay is basic salary plus HRA plus special allowance.'}
+                    : 'Legacy payroll processing. These runs were calculated inside Meetara. New monthly payroll is uploaded from Excel and is not calculated here.'}
             />
             <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}

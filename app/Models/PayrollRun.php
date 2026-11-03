@@ -17,7 +17,9 @@ class PayrollRun extends Model
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
             'processed_at' => 'datetime',
+            'uploaded_at' => 'datetime',
             'warnings' => 'array',
+            'import_rows' => 'array',
         ];
     }
 

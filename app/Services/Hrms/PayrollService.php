@@ -225,6 +225,28 @@ class PayrollService
                 'processed_at' => now(),
             ])->save();
             $this->event($locked, $actor, 'processed', null);
+            $period = $locked->year.'-'.str_pad((string) $locked->month, 2, '0', STR_PAD_LEFT);
+            $notices = $locked->items()->with('employee')->get()->map(fn (PayrollItem $item): array => [
+                'userId' => (int) ($item->employee->user_id ?? 0),
+                'itemId' => (int) $item->id,
+            ])->all();
+            DB::afterCommit(function () use ($notices, $period): void {
+                $notifier = app(CompanyNotifier::class);
+
+                foreach ($notices as $notice) {
+                    if ($notice['userId'] < 1) {
+                        continue;
+                    }
+
+                    $notifier->once(
+                        $notice['userId'],
+                        'payslip-'.$notice['itemId'],
+                        'Payslip available',
+                        'Your payslip for '.$period.' is ready to download.',
+                        '/payslips/'.$notice['itemId']
+                    );
+                }
+            });
         });
     }
 

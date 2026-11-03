@@ -13,6 +13,10 @@ interface Item {
     id: number;
     employee: string;
     code: string;
+    department: string;
+    designation: string;
+    payrollStatus: string;
+    payslipStatus: string;
     currency: string | null;
     basic: string;
     hra: string;
@@ -38,6 +42,7 @@ interface RunDetail {
     period: string;
     status: string;
     rawStatus: string;
+    legacy?: boolean;
     warnings: Warning[];
     membership: Membership;
     totals: Totals | null;
@@ -52,10 +57,20 @@ interface RunDetail {
 export default function PayrollShow({ workspace, run, canPrepare = false, canApprove = false, notice, error }: HrmsPageProps & { run: RunDetail; canPrepare?: boolean; canApprove?: boolean; notice?: string | null; error?: string | null }) {
     const note = useForm({ note: '', confirm: '' });
     const [confirmProcess, setConfirmProcess] = useState(false);
+    const [query, setQuery] = useState('');
+    const [department, setDepartment] = useState('all');
+    const [status, setStatus] = useState('all');
+    const departments = [...new Set(run.items.map((item) => item.department).filter(Boolean))];
+    const rows = run.items.filter((item) => {
+        const haystack = `${item.employee} ${item.code}`.toLowerCase();
+        return (query.trim() === '' || haystack.includes(query.trim().toLowerCase()))
+            && (department === 'all' || item.department === department)
+            && (status === 'all' || item.payrollStatus === status || item.payslipStatus === status);
+    });
 
     return (
         <HrmsLayout workspace={workspace} title="Payroll review">
-            <PageIntro title={`Payroll ${run.period}`} subtitle="Calculation uses the saved salary record. Approval and processing stay blocked until statutory readiness is proven." />
+            <PageIntro title={`Payroll ${run.period}`} subtitle={run.legacy === false ? 'Imported payroll. The amounts were stored as uploaded and were not recalculated.' : 'Legacy payroll processing. This run was calculated inside Meetara. New monthly payroll is uploaded from Excel.'} />
             <PayrollNav workspace={workspace} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
@@ -141,37 +156,51 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
             <div className="mt-4">
                 <SectionCard title="Employees">
                     {run.items.length === 0 ? <p className="text-sm text-slate-500">No calculated employees yet.</p> : (
-                        <div className="overflow-x-auto rounded-xl border border-slate-200">
-                            <table className="w-full min-w-[1100px] text-left text-sm">
-                                <thead className="bg-blue-50 text-xs text-slate-600">
-                                    <tr>
-                                        {['Employee', 'Basic', 'HRA', 'Special', 'PF', 'ESI', 'TDS', 'Unpaid leave', 'Gross', 'Deductions', 'Net', 'Working days', 'Recorded attendance', 'Approved leave'].map((heading) => (
-                                            <th key={heading} className="px-3 py-3 font-medium whitespace-nowrap">{heading}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {run.items.map((item) => (
-                                        <tr key={item.id} className="border-t border-slate-100">
-                                            <td className="px-3 py-3 whitespace-nowrap">{item.employee} · {item.code}</td>
-                                            <td className="px-3 py-3">{item.basic}</td>
-                                            <td className="px-3 py-3">{item.hra}</td>
-                                            <td className="px-3 py-3">{item.special}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.pf : 'Not configured'}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.esi : 'Not configured'}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.tds : 'Not configured'}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.lop : 'Not configured'}</td>
-                                            <td className="px-3 py-3 whitespace-nowrap">{item.currency ?? ''} {item.gross}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.deductions : 'Not configured'}</td>
-                                            <td className="px-3 py-3">{run.deductionsConfigured ? item.net : 'Not finalized'}</td>
-                                            <td className="px-3 py-3">{item.workingDays}</td>
-                                            <td className="px-3 py-3">{item.presentDays}</td>
-                                            <td className="px-3 py-3">{item.leaveDays}</td>
+                        <>
+                            <div className="mb-3 flex flex-wrap gap-2">
+                                <Input className="max-w-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name or employee ID" aria-label="Search employees" />
+                                <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={department} onChange={(event) => setDepartment(event.target.value)} aria-label="Department">
+                                    <option value="all">All departments</option>
+                                    {departments.map((name) => <option key={name} value={name}>{name}</option>)}
+                                </select>
+                                <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Status">
+                                    <option value="all">All statuses</option>
+                                    <option value="Available">Payslip available</option>
+                                    <option value="Not generated">Payslip not generated</option>
+                                </select>
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <table className="w-full min-w-[1100px] text-left text-sm">
+                                    <thead className="bg-blue-50 text-xs text-slate-600">
+                                        <tr>
+                                            {['Employee ID', 'Employee', 'Department', 'Designation', 'Basic', 'HRA', 'Allowances', 'Gross', 'Deductions', 'Net', 'Payroll', 'Payslip'].map((heading) => (
+                                                <th key={heading} className="px-3 py-3 font-medium whitespace-nowrap">{heading}</th>
+                                            ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {rows.map((item) => (
+                                            <tr key={item.id} className="border-t border-slate-100">
+                                                <td className="px-3 py-3 whitespace-nowrap">{item.code}</td>
+                                                <td className="px-3 py-3 whitespace-nowrap">{item.employee}</td>
+                                                <td className="px-3 py-3">{item.department || '—'}</td>
+                                                <td className="px-3 py-3">{item.designation || '—'}</td>
+                                                <td className="px-3 py-3">{item.basic}</td>
+                                                <td className="px-3 py-3">{item.hra}</td>
+                                                <td className="px-3 py-3">{item.special}</td>
+                                                <td className="px-3 py-3 whitespace-nowrap">{item.currency ?? ''} {item.gross}</td>
+                                                <td className="px-3 py-3">{run.deductionsConfigured ? item.deductions : 'Not configured'}</td>
+                                                <td className="px-3 py-3">{run.deductionsConfigured || run.rawStatus === 'processed' ? item.net : 'Not finalized'}</td>
+                                                <td className="px-3 py-3"><StatusBadge value={item.payrollStatus || run.status} /></td>
+                                                <td className="px-3 py-3">{item.payslipStatus === 'Available' ? <a className="text-blue-700" href={`/payslips/${item.id}`}>Available</a> : 'Not generated'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {rows.length === 0 && <p className="mt-3 text-sm text-slate-500">No employees match this search.</p>}
+                            <p className="mt-3 text-sm text-slate-500">Working days, recorded attendance, and approved leave stay on the saved calculation. PF, ESI, TDS, and unpaid leave stay unmarked until those rules are configured.</p>
+                        </>
                     )}
                 </SectionCard>
             </div>

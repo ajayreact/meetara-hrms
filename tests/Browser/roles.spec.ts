@@ -214,9 +214,10 @@ test('hr manages help desk and cannot run payroll', async ({ page }) => {
     await expect(page.locator('#offer-employee option', { hasText: 'BRS-REP' })).toHaveCount(0);
     await expect(page.getByText('No offer letters yet.')).toBeVisible();
     await expect(page.getByText('Offer letter storage is not ready on this database.')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Payroll', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Payments' })).toHaveCount(0);
-    await denied(page, '/payroll', 403);
+    await page.goto('/payroll');
+    await expect(page.getByRole('heading', { name: 'Payroll' })).toBeVisible();
     await denied(page, '/payroll/runs', 403);
     await denied(page, '/payments', 403);
     await page.goto('/payslips');
@@ -286,7 +287,7 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
 
     for (const code of ['BRN-OWN', 'BRN-LEAD', 'BRN-REP', 'BRN-OUT', 'BRN-ACC']) {
         await page.goto('/salary');
-        await page.locator('#salary-employee').selectOption({ label: `${code} Person · ${code}` });
+        await page.locator('#salary-employee').selectOption({ label: `${code} Person · ${code} · Not Added` });
         await page.locator('#basic').fill('10.00');
         await page.locator('#hra').fill('0.00');
         await page.locator('#special').fill('0.00');
@@ -386,25 +387,16 @@ test('linked offer letters follow the employee checklist', async ({ page }) => {
     await signIn(page, data.emails.hr, data.password);
     await page.goto('/offer-letters');
     await expect(page.getByText('No employee record is linked.')).toBeVisible();
-    await page.getByRole('button', { name: 'Save draft' }).click();
-    await expect(page.getByText('The employee id field is required.')).toBeVisible();
-    await page.getByLabel('Employee').selectOption({ label: 'BRN-REP · BRN-REP Person' });
+    await expect(page.getByText('Company setup still needed before a letter can be issued')).toBeVisible();
+    await page.getByRole('button', { name: /BRN-REP Person/ }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
     await page.locator('#offer-salary').fill('45000');
     await page.locator('#offer-joining').fill('2026-04-01');
     await page.locator('#offer-hr').fill('North HR');
     await page.locator('#offer-signature').fill('North HR');
-    await page.getByRole('button', { name: 'Save draft' }).click();
-    await expect(page.getByText('Offer letter draft saved.')).toBeVisible();
-
-    const draft = page.locator('section', { has: page.getByRole('heading', { name: 'OPT Recruiter · BRN-REP Person' }) });
-    await expect(draft.getByText(`Linked employee record ${data.ids.northReport}.`)).toBeVisible();
-    await draft.getByRole('button', { name: 'Preview' }).click();
-    await expect(page.getByText('Offer letter preview saved. It is not issued.')).toBeVisible();
-    await expect(draft.getByText('DRAFT — NOT APPROVED FOR ISSUANCE')).toBeVisible();
-    await expect(draft.getByText('[PLACEHOLDER: approved appointment-letter wording is not on file]')).toBeVisible();
-    await expect(page.getByText('Issuance blocked — template approval required')).toBeVisible();
-    await expect(draft.getByText('A draft preview is not an approved offer letter.').first()).toBeVisible();
-    await expect(draft.getByRole('button', { name: 'Issue' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save and edit letter' }).click();
+    await expect(page.getByText('Step 3: Edit and preview the letter')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Issue' })).toHaveCount(0);
 
     await page.goto(`/employees/${data.ids.northReport}`);
     await expect(page.locator('li', { hasText: 'Offer letter generated/issued' }).filter({ hasText: 'Completed' })).toHaveCount(0);
@@ -412,15 +404,14 @@ test('linked offer letters follow the employee checklist', async ({ page }) => {
 
     await signIn(page, data.emails.owner, data.password);
     await page.goto('/offer-letters');
-    await page.getByLabel('Employee').selectOption({ label: 'BRN-OUT · BRN-OUT Person' });
+    await page.getByRole('button', { name: /BRN-OUT Person/ }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
     await page.locator('#offer-salary').fill('45000');
     await page.locator('#offer-joining').fill('2026-04-01');
     await page.locator('#offer-hr').fill('North Owner');
     await page.locator('#offer-signature').fill('North Owner');
-    await page.getByRole('button', { name: 'Save draft' }).click();
-    const outside = page.locator('section', { has: page.getByRole('heading', { name: 'OPT Recruiter · BRN-OUT Person' }) });
-    await outside.getByRole('button', { name: 'Preview' }).click();
-    await expect(outside.getByRole('button', { name: 'Issue' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save and edit letter' }).click();
+    await expect(page.getByRole('button', { name: 'Issue' })).toHaveCount(0);
     await signOut(page);
 
     await signIn(page, data.emails.report, data.password);

@@ -40,8 +40,9 @@ yarn-error.log
 !/storage/app/private/.gitignore
 !/storage/app/private/.htaccess
 
-# Local database dumps and backups
+# Local database dumps and backups. The reviewed schema baseline is the one exception.
 /database/schema/*.sql
+!/database/schema/mysql-schema.sql
 /database/schema/*.dump
 *.bak
 *.dump

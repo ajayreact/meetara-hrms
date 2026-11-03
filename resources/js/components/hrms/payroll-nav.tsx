@@ -2,14 +2,13 @@ import type { Workspace } from '@/types/hrms';
 import { Link } from '@inertiajs/react';
 
 export function PayrollNav({ workspace }: { workspace: Workspace }) {
-    if (!workspace.permissions.payrollView) {
+    if (!workspace.permissions.payrollView && !workspace.permissions.payrollImport) {
         return null;
     }
 
     const links = [
         ['/payroll', 'Payroll'],
-        ['/payroll/runs', 'Payroll runs'],
-        ['/payroll/runs?status=review', 'Payroll review'],
+        ...(workspace.permissions.payrollView ? [['/payroll/runs', 'Legacy payroll']] : []),
         ['/payslips', 'Payslips'],
     ];
 

@@ -84,8 +84,9 @@ export default function RouteMapPage({ workspace, map, mapTiles, notice }: HrmsP
                 <Button type="button" variant={view === 'map' ? 'default' : 'outline'} onClick={() => setView('map')}>Map</Button>
                 <Button type="button" variant={view === 'list' ? 'default' : 'outline'} onClick={() => setView('list')}>List</Button>
             </div>
-            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
-                <SectionCard title="Offices">
+            <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)] xl:items-start">
+                <div className="contents xl:grid xl:gap-4">
+                <SectionCard className="order-1 xl:order-none" title="Offices">
                     {mappedOffices.length === 0 ? (
                         <p className="text-sm text-slate-600">No active office has saved coordinates. Offices without coordinates remain usable elsewhere and are listed as unavailable here.</p>
                     ) : view === 'map' ? (
@@ -95,21 +96,8 @@ export default function RouteMapPage({ workspace, map, mapTiles, notice }: HrmsP
                     )}
                     {view === 'map' && mappedOffices.length > 0 && <div className="mt-4"><OfficeList offices={map.offices} onSelect={setSelected} /></div>}
                 </SectionCard>
-                <SectionCard title="Selected office">
-                    {selectedOffice ? (
-                        <dl className="grid gap-2 text-sm">
-                            <div><dt className="text-slate-500">Name</dt><dd className="font-medium">{selectedOffice.mapLabel}</dd></div>
-                            <div><dt className="text-slate-500">Address</dt><dd className="font-medium">{selectedOffice.address || 'Not recorded'}</dd></div>
-                            <div><dt className="text-slate-500">Status</dt><dd className="font-medium">{selectedOffice.status}</dd></div>
-                        </dl>
-                    ) : (
-                        <p className="text-sm text-slate-600">Choose an office marker or name to see its address and status.</p>
-                    )}
-                </SectionCard>
-            </div>
-            {map.canViewPreciseLocations && (
-                <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
-                    <SectionCard title="Attendance locations">
+                {map.canViewPreciseLocations && (
+                    <SectionCard className="order-3 xl:order-none" title="Attendance locations">
                         <form className="mb-3 flex flex-wrap items-end gap-2" onSubmit={applyFilters}>
                             <label className="text-sm text-slate-600">From
                                 <input className="mt-1 block h-10 rounded-md border border-input bg-background px-3" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
@@ -145,7 +133,22 @@ export default function RouteMapPage({ workspace, map, mapTiles, notice }: HrmsP
                             </ul>
                         )}
                     </SectionCard>
-                    <SectionCard title="Location notice">
+                )}
+                </div>
+                <div className="contents xl:grid xl:content-start xl:gap-4">
+                <SectionCard className="order-2 xl:order-none" title="Selected office">
+                    {selectedOffice ? (
+                        <dl className="grid gap-2 text-sm">
+                            <div><dt className="text-slate-500">Name</dt><dd className="font-medium">{selectedOffice.mapLabel}</dd></div>
+                            <div><dt className="text-slate-500">Address</dt><dd className="font-medium">{selectedOffice.address || 'Not recorded'}</dd></div>
+                            <div><dt className="text-slate-500">Status</dt><dd className="font-medium">{selectedOffice.status}</dd></div>
+                        </dl>
+                    ) : (
+                        <p className="text-sm text-slate-600">Choose an office marker or name to see its address and status.</p>
+                    )}
+                </SectionCard>
+                {map.canViewPreciseLocations && (
+                    <SectionCard className="order-4 xl:order-none" title="Location notice">
                         <p className="text-sm leading-6 text-slate-700">{map.notice}</p>
                         <p className="mt-3 text-xs text-slate-500">Notice version {map.noticeVersion}. Retention: {map.retention}.</p>
                         {map.canAcknowledge && (
@@ -166,8 +169,9 @@ export default function RouteMapPage({ workspace, map, mapTiles, notice }: HrmsP
                             </ul>
                         )}
                     </SectionCard>
+                )}
                 </div>
-            )}
+            </div>
         </HrmsLayout>
     );
 }

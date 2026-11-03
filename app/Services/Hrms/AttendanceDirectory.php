@@ -102,7 +102,7 @@ class AttendanceDirectory
     }
 
     /**
-     * @return array{date: string, offices: list<array{id: int, name: string}>, rows: list<array<string, mixed>>, counts: array{showing: int, present: int, review: int}}
+     * @return array{date: string, offices: list<array{id: int, name: string}>, rows: list<array<string, mixed>>, counts: array{showing: int, present: int, review: int, pendingCorrections: int}}
      */
     public function roster(User $user, ?string $date, ?int $officeId, string $status, string $search): array
     {
@@ -115,7 +115,7 @@ class AttendanceDirectory
         ])->all();
 
         if ($companyId === null || $user->cannot('viewAny', AttendanceLog::class)) {
-            return ['date' => $day->toDateString(), 'offices' => [], 'rows' => [], 'counts' => ['showing' => 0, 'present' => 0, 'review' => 0]];
+            return ['date' => $day->toDateString(), 'offices' => [], 'rows' => [], 'counts' => ['showing' => 0, 'present' => 0, 'review' => 0, 'pendingCorrections' => 0]];
         }
 
         $employees = Employee::query()->inCompany($companyId)->orderBy('first_name')->orderBy('last_name');
@@ -159,7 +159,7 @@ class AttendanceDirectory
                 continue;
             }
 
-            if ($log === null && ! $row['expected']) {
+            if ($log === null && ! $row['expected'] && ! in_array($row['status'], ['Weekly Off', 'Holiday'], true)) {
                 continue;
             }
 
@@ -172,7 +172,10 @@ class AttendanceDirectory
             'rows' => $rows,
             'counts' => [
                 'showing' => count($rows),
-                'present' => count(array_filter($rows, fn (array $row) => in_array($row['status'], ['Present', 'Late', 'On break', 'Early out'], true))),
+                'present' => count(array_filter($rows, fn (array $row) => in_array($row['status'], ['Present', 'Late', 'On break', 'Early out', 'Holiday Work'], true))),
+                'pendingCorrections' => in_array($user->applicationRole(), ['company_admin', 'hr'], true)
+                    ? app(AttendanceCorrection::class)->pendingCount($user)
+                    : 0,
                 'review' => count(array_filter($rows, fn (array $row) => $row['late'] || $row['early'] || in_array($row['status'], ['Absent', 'Recovered'], true))),
             ],
         ];
@@ -227,6 +230,18 @@ class AttendanceDirectory
             $occurred = $cursor->lessThanOrEqualTo($today);
             $log = $logs->get($cursor->toDateString());
             $metrics = $log ? $this->metrics($log, $timezone, $schedule) : ['work' => 0, 'break' => 0, 'early' => 0];
+            $holiday = AttendanceCalendar::holiday($employee, $office?->id, $cursor->toDateString());
+            $openBreak = $log ? $this->openBreak($log) !== null : false;
+            $late = (int) ($log->late_minutes ?? 0) > 0;
+            $status = AttendanceCalendar::label(
+                $log?->status,
+                $openBreak,
+                $late,
+                $metrics['early'] > 0,
+                $schedule->expected,
+                $holiday->name ?? null,
+                $log?->check_in !== null,
+            );
             $days[] = [
                 'day' => $cursor->day,
                 'date' => $cursor->toDateString(),
@@ -236,7 +251,10 @@ class AttendanceDirectory
                 'occurred' => $occurred,
                 'workMinutes' => $metrics['work'],
                 'breakMinutes' => $metrics['break'],
-                'missing' => $occurred && $schedule->expected && $cursor->lt($today) && ($log === null || $log->check_in === null),
+                'missing' => $occurred && $status === 'Absent' && $cursor->lt($today),
+                'status' => $status,
+                'holidayName' => $holiday->name ?? null,
+                'pending' => false,
                 'expectedMinutes' => $schedule->expected ? $schedule->expectedMinutes : 0,
                 'lateMinutes' => (int) ($log->late_minutes ?? 0),
                 'earlyMinutes' => $metrics['early'],
@@ -244,9 +262,26 @@ class AttendanceDirectory
                 'clockOut' => $log?->check_out ? Carbon::parse((string) $log->check_out, $timezone)->format('g:i A') : null,
                 'clockInIp' => $log?->check_in_ip,
                 'clockOutIp' => $log?->check_out_ip,
-                'networkStatus' => $log?->verified_as === 'public_ip' ? 'verified' : 'not_recorded',
+                'clockInDistance' => $this->distanceMeters($log, 'check_in_distance_meters'),
+                'clockOutDistance' => $this->distanceMeters($log, 'check_out_distance_meters'),
+                'verification' => $this->verificationLabel($log?->verified_as),
+                'networkStatus' => $this->networkVerified($log?->verified_as) ? 'verified' : 'not_recorded',
             ];
             $cursor->addDay();
+        }
+
+        if (Schema::hasTable('attendance_correction_requests')) {
+            $pending = DB::table('attendance_correction_requests')
+                ->where('tenant_id', $employee->tenant_id)
+                ->where('employee_id', $employee->id)
+                ->where('status', 'pending')
+                ->pluck('work_date')
+                ->map(fn ($date) => substr((string) $date, 0, 10))
+                ->all();
+
+            foreach ($days as $index => $day) {
+                $days[$index]['pending'] = in_array($day['date'], $pending, true);
+            }
         }
 
         return $days;
@@ -264,21 +299,36 @@ class AttendanceDirectory
         $absent = 0;
         $late = 0;
         $earlyOut = 0;
+        $holiday = 0;
+        $holidayWork = 0;
+        $weeklyOff = 0;
 
         foreach ($days as $day) {
             $actual += $day['workMinutes'];
             $early += $day['earlyMinutes'];
-            if ($day['workMinutes'] > 0) {
-                $present++;
+            if (! $day['occurred']) {
+                continue;
             }
-            if ($day['missing']) {
-                $absent++;
-            }
-            if ($day['lateMinutes'] > 0) {
-                $late++;
-            }
-            if ($day['earlyMinutes'] > 0) {
-                $earlyOut++;
+
+            if (($day['status'] ?? '') === 'Holiday') {
+                $holiday++;
+            } elseif (($day['status'] ?? '') === 'Weekly Off') {
+                $weeklyOff++;
+            } elseif (($day['status'] ?? '') === 'Holiday Work') {
+                $holidayWork++;
+            } else {
+                if ($day['workMinutes'] > 0) {
+                    $present++;
+                }
+                if ($day['missing']) {
+                    $absent++;
+                }
+                if ($day['lateMinutes'] > 0) {
+                    $late++;
+                }
+                if ($day['earlyMinutes'] > 0) {
+                    $earlyOut++;
+                }
             }
         }
 
@@ -291,6 +341,9 @@ class AttendanceDirectory
             'absent' => $absent,
             'late' => $late,
             'earlyOut' => $earlyOut,
+            'holiday' => $holiday,
+            'holidayWork' => $holidayWork,
+            'weeklyOff' => $weeklyOff,
         ];
     }
 
@@ -302,7 +355,7 @@ class AttendanceDirectory
         $total = 0;
 
         foreach ($days as $day) {
-            if ($day['occurred'] && $day['expected']) {
+            if ($day['occurred'] && $day['expected'] && ! in_array($day['status'] ?? '', ['Holiday', 'Weekly Off'], true)) {
                 $total += (int) ($day['expectedMinutes'] ?? 0);
             }
         }
@@ -321,19 +374,16 @@ class AttendanceDirectory
         $openBreak = $log ? $this->openBreak($log) : null;
         $late = (int) ($log->late_minutes ?? 0) > 0;
         $early = $metrics['early'] > 0;
-        $status = 'Absent';
-
-        if ($log?->status === 'recovered') {
-            $status = 'Recovered';
-        } elseif ($openBreak !== null) {
-            $status = 'On break';
-        } elseif ($early) {
-            $status = 'Early out';
-        } elseif ($late) {
-            $status = 'Late';
-        } elseif ($log?->check_in !== null) {
-            $status = 'Present';
-        }
+        $holiday = AttendanceCalendar::holiday($person, $office?->id, $day->toDateString());
+        $status = AttendanceCalendar::label(
+            $log?->status,
+            $openBreak !== null,
+            $late,
+            $early,
+            $schedule->expected,
+            $holiday->name ?? null,
+            $log?->check_in !== null,
+        );
 
         return [
             'id' => $log?->id,
@@ -347,9 +397,13 @@ class AttendanceDirectory
             'late' => $late,
             'early' => $early,
             'status' => $status,
+            'holidayName' => $holiday->name ?? null,
             'clockInIp' => $log?->check_in_ip,
             'clockOutIp' => $log?->check_out_ip,
-            'networkStatus' => $log?->verified_as === 'public_ip' ? 'Verified' : 'Not recorded',
+            'clockInDistance' => $this->distanceMeters($log, 'check_in_distance_meters'),
+            'clockOutDistance' => $this->distanceMeters($log, 'check_out_distance_meters'),
+            'verification' => $this->verificationLabel($log?->verified_as),
+            'networkStatus' => $this->networkVerified($log?->verified_as) ? 'Verified' : 'Not recorded',
             'recoverable' => $log !== null && $log->check_out === null,
             'expected' => $schedule->expected,
         ];
@@ -389,6 +443,31 @@ class AttendanceDirectory
         ];
     }
 
+    private function networkVerified(mixed $verifiedAs): bool
+    {
+        return in_array($verifiedAs, ['public_ip', 'public_ip_and_gps'], true);
+    }
+
+    private function verificationLabel(mixed $verifiedAs): ?string
+    {
+        return match ($verifiedAs) {
+            'public_ip' => 'Approved public network',
+            'public_ip_and_gps' => 'Approved public network and office GPS',
+            default => null,
+        };
+    }
+
+    private function distanceMeters(?AttendanceLog $log, string $column): ?int
+    {
+        if ($log === null || ! Schema::hasColumn('attendance_logs', $column)) {
+            return null;
+        }
+
+        $value = $log->getAttribute($column);
+
+        return $value === null ? null : (int) $value;
+    }
+
     private function openBreak(AttendanceLog $log): ?AttendanceBreak
     {
         if ($log->relationLoaded('breaks')) {
@@ -417,7 +496,9 @@ class AttendanceDirectory
             $timezone = $companyId > 0 ? DB::table('tenants')->where('id', $companyId)->value('timezone') : null;
         }
 
-        return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true) ? $timezone : 'UTC';
+        return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true)
+            ? $timezone
+            : (string) config('attendance.fallback_timezone', 'Asia/Kolkata');
     }
 
     private function monthStart(?string $month, string $timezone): Carbon

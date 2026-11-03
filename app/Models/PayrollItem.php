@@ -11,6 +11,13 @@ class PayrollItem extends Model
 {
     use BelongsToCompany;
 
+    protected function casts(): array
+    {
+        return [
+            'import_supplied' => 'array',
+        ];
+    }
+
     public function run(): BelongsTo
     {
         return $this->belongsTo(PayrollRun::class, 'payroll_run_id');

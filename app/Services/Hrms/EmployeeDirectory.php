@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Office;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class EmployeeDirectory
 {
@@ -24,7 +25,7 @@ class EmployeeDirectory
 
         $query = Employee::query()
             ->inCompany($companyId)
-            ->with(['department', 'designation', 'office', 'manager'])
+            ->with(['department', 'designation', 'office', 'manager', 'user'])
             ->orderBy('first_name')
             ->orderBy('last_name');
 
@@ -131,6 +132,58 @@ class EmployeeDirectory
         return $employee ? $this->summarize($employee) : null;
     }
 
+    /**
+     * The signed-in employee's own profile. Other employee records are not loaded.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function selfProfile(User $user): ?array
+    {
+        $companyId = $user->companyId();
+
+        if ($companyId === null) {
+            return null;
+        }
+
+        $employee = Employee::query()
+            ->inCompany($companyId)
+            ->where('user_id', $user->id)
+            ->with(['department', 'designation', 'office', 'manager'])
+            ->first();
+
+        if ($employee === null) {
+            return null;
+        }
+
+        $summary = $this->summarize($employee);
+
+        return [
+            'personal' => [
+                'name' => $summary['name'],
+                'email' => $summary['email'],
+                'phone' => $employee->phone ?: null,
+                'address' => null,
+                'dateOfBirth' => Schema::hasColumn('employees', 'date_of_birth') && $employee->date_of_birth !== null
+                    ? $employee->date_of_birth->toDateString()
+                    : null,
+            ],
+            'employment' => [
+                'name' => $summary['name'],
+                'code' => $summary['code'],
+                'designation' => $summary['designation'],
+                'department' => $summary['department'],
+                'joined' => $summary['joined'],
+                'status' => $summary['status'],
+                'manager' => $summary['manager'],
+                'office' => $summary['office'],
+            ],
+            'payroll' => [
+                'bank' => null,
+                'note' => 'Bank account details are not stored on the employee record.',
+            ],
+        ];
+    }
+
     public function exportCsv(User $actor): string
     {
         $rows = $this->list($actor);
@@ -180,8 +233,9 @@ class EmployeeDirectory
                 : null,
             'office' => $this->sameCompanyName($employee->office, $companyId),
             'joined' => optional($employee->date_of_joining)->toDateString(),
-            'status' => $this->statusLabel((string) $employee->status),
+            'status' => $this->statusLabel($employee),
             'statusValue' => (string) $employee->status,
+            'invitation' => $this->invitation($employee),
         ];
     }
 
@@ -194,27 +248,66 @@ class EmployeeDirectory
         return (string) $related->name;
     }
 
-    private function statusLabel(string $status): string
+    private function statusLabel(Employee $employee): string
     {
-        return match ($status) {
-            'active' => 'Active',
-            'inactive', 'deactivated', 'terminated', 'exited', 'suspended' => 'Inactive',
-            'invited' => 'Invited',
-            default => ucfirst($status),
-        };
+        $status = (string) $employee->status;
+
+        if (in_array($status, ['inactive', 'deactivated', 'terminated', 'exited', 'suspended'], true)) {
+            return 'Inactive';
+        }
+
+        if ($status === 'invited') {
+            return $this->invitation($employee)['state'] === 'expired' ? 'Invitation Expired' : 'Invitation Pending';
+        }
+
+        if ($status === 'active') {
+            return 'Active';
+        }
+
+        return ucfirst($status);
+    }
+
+    /**
+     * @return array{state: string, expiresAt: string|null, sent: bool}
+     */
+    private function invitation(Employee $employee): array
+    {
+        $user = $employee->user;
+        if ($employee->user_id === null || $user === null || (int) $user->tenant_id !== (int) $employee->tenant_id) {
+            return ['state' => 'none', 'expiresAt' => null, 'sent' => false];
+        }
+
+        if ($user->invite_accepted_at !== null) {
+            return ['state' => 'accepted', 'expiresAt' => null, 'sent' => $user->invite_sent_at !== null];
+        }
+
+        if ($user->invited_at === null) {
+            return ['state' => 'none', 'expiresAt' => null, 'sent' => false];
+        }
+
+        if ($user->invite_token === null || $user->invite_expires_at === null) {
+            return ['state' => 'not_sent', 'expiresAt' => null, 'sent' => false];
+        }
+
+        $expiresAt = $user->invite_expires_at->timezone((string) config('app.timezone'))->format('d M Y, H:i T');
+        if (now()->greaterThan($user->invite_expires_at)) {
+            return ['state' => 'expired', 'expiresAt' => $expiresAt, 'sent' => $user->invite_sent_at !== null];
+        }
+
+        return ['state' => 'pending', 'expiresAt' => $expiresAt, 'sent' => $user->invite_sent_at !== null];
     }
 
     private function loginState(Employee $employee): string
     {
-        if ($employee->user_id === null || $employee->user === null) {
-            return 'Not linked';
-        }
+        $invitation = $this->invitation($employee);
 
-        if ($employee->user->invited_at !== null && $employee->user->invite_accepted_at === null) {
-            return 'Invitation not accepted';
-        }
-
-        return 'Login linked';
+        return match ($invitation['state']) {
+            'none' => $employee->user_id === null ? 'Not linked' : 'Login linked',
+            'accepted' => 'Login linked',
+            'expired' => 'Invitation expired',
+            'not_sent' => 'Invitation not sent',
+            default => 'Invitation pending',
+        };
     }
 
     private function actorEmployee(User $actor): ?Employee

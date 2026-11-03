@@ -163,6 +163,36 @@ class OfficeLocationAttendanceTest extends TestCase
         $this->assertSame('public_ip_and_gps', $log->verified_as);
         $this->assertSame('203.0.113.10', $log->check_in_ip);
         $this->assertSame($company->officeId, (int) $log->location_id);
+        $this->assertEqualsWithDelta(22.57265, (float) $log->check_in_latitude, 0.0000001);
+        $this->assertEqualsWithDelta(88.3639, (float) $log->check_in_longitude, 0.0000001);
+        $this->assertSame(0, (int) $log->check_in_distance_meters);
+
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn (Assert $page) => $page
+            ->where('history.days', function ($days): bool {
+                $day = collect($days)->firstWhere('date', '2026-10-19');
+
+                return is_array($day)
+                    && $day['networkStatus'] === 'verified'
+                    && $day['verification'] === 'Approved public network and office GPS'
+                    && (int) $day['clockInDistance'] === 0;
+            }));
+
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->post('/attendance/clock-out', ['latitude' => 22.572645, 'longitude' => 88.363895, 'ip' => '203.0.113.10', 'verified' => true, 'distance' => 0])
+            ->assertSessionHasErrors(['attendance' => 'You are not connected through an approved office network. Clock-out is blocked.']);
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-out', ['latitude' => 0, 'longitude' => 0, 'verified' => true, 'distance' => 0, 'ip' => '203.0.113.10'])
+            ->assertSessionHasErrors(['attendance' => 'You are outside the configured office location. Clock-out is blocked.']);
+        $this->assertNull(DB::table('attendance_logs')->where('id', $log->id)->value('check_out'));
+
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-out', ['latitude' => 22.572645, 'longitude' => 88.363895, 'ip' => '192.168.0.174', 'verified' => true, 'distance' => 999])
+            ->assertSessionHasNoErrors();
+        $closed = DB::table('attendance_logs')->where('id', $log->id)->first();
+        $this->assertSame('203.0.113.10', $closed->check_out_ip);
+        $this->assertSame('203.0.113.10', $closed->check_in_ip);
+        $this->assertSame(0, (int) $closed->check_out_distance_meters);
+        $this->assertSame('public_ip_and_gps', $closed->verified_as);
     }
 
     public function test_gps_does_not_replace_the_network_requirement_and_disabled_gps_ignores_coordinates(): void

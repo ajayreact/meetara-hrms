@@ -10,8 +10,15 @@ interface OwnEmployee {
     joined: string | null;
 }
 
+interface ProfileCard {
+    personal: { name: string; email: string; phone: string | null; address: string | null; dateOfBirth: string | null };
+    employment: { code: string; designation: string | null; department: string | null; joined: string | null; status: string; manager: string | null; office: string | null };
+    payroll: { bank: string | null; note: string };
+}
+
 interface ProfilePageProps extends HrmsPageProps {
     employee?: OwnEmployee | null;
+    profileCard?: ProfileCard | null;
 }
 
 function displayDate(value: string | null | undefined): string {
@@ -42,7 +49,7 @@ function DetailRow({ icon: Icon, label, children }: { icon: LucideIcon; label: s
     );
 }
 
-export default function MyProfilePage({ workspace, employee = null }: ProfilePageProps) {
+export default function MyProfilePage({ workspace, employee = null, profileCard = null }: ProfilePageProps) {
     const code = employee?.code ?? 'Not linked';
     const department = employee?.department ?? 'Not assigned';
     const office = workspace.officeName ?? 'Not assigned';
@@ -83,6 +90,33 @@ export default function MyProfilePage({ workspace, employee = null }: ProfilePag
                     <StatusBadge value={status} />
                 </div>
             </section>
+            {profileCard && (
+                <div className="mb-4 grid items-start gap-4 lg:grid-cols-3">
+                    <SectionCard title="Personal information">
+                        <dl>
+                            <DetailRow icon={Users} label="Full name">{profileCard.personal.name}</DetailRow>
+                            <DetailRow icon={Mail} label="Email">{profileCard.personal.email}</DetailRow>
+                            <DetailRow icon={Hash} label="Phone">{profileCard.personal.phone || 'Not recorded'}</DetailRow>
+                            <DetailRow icon={MapPin} label="Address">{profileCard.personal.address || 'Not recorded'}</DetailRow>
+                            <DetailRow icon={CalendarDays} label="Date of birth">{displayDate(profileCard.personal.dateOfBirth)}</DetailRow>
+                        </dl>
+                    </SectionCard>
+                    <SectionCard title="Employment information">
+                        <dl>
+                            <DetailRow icon={Hash} label="Employee ID">{profileCard.employment.code}</DetailRow>
+                            <DetailRow icon={Briefcase} label="Designation">{profileCard.employment.designation || 'Not assigned'}</DetailRow>
+                            <DetailRow icon={Users} label="Department">{profileCard.employment.department || 'Not assigned'}</DetailRow>
+                            <DetailRow icon={CalendarDays} label="Joining date">{displayDate(profileCard.employment.joined)}</DetailRow>
+                            <DetailRow icon={BadgeCheck} label="Employment status"><StatusBadge value={profileCard.employment.status} /></DetailRow>
+                            <DetailRow icon={Users} label="Reporting manager">{profileCard.employment.manager || 'Not assigned'}</DetailRow>
+                            <DetailRow icon={Building2} label="Office">{profileCard.employment.office || 'Not assigned'}</DetailRow>
+                        </dl>
+                    </SectionCard>
+                    <SectionCard title="Bank and payroll information">
+                        <p className="text-sm text-slate-600">{profileCard.payroll.bank ? `Account ending ${profileCard.payroll.bank}` : profileCard.payroll.note}</p>
+                    </SectionCard>
+                </div>
+            )}
             <div className="grid items-start gap-4 lg:grid-cols-2">
                 <SectionCard title="Employment details">
                     <dl>

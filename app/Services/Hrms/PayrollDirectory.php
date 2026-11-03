@@ -12,6 +12,7 @@ use App\Models\SalaryStructure;
 use App\Models\User;
 use App\Support\Money;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class PayrollDirectory
@@ -37,6 +38,7 @@ class PayrollDirectory
             'processedNet' => '0.00',
             'employees' => 0,
             'activeEmployees' => 0,
+            'salaryConfigured' => 0,
             'payslips' => 0,
             'latest' => null,
             'eligibility' => null,
@@ -82,6 +84,9 @@ class PayrollDirectory
             'processedNet' => Money::format($net),
             'employees' => $processedIds->isEmpty() ? 0 : PayrollItem::query()->whereIn('payroll_run_id', $processedIds)->count(),
             'activeEmployees' => Employee::query()->inCompany($companyId)->where('status', 'active')->count(),
+            'salaryConfigured' => Schema::hasTable('salary_structures')
+                ? SalaryStructure::query()->where('tenant_id', $companyId)->distinct()->count('employee_id')
+                : 0,
             'payslips' => $processedIds->isEmpty() || ! Schema::hasTable('payroll_items')
                 ? 0
                 : PayrollItem::query()->whereIn('payroll_run_id', $processedIds)->where('tenant_id', $companyId)->count(),
@@ -155,9 +160,13 @@ class PayrollDirectory
                 'esi' => (string) $item->esi_employee,
                 'tds' => (string) $item->tds,
                 'lop' => (string) $item->lop_amount,
+                'department' => $item->employee->department?->name ?? '',
+                'designation' => $item->employee->designation?->name ?? '',
                 'gross' => (string) $item->gross,
                 'deductions' => (string) $item->deductions,
                 'net' => (string) $item->net,
+                'payrollStatus' => ucfirst(str_replace('_', ' ', (string) ($item->payroll_status ?? $run->status))),
+                'payslipStatus' => $run->status === 'processed' ? 'Available' : 'Not generated',
                 'workingDays' => (string) $item->working_days,
                 'presentDays' => (string) $item->present_days,
                 'leaveDays' => (string) $item->leave_days,
@@ -245,7 +254,7 @@ class PayrollDirectory
     /**
      * @return list<array<string, mixed>>
      */
-    public function payslips(User $user): array
+    public function payslips(User $user, ?int $year = null, ?int $month = null, ?string $search = null): array
     {
         if ($user->companyId() === null || $user->applicationRole() === 'team_lead' || ! Schema::hasTable('payroll_items')) {
             return [];
@@ -253,10 +262,20 @@ class PayrollDirectory
 
         $query = PayrollItem::query()
             ->where('tenant_id', $user->companyId())
-            ->whereHas('run', fn ($inner) => $inner->where('status', 'processed'))
+            ->whereHas('run', function ($inner) use ($year, $month): void {
+                $inner->where('status', 'processed');
+
+                if ($year !== null) {
+                    $inner->where('year', $year);
+                }
+
+                if ($month !== null) {
+                    $inner->where('month', $month);
+                }
+            })
             ->with('run', 'employee');
 
-        if (! in_array($user->applicationRole(), ['company_admin', 'accounts'], true)) {
+        if (! in_array($user->applicationRole(), ['company_admin', 'accounts', 'hr'], true)) {
             $employeeId = Employee::query()->where('user_id', $user->id)->where('tenant_id', $user->companyId())->value('id');
 
             if ($employeeId === null) {
@@ -266,7 +285,20 @@ class PayrollDirectory
             $query->where('employee_id', $employeeId);
         }
 
-        return $query->latest('id')->limit(36)->get()->map(fn (PayrollItem $item) => $this->payslip($item))->all();
+        $needle = trim((string) $search);
+
+        if ($needle !== '') {
+            $like = '%'.addcslashes($needle, '%_\\').'%';
+            $query->whereHas('employee', function ($inner) use ($like): void {
+                $inner->where('employee_code', 'like', $like)
+                    ->orWhere('first_name', 'like', $like)
+                    ->orWhere('last_name', 'like', $like);
+            });
+        }
+
+        $limit = $year !== null && $month !== null ? 500 : 36;
+
+        return $query->latest('id')->limit($limit)->get()->map(fn (PayrollItem $item) => $this->payslip($item))->all();
     }
 
     /**
@@ -276,10 +308,16 @@ class PayrollDirectory
     {
         $item->loadMissing('run', 'employee.designation', 'employee.department', 'payment');
         $company = Company::query()->find($item->tenant_id);
+        $legal = Schema::hasTable('company_legal_profiles')
+            ? DB::table('company_legal_profiles')->where('tenant_id', $item->tenant_id)->where('country', 'india')->first()
+            : null;
 
         return [
             'id' => $item->id,
             'company' => $company?->name,
+            'legalName' => is_string($legal->legal_name ?? null) && $legal->legal_name !== '' ? $legal->legal_name : $company?->name,
+            'legalAddress' => is_string($legal->legal_address ?? null) && $legal->legal_address !== '' ? $legal->legal_address : null,
+            'generatedAt' => $item->run?->processed_at?->toDateString(),
             'employee' => trim(($item->employee->first_name ?? '').' '.($item->employee->last_name ?? '')),
             'code' => $item->employee->employee_code ?? '',
             'title' => $item->employee->designation?->name,
@@ -294,6 +332,17 @@ class PayrollDirectory
             'deductions' => (string) $item->deductions,
             'deductionsConfigured' => false,
             'deductionNotice' => 'PF, ESI, TDS, and unpaid leave are not configured. They are not shown as calculated deductions.',
+            'imported' => is_array($item->import_supplied),
+            'supplied' => is_array($item->import_supplied) ? $item->import_supplied : null,
+            'otherEarnings' => $item->other_earnings !== null ? (string) $item->other_earnings : null,
+            'professionalTax' => $item->professional_tax !== null ? (string) $item->professional_tax : null,
+            'otherDeductions' => $item->other_deductions !== null ? (string) $item->other_deductions : null,
+            'pf' => (string) $item->pf_employee,
+            'esi' => (string) $item->esi_employee,
+            'tds' => (string) $item->tds,
+            'paidDays' => (string) $item->present_days,
+            'workingDays' => (string) $item->working_days,
+            'lwp' => (string) $item->lop_days,
             'net' => (string) $item->net,
             'paidOn' => $item->payment?->paid_on?->toDateString(),
             'paymentStatus' => $item->payment ? ucfirst((string) $item->payment->status) : 'Pending',
@@ -312,9 +361,12 @@ class PayrollDirectory
             'period' => $run->year.'-'.str_pad((string) $run->month, 2, '0', STR_PAD_LEFT),
             'status' => match ($run->status) {
                 'under_review' => 'Under Review',
+                'import_review' => 'Needs review',
                 default => ucfirst((string) $run->status),
             },
             'rawStatus' => $run->status,
+            'source' => Schema::hasColumn('payroll_runs', 'source') ? ($run->source ?: 'calculated') : 'calculated',
+            'legacy' => ! Schema::hasColumn('payroll_runs', 'source') || ($run->source ?: 'calculated') !== 'import',
         ];
     }
 
@@ -328,9 +380,18 @@ class PayrollDirectory
             'month' => $month,
             'found' => false,
             'status' => null,
+            'rawStatus' => null,
+            'runId' => null,
             'gross' => '0.00',
+            'deductions' => '0.00',
             'net' => '0.00',
             'employees' => 0,
+            'source' => null,
+            'imported' => 0,
+            'validated' => 0,
+            'errors' => 0,
+            'confirmed' => 0,
+            'generated' => 0,
         ];
     }
 
@@ -351,16 +412,34 @@ class PayrollDirectory
             return $empty;
         }
 
-        $items = PayrollItem::query()->where('payroll_run_id', $run->id)->where('tenant_id', $companyId)->get(['gross', 'net']);
+        $columns = ['gross', 'deductions', 'net'];
+
+        if (Schema::hasColumn('payroll_items', 'payslip_path')) {
+            $columns[] = 'payslip_path';
+            $columns[] = 'payslip_error';
+        }
+
+        $items = PayrollItem::query()->where('payroll_run_id', $run->id)->where('tenant_id', $companyId)->get($columns);
+        $summary = $this->summary($run);
+        $counts = $this->importCounts($run, $items);
 
         return [
             'year' => $year,
             'month' => $month,
             'found' => true,
-            'status' => $this->summary($run)['status'],
-            'gross' => $this->moneySum($items->pluck('gross')),
-            'net' => $this->moneySum($items->pluck('net')),
+            'status' => $summary['status'],
+            'rawStatus' => $run->status,
+            'runId' => $run->id,
+            'gross' => $summary['legacy'] ? $this->moneySum($items->pluck('gross')) : $counts['gross'],
+            'deductions' => $summary['legacy'] ? $this->moneySum($items->pluck('deductions')) : $counts['deductions'],
+            'net' => $summary['legacy'] ? $this->moneySum($items->pluck('net')) : $counts['net'],
             'employees' => $items->count(),
+            'source' => $summary['source'],
+            'imported' => $counts['imported'],
+            'validated' => $counts['validated'],
+            'errors' => $counts['errors'],
+            'confirmed' => $counts['confirmed'],
+            'generated' => $counts['generated'],
         ];
     }
 
@@ -391,7 +470,7 @@ class PayrollDirectory
 
     /**
      * @param  list<int>  $runIds
-     * @return array<int, array{employees: int, gross: string, net: string}>
+     * @return array<int, array{employees: int, gross: string, deductions: string, net: string}>
      */
     private function totals(array $runIds): array
     {
@@ -401,7 +480,7 @@ class PayrollDirectory
 
         $grouped = [];
 
-        foreach (PayrollItem::query()->whereIn('payroll_run_id', $runIds)->get(['payroll_run_id', 'gross', 'net']) as $item) {
+        foreach (PayrollItem::query()->whereIn('payroll_run_id', $runIds)->get(['payroll_run_id', 'gross', 'deductions', 'net']) as $item) {
             $runId = (int) $item->payroll_run_id;
             $grouped[$runId]['rows'][] = $item;
         }
@@ -413,6 +492,7 @@ class PayrollDirectory
             $totals[$runId] = [
                 'employees' => $rows->count(),
                 'gross' => $this->moneySum($rows->pluck('gross')),
+                'deductions' => $this->moneySum($rows->pluck('deductions')),
                 'net' => $this->moneySum($rows->pluck('net')),
             ];
         }
@@ -608,8 +688,165 @@ class PayrollDirectory
         return ['start' => $start, 'end' => $start->copy()->endOfMonth()->startOfDay()];
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function importHistory(User $user): array
+    {
+        if (! $this->canView($user) || ! Schema::hasTable('payroll_runs')) {
+            return [];
+        }
+
+        $runs = PayrollRun::query()->inCompany((int) $user->companyId())->latest('year')->latest('month')->limit(24)->get();
+        $totals = $this->totals($runs->pluck('id')->all());
+        $names = $this->userNames($runs->pluck('uploaded_by')->filter()->all());
+
+        return $runs->map(function (PayrollRun $run) use ($totals, $names): array {
+            $summary = $this->summary($run);
+            $row = $totals[$run->id] ?? ['employees' => 0, 'gross' => '0.00', 'deductions' => '0.00', 'net' => '0.00'];
+            $preview = $summary['legacy'] ? null : $this->importCounts($run, collect());
+
+            return [
+                'id' => $run->id,
+                'period' => $summary['period'],
+                'uploadedAt' => $summary['legacy'] ? null : $run->uploaded_at?->toDateString(),
+                'uploadedBy' => $summary['legacy'] ? null : ($names[(int) $run->uploaded_by] ?? null),
+                'employees' => $summary['legacy'] ? $row['employees'] : ($run->status === 'processed' ? $row['employees'] : $preview['imported']),
+                'gross' => $summary['legacy'] || $run->status === 'processed' ? $row['gross'] : $preview['gross'],
+                'deductions' => $summary['legacy'] || $run->status === 'processed' ? $row['deductions'] : $preview['deductions'],
+                'net' => $summary['legacy'] || $run->status === 'processed' ? $row['net'] : $preview['net'],
+                'importStatus' => $summary['legacy'] ? 'Legacy payroll' : $summary['status'],
+                'payslipStatus' => $summary['legacy']
+                    ? ($run->status === 'processed' ? 'Available' : 'Not generated')
+                    : ($run->payslip_status === 'complete' ? 'Generated' : ($run->payslip_status === 'partial' ? 'Needs retry' : 'Not generated')),
+                'legacy' => $summary['legacy'],
+                'rawStatus' => $run->status,
+            ];
+        })->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function importReview(PayrollRun $run): array
+    {
+        $preview = is_array($run->import_rows) ? $run->import_rows : [];
+        $rows = is_array($preview['rows'] ?? null) ? $preview['rows'] : [];
+        $errors = 0;
+
+        foreach ($rows as $row) {
+            if (($row['errors'] ?? []) !== []) {
+                $errors++;
+            }
+        }
+
+        $uploader = $run->uploaded_by ? User::query()->find($run->uploaded_by) : null;
+        $failed = Schema::hasColumn('payroll_items', 'payslip_error')
+            ? PayrollItem::query()->where('payroll_run_id', $run->id)->whereNotNull('payslip_error')->with('employee')->get()
+            : collect();
+
+        return [
+            ...$this->summary($run),
+            'year' => (int) $run->year,
+            'month' => (int) $run->month,
+            'fileName' => $run->original_name,
+            'uploadedAt' => $run->uploaded_at?->toDateTimeString(),
+            'uploadedBy' => $uploader?->name,
+            'headers' => $preview['headers'] ?? [],
+            'mapping' => $preview['mapping'] ?? [],
+            'fileError' => $preview['fileError'] ?? null,
+            'rows' => $rows,
+            'errorCount' => $errors,
+            'validCount' => count($rows) - $errors,
+            'canConfirm' => $run->status === 'import_review' && $errors === 0 && $rows !== [] && ($preview['fileError'] ?? null) === null,
+            'payslipStatus' => $run->payslip_status,
+            'fields' => array_keys(PayrollImport::FIELDS),
+            'failures' => $failed->map(fn (PayrollItem $item) => [
+                'id' => $item->id,
+                'code' => $item->employee->employee_code ?? '',
+                'error' => $item->payslip_error,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  iterable<PayrollItem>  $items
+     * @return array{imported: int, validated: int, errors: int, confirmed: int, generated: int, gross: string, deductions: string, net: string}
+     */
+    private function importCounts(PayrollRun $run, iterable $items): array
+    {
+        $rows = is_array($run->import_rows) ? ($run->import_rows['rows'] ?? []) : [];
+        $imported = is_array($rows) ? count($rows) : 0;
+        $errors = 0;
+        $gross = 0;
+        $deductions = 0;
+        $net = 0;
+
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                if (($row['errors'] ?? []) !== []) {
+                    $errors++;
+
+                    continue;
+                }
+
+                $supplied = is_array($row['supplied'] ?? null) ? $row['supplied'] : [];
+                $gross += isset($supplied['gross']) ? Money::cents((string) $supplied['gross']) : 0;
+                $deductions += isset($supplied['deductions']) ? Money::cents((string) $supplied['deductions']) : 0;
+                $net += isset($supplied['net']) ? Money::cents((string) $supplied['net']) : 0;
+            }
+        }
+
+        $generated = 0;
+
+        foreach ($items as $item) {
+            if (is_string($item->payslip_path ?? null) && $item->payslip_path !== '' && ($item->payslip_error ?? null) === null) {
+                $generated++;
+            }
+        }
+
+        $confirmed = $run->status === 'processed' && ($run->source ?? '') === 'import' ? $imported : 0;
+
+        if ($run->status === 'processed' && ($run->source ?? '') === 'import') {
+            $gross = 0;
+            $deductions = 0;
+            $net = 0;
+
+            foreach ($items as $item) {
+                $supplied = is_array($item->import_supplied ?? null) ? $item->import_supplied : [];
+                $gross += isset($supplied['gross']) ? Money::cents((string) $supplied['gross']) : Money::cents((string) $item->gross);
+                $deductions += isset($supplied['deductions']) ? Money::cents((string) $supplied['deductions']) : Money::cents((string) $item->deductions);
+                $net += isset($supplied['net']) ? Money::cents((string) $supplied['net']) : Money::cents((string) $item->net);
+            }
+        }
+
+        return [
+            'imported' => ($run->source ?? '') === 'import' ? $imported : 0,
+            'validated' => ($run->source ?? '') === 'import' ? max(0, $imported - $errors) : 0,
+            'errors' => ($run->source ?? '') === 'import' ? $errors : 0,
+            'confirmed' => $confirmed,
+            'generated' => $generated,
+            'gross' => Money::format($gross),
+            'deductions' => Money::format($deductions),
+            'net' => Money::format($net),
+        ];
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, string>
+     */
+    private function userNames(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return User::query()->whereIn('id', $ids)->pluck('name', 'id')->all();
+    }
+
     private function canView(User $user): bool
     {
-        return in_array($user->applicationRole(), ['company_admin', 'accounts'], true) && $user->companyId() !== null;
+        return in_array($user->applicationRole(), ['company_admin', 'accounts', 'hr'], true) && $user->companyId() !== null;
     }
 }

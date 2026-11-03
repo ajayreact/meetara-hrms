@@ -32,6 +32,7 @@ interface EmployeeDetail {
     manager: string | null;
     office: string | null;
     joined: string | null;
+    dateOfBirth?: string;
     status: string;
     statusValue: string;
     employmentType: string;
@@ -43,6 +44,7 @@ interface EmployeeDetail {
     managerId: number | null;
     login: string;
     updatedAt: string | null;
+    invitation?: { state: string; expiresAt: string | null; sent: boolean };
 }
 
 interface OnboardingTask {
@@ -115,6 +117,7 @@ interface ShowPageProps extends HrmsPageProps {
     offerLetters: { visible: boolean; letters: OfferLetterRow[] };
     activity: { ready: boolean; events: ActivityEvent[] };
     notice?: string | null;
+    noticeTone?: 'success' | 'error';
 }
 
 function initials(name: string): string {
@@ -153,7 +156,7 @@ const labels: Record<string, string> = {
     usa: 'United States',
 };
 
-export default function EmployeeShowPage({ workspace, employee, options, canManage, onboarding, offerLetters, activity, notice }: ShowPageProps) {
+export default function EmployeeShowPage({ workspace, employee, options, canManage, onboarding, offerLetters, activity, notice, noticeTone = 'success' }: ShowPageProps) {
     const required = onboarding.tasks.filter((task) => task.required);
     const completed = required.filter((task) => task.status === 'Completed').length;
     const tabs = [
@@ -175,7 +178,7 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
 
     return (
         <HrmsLayout workspace={workspace} title={employee.name}>
-            {notice && <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}
+            {notice && <p className={`mb-3 rounded-lg px-3 py-2 text-sm ${noticeTone === 'error' ? 'bg-rose-50 text-rose-900' : 'bg-emerald-50 text-emerald-900'}`}>{notice}</p>}
             <section className="mb-4 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-sky-50 to-white p-4 sm:p-5">
                     <div className="flex min-w-0 items-center gap-4">
@@ -213,6 +216,7 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
                                 <Fact label="Employee ID" value={employee.code} />
                                 <Fact label="Login" value={employee.login} />
                                 <Fact label="Employment status" value={employee.status} />
+                                <Fact label="Invitation" value={invitationText(employee.invitation)} />
                                 <Fact label="Onboarding" value={onboarding.started ? `${completed} of ${required.length || 0} required` : onboarding.status} />
                             </dl>
                             {onboarding.started && required.length > 0 && (
@@ -224,6 +228,21 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
                                     <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={completed} aria-label="Required checklist">
                                         <div className="h-full bg-blue-600" style={{ width: `${Math.round((completed / required.length) * 100)}%` }} />
                                     </div>
+                                </div>
+                            )}
+                            {canManage && employee.invitation && employee.invitation.state !== 'none' && employee.invitation.state !== 'accepted' && (
+                                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+                                    <Button type="button" size="sm" variant="outline" onClick={() => router.post(route('hrms.employees.invitation', employee.id))}>
+                                        {employee.invitation.state === 'not_sent' ? 'Send invitation' : 'Resend invitation'}
+                                    </Button>
+                                    {employee.statusValue !== 'inactive' && (
+                                        <Button type="button" size="sm" variant="outline" onClick={() => router.post(route('hrms.employees.status', employee.id), { status: 'inactive' })}>Deactivate employee</Button>
+                                    )}
+                                </div>
+                            )}
+                            {canManage && employee.statusValue !== 'inactive' && employee.invitation?.state !== 'pending' && employee.invitation?.state !== 'expired' && employee.invitation?.state !== 'not_sent' && (
+                                <div className="mt-4 border-t border-slate-100 pt-4">
+                                    <Button type="button" size="sm" variant="outline" onClick={() => router.post(route('hrms.employees.status', employee.id), { status: 'inactive' })}>Deactivate employee</Button>
                                 </div>
                             )}
                         </SectionCard>
@@ -306,6 +325,23 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
     );
 }
 
+function invitationText(invitation: EmployeeDetail['invitation']): string {
+    if (!invitation || invitation.state === 'none') {
+        return 'No invitation';
+    }
+    if (invitation.state === 'accepted') {
+        return 'Accepted';
+    }
+    if (invitation.state === 'not_sent') {
+        return 'Not sent. Mail delivery may be unconfigured.';
+    }
+    if (invitation.state === 'expired') {
+        return `Expired ${invitation.expiresAt ?? ''}`.trim();
+    }
+
+    return `Pending until ${invitation.expiresAt ?? 'the expiry date'}${invitation.sent ? '. Email sent.' : '.'}`;
+}
+
 function Fact({ label, value }: { label: string; value: string }) {
     return (
         <div>
@@ -327,6 +363,7 @@ function EditEmployee({ employee, options, workspaceRole, onInvalid }: { employe
         location_id: employee.officeId ? String(employee.officeId) : '',
         manager_id: employee.managerId ? String(employee.managerId) : '',
         date_of_joining: employee.joined ?? '',
+        date_of_birth: employee.dateOfBirth ?? '',
         holiday_calendar: employee.holidayCalendar,
         employment_type: employee.employmentType,
         work_mode: employee.workMode,
@@ -363,6 +400,7 @@ function EditEmployee({ employee, options, workspaceRole, onInvalid }: { employe
                     <div className="grid gap-3 sm:grid-cols-2">
                         <Field label="Employee ID" error={form.errors.employee_code}><Input value={form.data.employee_code} onChange={(event) => form.setData('employee_code', event.target.value)} /></Field>
                         <Field label="Joining date" error={form.errors.date_of_joining}><Input type="date" value={form.data.date_of_joining} onChange={(event) => form.setData('date_of_joining', event.target.value)} /></Field>
+                        <Field label="Date of birth" error={form.errors.date_of_birth}><Input type="date" value={form.data.date_of_birth} onChange={(event) => form.setData('date_of_birth', event.target.value)} /></Field>
                         <Field label="Department" error={form.errors.department_id}><Select value={form.data.department_id} onChange={(value) => form.setData('department_id', value)} options={options.departments} /></Field>
                         <Field label="Designation" error={form.errors.designation_id}><Select value={form.data.designation_id} onChange={(value) => form.setData('designation_id', value)} options={options.designations} /></Field>
                         <Field label="Office" error={form.errors.location_id}><Select value={form.data.location_id} onChange={(value) => form.setData('location_id', value)} options={options.offices} /></Field>

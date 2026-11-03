@@ -103,48 +103,52 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
         );
     }
 
-    function clockIn() {
+    function clock(action: 'hrms.attendance.clock-in' | 'hrms.attendance.clock-out') {
         setLocationMessage(null);
 
         if (timing.gpsCapture && !timing.gpsRequired) {
-            captureThen('hrms.attendance.clock-in');
+            captureThen(action);
             return;
         }
 
         if (!timing.gpsRequired) {
-            submit('hrms.attendance.clock-in');
+            submit(action);
             return;
         }
 
         if (typeof window !== 'undefined' && window.isSecureContext === false) {
-            setLocationMessage('This page is not a secure context, so the browser will not share a location. Open the app at http://localhost, http://127.0.0.1, or HTTPS. Clock-in was not sent.');
+            setConfirmOut(false);
+            setLocationMessage('This page is not a secure context, so the browser will not share a location. Open the app at http://localhost, http://127.0.0.1, or HTTPS. The attendance action was not sent.');
             return;
         }
 
         if (!navigator.geolocation) {
-            setLocationMessage('This browser cannot provide a location. Clock-in was not sent.');
+            setConfirmOut(false);
+            setLocationMessage('This browser cannot provide a location. The attendance action was not sent.');
             return;
         }
 
         setLocating(true);
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                submit('hrms.attendance.clock-in', {
+                submit(action, {
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
+                    accuracy_meters: Math.round(position.coords.accuracy),
                 });
             },
             (error) => {
                 setLocating(false);
+                setConfirmOut(false);
                 if (error.code === error.PERMISSION_DENIED) {
-                    setLocationMessage('Location permission was denied. Clock-in was not sent.');
+                    setLocationMessage('Location permission was denied. The attendance action was not sent.');
                     return;
                 }
                 if (error.code === error.TIMEOUT) {
-                    setLocationMessage('The browser did not share a location before the request timed out. Clock-in was not sent.');
+                    setLocationMessage('The browser did not share a location before the request timed out. The attendance action was not sent.');
                     return;
                 }
-                setLocationMessage('A browser location is unavailable. Clock-in was not sent.');
+                setLocationMessage('A browser location is unavailable. The attendance action was not sent.');
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
         );
@@ -169,7 +173,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
                 </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-                <Button type="button" className="bg-emerald-600 hover:bg-emerald-700" disabled={!timing.canClockIn || form.processing || locating} onClick={clockIn}>
+                <Button type="button" className="bg-emerald-600 hover:bg-emerald-700" disabled={!timing.canClockIn || form.processing || locating} onClick={() => clock('hrms.attendance.clock-in')}>
                     {form.processing || locating ? 'Working…' : 'Clock In'}
                 </Button>
                 <Button type="button" variant="outline" className="border-orange-300 text-orange-600" disabled={!timing.canStartBreak || form.processing} onClick={() => submit('hrms.attendance.break-start')}>
@@ -187,7 +191,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
                 <InfoRow icon={AlarmClock} label="Break In" value={timing.breakIn ?? '—'} />
             </div>
             <p className="mt-3 text-xs text-slate-500">
-                {timing.officeName ? `Clock-in is checked against the approved public network for ${timing.officeName}.` : 'Clock-in is recorded only after the server verifies an approved office network.'}
+                {timing.officeName ? `Clock-in and clock-out are checked against the approved public network for ${timing.officeName}.` : 'Clock-in and clock-out are recorded only after the server verifies an approved office network.'}
                 {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough. The browser can share that location from http://localhost, http://127.0.0.1, or HTTPS. An http LAN address cannot.' : ''}
                 {timing.gpsCapture ? ' Optional GPS capture is on, so a browser location may be saved with this attendance action after the network check.' : ''}
                 {timing.gpsNoticePending ? ' GPS capture is enabled, but it is not requested until the Route Map notice is acknowledged.' : ''}
@@ -198,11 +202,11 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Clock out?</DialogTitle>
-                        <DialogDescription>This closes the current attendance session. An open break must be ended first.</DialogDescription>
+                        <DialogDescription>This closes the current attendance session after the same office network check as clock-in. An open break must be ended first.</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setConfirmOut(false)}>Cancel</Button>
-                        <Button type="button" className="bg-rose-500 hover:bg-rose-600" disabled={form.processing} onClick={() => (timing.gpsCapture ? captureThen('hrms.attendance.clock-out') : submit('hrms.attendance.clock-out'))}>
+                        <Button type="button" className="bg-rose-500 hover:bg-rose-600" disabled={form.processing || locating} onClick={() => clock('hrms.attendance.clock-out')}>
                             Clock Out
                         </Button>
                     </DialogFooter>

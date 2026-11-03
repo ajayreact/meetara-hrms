@@ -53,7 +53,7 @@ The PHP files in `database/migrations` still do not include the six recovered hi
 
 On 21 October 2026 the rehearsal directory was migrated onto a new empty database, `meetara_hrms_stage60_20261021`. All 25 migrations in that directory completed. Every table was InnoDB, and `users_tenant_id_foreign` was present with `ON DELETE SET NULL`. MySQL recorded `ON UPDATE` as `NO ACTION`. Details are in `docs/SUBMISSION_STATUS.md`.
 
-Do not run `php artisan migrate`, `migrate:fresh`, `db:wipe`, or a rollback against `meetara_hrms`. An unrestricted migrate on an empty database also loads `database/schema/mysql-schema.sql`, and that dump stops at `2026_10_19_270000_convert_workflow_tables_to_innodb`. It is not the current application schema.
+Do not run `php artisan migrate`, `migrate:fresh`, `db:wipe`, or a rollback against `meetara_hrms`. `database/schema/mysql-schema.sql` is the 3 November 2026 schema-only baseline: 163,031 bytes, SHA-256 `565ff15940792a4530297648e3b7106061a76a0e6fd54e2d3721a84580542836`, 124 InnoDB tables, and 49 `migrations` rows. It contains no application data. On a new empty database, `php artisan migrate` loads that file and then has no PHP files left to run. Do not import the file into `meetara_hrms`; it contains `DROP TABLE IF EXISTS`. The seven historical PHP files are still absent and must not be recreated.
 
 `docs/production.md` is the deployment procedure. It does not mean this tree has been deployed.
 
@@ -88,7 +88,7 @@ Blocked on purpose:
 - The rehearsal sequence passed on `meetara_hrms_stage60_20261021`. Those migration files are not copied into `database/migrations`. The permission file is a labeled reconstruction, not a recovered original.
 - `users_tenant_id_foreign` uses `ON DELETE SET NULL`. MySQL stored the omitted update clause as `NO ACTION`. The Stage 52 candidate still accepts only the spelling `restrict`, and that check was not changed.
 - Production settings are not in the local `.env`: debug is on, session encryption is off, and mail is logged.
-- Lifecycle, invitation, and subject-email repair migrations are not approved for the live database. The InnoDB setting does not rewrite tables that already exist.
+- The 3 November 2026 schema baseline already records the lifecycle, invitation, and subject-email repair migrations. Do not apply those files again to the live database. The InnoDB setting does not rewrite tables that already exist.
 
 ## Demo checklist
 

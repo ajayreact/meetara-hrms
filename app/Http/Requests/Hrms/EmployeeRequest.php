@@ -40,6 +40,7 @@ abstract class EmployeeRequest extends FormRequest
             'location_id' => ['nullable', 'integer', Rule::exists('locations', 'id')->where('tenant_id', $companyId)],
             'manager_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $companyId)],
             'date_of_joining' => ['required', 'date'],
+            'date_of_birth' => ['nullable', 'date', 'before:today'],
             'holiday_calendar' => ['required', Rule::in(['india', 'usa'])],
             'employment_type' => ['required', Rule::in(['full_time', 'part_time', 'contract'])],
             'work_mode' => ['required', Rule::in(['office', 'hybrid', 'remote'])],

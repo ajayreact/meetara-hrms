@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import LetterStationery, { type Stationery } from './letter-stationery';
 
 interface PayrollSettings {
     currency: string | null;
@@ -39,7 +40,7 @@ interface CandidateFormSettings {
     notice: string;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; notice?: string | null; error?: string | null }) {
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -47,15 +48,20 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
         <HrmsLayout workspace={workspace} title="Settings">
             <PageIntro title={platform ? 'Platform settings' : 'Company settings'} subtitle={platform ? 'No platform-wide settings are stored. Company payroll settings stay on each company account.' : 'The company name comes from the company record and cannot be renamed here. Payroll currency is saved separately and does not change existing salary records.'} />
             {platform ? <PlatformSettings /> : (
-                <div className={payrollSettings ? 'grid items-start gap-4 xl:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]' : ''}>
-                    <SectionCard title="Company name">
-                        <p className="text-sm font-medium text-slate-800">{companyName}</p>
-                        <p className="mt-2 text-sm text-slate-500">This is the saved company name. It is shown here and is not an editable field.</p>
-                    </SectionCard>
-                    {payrollSettings && <PayrollSettingsForm settings={payrollSettings} notice={notice} error={error} />}
-                    {gpsCapture && <GpsCaptureForm settings={gpsCapture} />}
-                    {candidateForm && <CandidateFormSettingsForm settings={candidateForm} />}
-                </div>
+                <>
+                    {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
+                    <div className={payrollSettings ? 'grid items-start gap-4 xl:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]' : ''}>
+                        <SectionCard title="Company name">
+                            <p className="text-sm font-medium text-slate-800">{companyName}</p>
+                            <p className="mt-2 text-sm text-slate-500">This is the saved company name. It is shown here and is not an editable field. The display name is not verified legal information.</p>
+                            <p className="mt-3 text-sm"><Link className="text-blue-700 underline" href={route('hrms.offer-letters.templates')}>Offer letter templates</Link></p>
+                        </SectionCard>
+                        {payrollSettings && <PayrollSettingsForm settings={payrollSettings} notice={notice} error={error} />}
+                        {gpsCapture && <GpsCaptureForm settings={gpsCapture} />}
+                        {candidateForm && <CandidateFormSettingsForm settings={candidateForm} />}
+                    </div>
+                    {stationery && <LetterStationery stationery={stationery} />}
+                </>
             )}
         </HrmsLayout>
     );

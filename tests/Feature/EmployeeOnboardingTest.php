@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
 
@@ -64,7 +65,7 @@ class EmployeeOnboardingTest extends TestCase
 
         $this->actingAs($company->hr)->get('/employees/'.$employee->id)
             ->assertOk()
-            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('onboarding.status', 'In Progress')
                 ->where('onboarding.tasks.0.title', 'Employee profile completed')
                 ->where('onboarding.tasks.1.title', 'Offer letter generated/issued')
@@ -89,9 +90,11 @@ class EmployeeOnboardingTest extends TestCase
         $messages = DB::table('notifications')->where('type', EmployeeJoinedNotification::class)->get();
         $recipients = $messages->pluck('notifiable_id')->map(fn ($id) => (int) $id)->all();
 
-        $this->assertEqualsCanonicalizing([$company->hr->id, $owner->id, $company->lead->id], $recipients);
+        $outsideUser = (int) DB::table('employees')->where('id', $company->outsideEmployeeId)->value('user_id');
+        $this->assertEqualsCanonicalizing([$company->hr->id, $owner->id, $company->lead->id, $outsideUser], $recipients);
         $this->assertNotContains($other->hr->id, $recipients);
         $this->assertNotContains($company->employee->id, $recipients);
+        $this->assertStringContainsString('Welcome Our New Team Member!', (string) $messages->first()->data);
 
         foreach ($messages as $message) {
             $data = json_decode((string) $message->data, true);
@@ -281,7 +284,7 @@ class EmployeeOnboardingTest extends TestCase
 
         $this->actingAs($company->hr)->get('/employees/'.$employee->id)
             ->assertOk()
-            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('onboarding.tasks', fn ($rows) => collect($rows)->where('note', 'Historical task. It was not mapped to a required checklist item.')->count() === 4));
     }
 

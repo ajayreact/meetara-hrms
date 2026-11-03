@@ -14,7 +14,7 @@ class PayslipPolicy
             return false;
         }
 
-        if (in_array($user->applicationRole(), ['company_admin', 'accounts'], true)) {
+        if (in_array($user->applicationRole(), ['company_admin', 'accounts', 'hr'], true)) {
             return true;
         }
 

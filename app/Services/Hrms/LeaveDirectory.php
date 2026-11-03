@@ -44,7 +44,7 @@ class LeaveDirectory
             'types' => $types->map(fn (LeaveType $type) => ['id' => $type->id, 'name' => $type->name, 'code' => $type->code])->all(),
             'requests' => $this->requests($employee),
             'queue' => $this->queue($user),
-            'policies' => $user->applicationRole() === 'company_admin' ? $this->policies($companyId) : [],
+            'policies' => $this->policies($companyId),
             'canApply' => $employee !== null && $employee->status === 'active',
             'canReview' => in_array($user->applicationRole(), ['company_admin', 'hr', 'team_lead'], true),
             'canManagePolicies' => $user->applicationRole() === 'company_admin',

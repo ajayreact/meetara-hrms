@@ -9,8 +9,21 @@ class PayrollRunPolicy
 {
     public function view(User $user, PayrollRun $run): bool
     {
-        return (int) $run->tenant_id === (int) $user->companyId()
-            && in_array($user->applicationRole(), ['company_admin', 'accounts'], true);
+        if ((int) $run->tenant_id !== (int) $user->companyId()) {
+            return false;
+        }
+
+        if (in_array($user->applicationRole(), ['company_admin', 'accounts'], true)) {
+            return true;
+        }
+
+        return $user->applicationRole() === 'hr' && ($run->source ?? 'calculated') === 'import';
+    }
+
+    public function import(User $user, ?PayrollRun $run = null): bool
+    {
+        return in_array($user->applicationRole(), ['accounts', 'hr'], true)
+            && ($run === null || (int) $run->tenant_id === (int) $user->companyId());
     }
 
     public function prepare(User $user, ?PayrollRun $run = null): bool

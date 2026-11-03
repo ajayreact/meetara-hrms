@@ -10,13 +10,16 @@ use App\Services\Hrms\AttendanceDirectory;
 use App\Services\Hrms\CandidateOnboarding;
 use App\Services\Hrms\CompanyAdminInvitation;
 use App\Services\Hrms\EmployeeDirectory;
+use App\Services\Hrms\EmployeeEss;
 use App\Services\Hrms\GpsCapture;
 use App\Services\Hrms\HelpDeskService;
 use App\Services\Hrms\LeaveDirectory;
+use App\Services\Hrms\OfferLetterCatalog;
 use App\Services\Hrms\OvertimeService;
 use App\Services\Hrms\PayrollDirectory;
 use App\Services\Hrms\PayrollSettings;
 use App\Services\Hrms\PlatformDirectory;
+use App\Services\Hrms\WorkplaceBoard;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -68,6 +71,9 @@ class HrmsPageController extends Controller
             'leaveBoard' => app(LeaveDirectory::class)->preview($user),
             'payrollBoard' => app(PayrollDirectory::class)->overview($user),
             'platform' => $workspace['role'] === 'super_admin' ? app(PlatformDirectory::class)->overview($user) : null,
+            'workplace' => app(WorkplaceBoard::class)->present($user),
+            'ess' => $workspace['role'] === 'employee' ? app(EmployeeEss::class)->present($user) : null,
+            'notice' => $request->session()->get('status'),
         ]);
     }
 
@@ -79,6 +85,7 @@ class HrmsPageController extends Controller
         return Inertia::render('profile/mine', [
             'workspace' => AuthenticatedWorkspace::resolve($user),
             'employee' => app(EmployeeDirectory::class)->own($user),
+            'profileCard' => app(EmployeeDirectory::class)->selfProfile($user),
         ]);
     }
 
@@ -121,6 +128,9 @@ class HrmsPageController extends Controller
                 'notice' => app(GpsCapture::class)->notice(),
             ] : null,
             'candidateForm' => $user->applicationRole() === 'company_admin' ? app(CandidateOnboarding::class)->settings($user) : null,
+            'stationery' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
+                ? app(OfferLetterCatalog::class)->stationery($user)
+                : null,
             'notice' => session('status'),
             'error' => session('error'),
         ]);

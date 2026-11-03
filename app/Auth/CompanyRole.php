@@ -63,10 +63,12 @@ class CompanyRole
             'payrollView' => false,
             'payrollApprove' => false,
             'payrollPay' => false,
+            'payrollImport' => false,
             'offices' => false,
             'exportAttendance' => false,
             'companies' => false,
             'audit' => false,
+            'i983Sign' => false,
         ];
 
         return match ($role) {
@@ -88,14 +90,17 @@ class CompanyRole
                 'payrollApprove' => true,
                 'offices' => true,
                 'exportAttendance' => true,
+                'i983Sign' => true,
             ]),
             'hr' => array_merge($none, [
                 'employees' => true,
+                'settings' => true,
                 'routeMap' => true,
                 'attendanceManage' => true,
                 'attendanceCorrect' => true,
                 'leaveApprove' => true,
                 'salaryManage' => true,
+                'payrollImport' => true,
                 'offices' => true,
                 'exportAttendance' => true,
             ]),
@@ -104,6 +109,7 @@ class CompanyRole
                 'salaryManage' => true,
                 'payrollView' => true,
                 'payrollPay' => true,
+                'payrollImport' => true,
             ]),
             'team_lead' => array_merge($none, [
                 'employees' => true,

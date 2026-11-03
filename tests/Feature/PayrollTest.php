@@ -47,7 +47,7 @@ class PayrollTest extends TestCase
         $this->actingAs($company->employee)->get('/salary')->assertForbidden();
         $this->actingAs($company->employee)->get('/payroll')->assertForbidden();
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();
-        $this->actingAs($company->hr)->get('/payroll')->assertForbidden();
+        $this->actingAs($company->hr)->get('/payroll')->assertOk();
         $this->get('/payroll/review')->assertNotFound();
         $this->actingAs($company->lead)->get('/payroll/review')->assertNotFound();
         $this->actingAs($company->employee)->get('/payroll/review')->assertNotFound();
@@ -126,6 +126,111 @@ class PayrollTest extends TestCase
             'currency' => 'INR',
         ])->assertSessionHasErrors('basic');
         $this->assertSame(0, DB::table('salary_structures')->where('employee_id', $company->outsideEmployeeId)->count());
+    }
+
+    public function test_editing_a_salary_record_updates_only_that_effective_date(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
+        $other = CompanyFixture::make('Deep Data Inc', 'deep');
+        $accounts = $this->accounts($company);
+
+        $this->from('/salary')->actingAs($accounts)->post('/salary', [
+            'employee_id' => $company->reportEmployeeId,
+            'basic' => '10.10',
+            'hra' => '0.20',
+            'special_allowance' => '0.00',
+            'effective_from' => '2026-01-01',
+            'currency' => 'INR',
+        ])->assertRedirect('/salary');
+        $this->from('/salary')->actingAs($accounts)->post('/salary', [
+            'employee_id' => $company->reportEmployeeId,
+            'basic' => '12.00',
+            'hra' => '0.20',
+            'special_allowance' => '0.00',
+            'effective_from' => '2026-12-01',
+            'currency' => 'INR',
+        ])->assertRedirect('/salary');
+
+        $rows = DB::table('salary_structures')->where('employee_id', $company->reportEmployeeId)->orderBy('effective_from')->get();
+        $this->assertCount(2, $rows);
+        $earlier = $rows[0];
+        $later = $rows[1];
+
+        $this->actingAs($company->employee)->put('/salary/'.$earlier->id, [
+            'basic' => '15.00',
+            'hra' => '1.00',
+            'special_allowance' => '4.00',
+            'effective_from' => '2026-01-01',
+            'currency' => 'INR',
+        ])->assertForbidden();
+        $this->actingAs($this->accounts($other))->put('/salary/'.$earlier->id, [
+            'basic' => '99.00',
+            'hra' => '0.00',
+            'special_allowance' => '0.00',
+            'effective_from' => '2026-01-01',
+            'currency' => 'INR',
+        ])->assertNotFound();
+
+        $this->from('/salary')->actingAs($accounts)->put('/salary/'.$earlier->id, [
+            'basic' => '15.00',
+            'hra' => '1.00',
+            'special_allowance' => '4.00',
+            'effective_from' => '2026-12-01',
+            'currency' => 'INR',
+            'employee_id' => $company->outsideEmployeeId,
+        ])->assertSessionHasErrors('employee_id');
+
+        $this->from('/salary')->actingAs($accounts)->put('/salary/'.$earlier->id, [
+            'basic' => '15.00',
+            'hra' => '1.00',
+            'special_allowance' => '4.00',
+            'effective_from' => '2026-12-01',
+            'currency' => 'INR',
+        ])->assertRedirect('/salary')->assertSessionHas('error', 'Another salary record already starts on that date. This record was not changed.');
+
+        $this->assertSame('10.10', Money::format(Money::cents((string) DB::table('salary_structures')->where('id', $earlier->id)->value('basic'))));
+        $this->assertSame('2026-01-01', Carbon::parse((string) DB::table('salary_structures')->where('id', $earlier->id)->value('effective_from'))->toDateString());
+        $this->assertSame('12.00', Money::format(Money::cents((string) DB::table('salary_structures')->where('id', $later->id)->value('basic'))));
+        $this->assertSame(2, DB::table('salary_structures')->where('employee_id', $company->reportEmployeeId)->count());
+
+        $this->from('/salary')->actingAs($accounts)->put('/salary/'.$earlier->id, [
+            'basic' => '15.00',
+            'hra' => '1.00',
+            'special_allowance' => '4.00',
+            'effective_from' => '2026-06-01',
+            'currency' => 'usd',
+        ])->assertRedirect('/salary')->assertSessionHas('status', 'Salary record updated.');
+
+        $this->assertSame(2, DB::table('salary_structures')->where('employee_id', $company->reportEmployeeId)->count());
+        $this->assertSame(0, DB::table('salary_structures')->where('employee_id', $company->reportEmployeeId)->whereDate('effective_from', '2026-01-01')->count());
+        $updated = DB::table('salary_structures')->where('id', $earlier->id)->first();
+        $this->assertNotNull($updated);
+        $this->assertSame('15.00', Money::format(Money::cents((string) $updated->basic)));
+        $this->assertSame('1.00', Money::format(Money::cents((string) $updated->hra)));
+        $this->assertSame('4.00', Money::format(Money::cents((string) $updated->special_allowance)));
+        $this->assertSame('2026-06-01', Carbon::parse((string) $updated->effective_from)->toDateString());
+        $this->assertSame('USD', $updated->currency);
+        $this->assertSame($company->reportEmployeeId, (int) $updated->employee_id);
+        $this->assertSame('12.00', Money::format(Money::cents((string) DB::table('salary_structures')->where('id', $later->id)->value('basic'))));
+        $this->assertSame('2026-12-01', Carbon::parse((string) DB::table('salary_structures')->where('id', $later->id)->value('effective_from'))->toDateString());
+        $this->assertSame(1, DB::table('salary_structure_events')->where('salary_structure_id', $earlier->id)->where('action', 'created')->count());
+        $this->assertSame(1, DB::table('salary_structure_events')->where('salary_structure_id', $earlier->id)->where('action', 'updated')->count());
+        $this->assertSame(1, DB::table('salary_structure_events')->where('salary_structure_id', $later->id)->count());
+
+        $this->actingAs($accounts)->get('/salary')->assertInertia(fn (Assert $page) => $page->where('rows', function ($salaryRows) use ($company) {
+            $employee = collect($salaryRows)->first(function ($row) use ($company) {
+                $id = is_array($row) ? ($row['id'] ?? null) : ($row->id ?? null);
+
+                return (int) $id === $company->reportEmployeeId;
+            });
+            $record = json_decode(json_encode($employee), true);
+            $history = collect($record['history'] ?? []);
+            $amount = fn ($item, string $key): string => Money::format(Money::cents((string) $item[$key]));
+
+            return $history->contains(fn ($item) => $item['effectiveFrom'] === '2026-06-01' && $amount($item, 'basic') === '15.00' && $item['currency'] === 'USD')
+                && $history->contains(fn ($item) => $item['effectiveFrom'] === '2026-12-01' && $amount($item, 'basic') === '12.00')
+                && $history->count() === 2;
+        }));
     }
 
     public function test_payroll_uses_saved_salary_and_does_not_change_attendance_or_leave(): void
@@ -507,6 +612,67 @@ class PayrollTest extends TestCase
                 'updated_at' => now(),
             ]);
         }
+    }
+
+    public function test_processing_notifies_the_employee_and_payslip_downloads_stay_private(): void
+    {
+        $company = CompanyFixture::make('Acme People', 'payslip-notice');
+        $other = CompanyFixture::make('Other People', 'payslip-other');
+        $accounts = $this->accounts($company);
+        $admin = $this->owner($company);
+        $this->seedSalaries($company, '30000', '1700', '6000');
+        $this->app->instance(PayrollStatutoryReadiness::class, new class extends PayrollStatutoryReadiness
+        {
+            public function ready(): bool
+            {
+                return true;
+            }
+
+            public function assertReady(): void {}
+
+            public function issues(): array
+            {
+                return [];
+            }
+        });
+
+        $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
+        $runId = (int) DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 11)->value('id');
+        $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
+        $net = DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net');
+        $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertSessionHas('error');
+        $this->assertSame(1, DB::table('payroll_runs')->where('tenant_id', $company->id)->where('year', 2026)->where('month', 11)->count());
+        $this->actingAs($accounts)->post("/payroll/runs/{$runId}/review", ['note' => 'Ready for approval'])->assertRedirect();
+        $this->actingAs($company->hr)->post("/payroll/runs/{$runId}/approve", ['note' => 'Approved'])->assertNotFound();
+        $this->actingAs($admin)->post("/payroll/runs/{$runId}/approve", ['note' => 'Approved'])->assertRedirect();
+        $this->actingAs($accounts)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertRedirect();
+        $this->assertSame($net, DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('net'));
+        $this->assertSame('processed', DB::table('payroll_runs')->where('id', $runId)->value('status'));
+
+        $itemId = (int) DB::table('payroll_items')->where('payroll_run_id', $runId)->where('employee_id', $company->reportEmployeeId)->value('id');
+        $this->assertSame(1, DB::table('notifications')->where('notifiable_id', $company->employee->id)->where('data->key', 'payslip-'.$itemId)->count());
+        $this->actingAs($company->hr)->get('/payroll')->assertOk();
+        $this->actingAs($company->hr)->get('/payslips/archive?year=2026&month=11')->assertOk();
+        $this->actingAs($company->employee)->get('/payslips/archive?year=2026&month=11')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->employee)->get('/payslips?year=2026&month=11')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('payslips.0.id', $itemId)->where('canDownloadAll', false));
+        $this->actingAs($other->hr)->get("/payslips/{$itemId}/pdf")->assertNotFound();
+        $pdf = $this->actingAs($company->employee)->get("/payslips/{$itemId}/pdf")->assertOk()->getContent();
+        $this->assertStringStartsWith('%PDF', $pdf);
+        $this->assertStringContainsString('Net payable', $pdf);
+
+        if (class_exists(\ZipArchive::class)) {
+            $archive = $this->actingAs($accounts)->get('/payslips/archive?year=2026&month=11')->assertOk();
+            $this->assertStringContainsString('zip', strtolower((string) $archive->headers->get('content-type')));
+            $this->assertStringStartsWith('PK', $archive->streamedContent());
+        }
+
+        $this->actingAs($accounts)->get('/payroll?year=2026&month=11')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('overview.period.found', true)
+                ->where('overview.period.rawStatus', 'processed')
+                ->where('overview.salaryConfigured', 3));
     }
 
     private function accounts(CompanyFixture $company): User

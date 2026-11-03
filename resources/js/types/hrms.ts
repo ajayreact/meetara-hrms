@@ -12,10 +12,12 @@ export interface WorkspacePermissions {
     payrollView: boolean;
     payrollApprove: boolean;
     payrollPay: boolean;
+    payrollImport: boolean;
     offices: boolean;
     exportAttendance: boolean;
     companies: boolean;
     audit: boolean;
+    i983Sign: boolean;
 }
 
 export interface Workspace {
