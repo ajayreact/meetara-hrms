@@ -104,6 +104,56 @@ const documentLabels: Record<string, string> = {
 };
 const lockedControl = `${control} bg-slate-50 text-slate-700`;
 
+function trainingPlanSaved(training: TrainingInfo): boolean {
+    return [
+        training.siteName,
+        training.siteAddress,
+        training.workArrangement,
+        training.officialName,
+        training.officialTitle,
+        training.officialEmail,
+        training.officialPhone,
+        training.studentRole,
+        training.goals,
+        training.oversight,
+        training.measures,
+        training.remarks,
+    ].some((value) => value.trim() !== '');
+}
+
+function arrangementLabel(value: string): string {
+    if (value === 'remote') {
+        return 'Remote';
+    }
+    if (value === 'on_site') {
+        return 'On-site';
+    }
+    if (value === 'hybrid') {
+        return 'Hybrid';
+    }
+
+    return value;
+}
+
+function trainingSummary(training: TrainingInfo): Array<[string, string]> {
+    return [
+        ['Student name', training.studentName],
+        ['Employer name', training.employerName],
+        ['Employer site name', training.siteName],
+        ['Site address', training.siteAddress],
+        ['Work arrangement', arrangementLabel(training.workArrangement)],
+        ['Official name', training.officialName],
+        ['Official title', training.officialTitle],
+        ['Official email', training.officialEmail],
+        ['Official phone', training.officialPhone],
+        ['Student role', training.studentRole],
+        ['Goals and objectives', training.goals],
+        ['Employer oversight', training.oversight],
+        ['Measures and assessments', training.measures],
+        ['Additional remarks', training.remarks],
+    ];
+}
+
 interface StudentCertification {
     latest: { version: number; printedName: string; certifiedOn: string; timezone: string } | null;
     history: Array<{ version: number; printedName: string; certifiedOn: string; timezone: string }>;
@@ -193,7 +243,9 @@ export default function I983Show({ workspace, case: record, student, employer, t
 
     function saveTraining(event: FormEvent) {
         event.preventDefault();
-        trainingForm.post(route('hrms.i983.training', record.id));
+        trainingForm.post(route('hrms.i983.training', record.id), {
+            onSuccess: () => setEditing(null),
+        });
     }
 
     function requestCorrection(event: FormEvent) {
@@ -239,6 +291,10 @@ export default function I983Show({ workspace, case: record, student, employer, t
         const step = workflow.steps.find((item) => item.key === key);
 
         if (step?.state === 'current') {
+            if (key === 'training_plan' && trainingPlanSaved(training)) {
+                return 'summary';
+            }
+
             return 'form';
         }
 
@@ -328,7 +384,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 <form onSubmit={saveEmployer}>
                     <SectionCard title="3. Employer Information">
                         {addressLayout.length > 0 && <ul className="mb-3 space-y-1 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
-                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving here changes only this I-983.</p>
+                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving here changes only this I-983. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the saved company record</Link></p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Legal employer name<input className={control} value={employerForm.data.legal_name} onChange={(event) => employerForm.setData('legal_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Website<input className={control} value={employerForm.data.website} onChange={(event) => employerForm.setData('website', event.target.value)} /></label>
@@ -340,6 +396,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             <label className="text-sm text-slate-700">EIN<input className={control} value={employerForm.data.ein} onChange={(event) => employerForm.setData('ein', event.target.value)} autoComplete="off" /></label>
                             <label className="text-sm text-slate-700">Full-time employees in the U.S.<input className={control} value={employerForm.data.employee_count} onChange={(event) => employerForm.setData('employee_count', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">NAICS code<input className={control} value={employerForm.data.naics} onChange={(event) => employerForm.setData('naics', event.target.value)} /></label>
+                            <p className="text-sm text-slate-600 md:col-span-2">Salary, hourly rate, working hours, and the start date belong to this student. They are not saved in Company Settings.</p>
                             <label className="text-sm text-slate-700">OPT hours per week<input className={control} value={employerForm.data.opt_hours} onChange={(event) => employerForm.setData('opt_hours', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Hourly rate in U.S. dollars<input className={control} value={employerForm.data.hourly_rate} onChange={(event) => employerForm.setData('hourly_rate', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Pay frequency
@@ -370,8 +427,15 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 {presentation('training_plan') === 'later' && <SectionCard title="4. Training Plan"><p className="text-sm text-slate-600">This step opens after Employer Information is saved.</p></SectionCard>}
                 {presentation('training_plan') === 'summary' && (
                     <SectionCard title="4. Training Plan">
-                        <p className="text-sm text-slate-700">{training.siteName || '—'} · {training.workArrangement || 'work arrangement not selected'}</p>
-                        <p className="mt-1 text-sm text-slate-600">{training.officialName || '—'}, {training.officialTitle || '—'}</p>
+                        <p className="mb-3 text-sm text-slate-600">Saved on this I-983. The record stays in place until you choose Edit training plan.</p>
+                        <dl className="grid gap-3 md:grid-cols-2">
+                            {trainingSummary(training).map(([labelText, value]) => (
+                                <div key={labelText} className={value.length > 80 ? 'md:col-span-2' : undefined}>
+                                    <dt className="text-xs uppercase tracking-wide text-slate-500">{labelText}</dt>
+                                    <dd className="text-sm whitespace-pre-wrap text-slate-900">{value || '—'}</dd>
+                                </div>
+                            ))}
+                        </dl>
                         <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('training_plan')}>Edit training plan</button>
                     </SectionCard>
                 )}
@@ -393,8 +457,8 @@ export default function I983Show({ workspace, case: record, student, employer, t
                                     <option value="hybrid">Hybrid</option>
                                 </select>
                             </label>
-                            <label className="text-sm text-slate-700">Official name · employer-owned<input className={control} value={trainingForm.data.official_name} onChange={(event) => trainingForm.setData('official_name', event.target.value)} /></label>
-                            <label className="text-sm text-slate-700">Official title · employer-owned<input className={control} value={trainingForm.data.official_title} onChange={(event) => trainingForm.setData('official_title', event.target.value)} /></label>
+                            <label className="text-sm text-slate-700">Official name · from the company signatory<input className={control} value={trainingForm.data.official_name} onChange={(event) => trainingForm.setData('official_name', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">Copied from the authorized company signatory. It is not the signed-in user. Changing it here changes only this I-983.</span></label>
+                            <label className="text-sm text-slate-700">Official title · from the company signatory<input className={control} value={trainingForm.data.official_title} onChange={(event) => trainingForm.setData('official_title', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official email · employer-owned<input className={control} value={trainingForm.data.official_email} onChange={(event) => trainingForm.setData('official_email', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official phone · employer-owned<input className={control} value={trainingForm.data.official_phone} onChange={(event) => trainingForm.setData('official_phone', event.target.value)} /></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Student role<textarea className={control} rows={5} value={trainingForm.data.student_role} onChange={(event) => trainingForm.setData('student_role', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">Describe the student&apos;s position and responsibilities, how the position relates to the qualifying STEM degree, and the technical knowledge and skills the student will apply and develop. Changes are kept in the training-plan history.</span></label>
@@ -408,10 +472,17 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         {trainingForm.errors.student_name && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.student_name}</p>}
                         {trainingForm.errors.site_address && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.site_address}</p>}
                         {trainingForm.errors.work_arrangement && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.work_arrangement}</p>}
-                        <button className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={trainingForm.processing}>Save training plan</button>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                            <button className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={trainingForm.processing}>Save training plan</button>
+                            {trainingPlanSaved(training) && (
+                                <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" type="button" onClick={() => { trainingForm.reset(); setEditing(null); }}>Cancel</button>
+                            )}
+                        </div>
                     </SectionCard>
                 </form>
-                {revisions.length > 0 && (
+                </>
+                )}
+                {presentation('training_plan') !== 'later' && revisions.length > 0 && (
                     <SectionCard title="Training plan changes">
                         <ul className="space-y-3 text-sm text-slate-700">
                             {revisions.map((revision, index) => (
@@ -423,8 +494,6 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             ))}
                         </ul>
                     </SectionCard>
-                )}
-                </>
                 )}
                 {presentation('employer_certification') === 'later' && <SectionCard title="5. Employer Certification"><p className="text-sm text-slate-600">This step opens after the Training Plan is saved.</p></SectionCard>}
                 {presentation('employer_certification') === 'summary' && (

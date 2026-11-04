@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\CompanyFixture;
@@ -52,8 +53,21 @@ class I983EmployerProfileTest extends TestCase
         $this->assertSame('48335', $employer->zip);
         $this->assertSame(48, (int) $employer->employee_count);
         $this->assertSame('541511', $employer->naics);
+        $this->assertNull($employer->opt_hours);
+        $this->assertNull($employer->hourly_rate);
+        $this->assertNull($employer->salary);
+        $this->assertNull($employer->annual_compensation);
+        $this->assertNull($employer->start_date);
         $this->assertNotSame($stored->ein_ciphertext, $employer->ein_ciphertext);
-        $this->assertSame('Veltrix Profile LLC', DB::table('i983_training_plans')->where('case_id', $caseId)->value('employer_name'));
+        $training = DB::table('i983_training_plans')->where('case_id', $caseId)->first();
+        $this->assertSame('Veltrix Profile LLC', $training->employer_name);
+        $this->assertNull($training->official_name);
+        $this->assertNull($training->official_title);
+        $this->assertNull($training->official_email);
+        $this->assertNull($training->site_name);
+        $this->assertNull($training->site_address);
+        $this->assertNotSame($company->hr->name, $training->official_name);
+        $this->assertNotSame($company->hr->email, $training->official_email);
 
         $draft = $this->actingAs($company->hr)->get('/i983/'.$caseId.'/draft');
         $draft->assertOk();
@@ -92,6 +106,69 @@ class I983EmployerProfileTest extends TestCase
         $otherCase = (int) DB::table('i983_cases')->where('tenant_id', $other->id)->value('id');
         $this->assertNull(DB::table('i983_employers')->where('case_id', $otherCase)->value('legal_name'));
         $this->actingAs($other->hr)->get('/i983/'.$caseId)->assertNotFound();
+    }
+
+    public function test_a_new_case_copies_the_company_signatory_without_the_signed_in_user(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'i983-signatory-copy');
+        $company->hr->forceFill([
+            'name' => 'Logged In HR',
+            'email' => 'logged-in-hr@example.test',
+        ])->save();
+
+        $this->actingAs($company->employee)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertForbidden();
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Ajay Oguri',
+            'candidate_email' => 'ajay.signatory@example.test',
+        ])->assertRedirect();
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        $training = DB::table('i983_training_plans')->where('case_id', $caseId)->first();
+        $employer = DB::table('i983_employers')->where('case_id', $caseId)->first();
+
+        $this->assertSame('Priya Shah', $training->official_name);
+        $this->assertSame('HR Manager', $training->official_title);
+        $this->assertNull($training->official_email);
+        $this->assertNull($training->official_phone);
+        $this->assertNull($training->site_name);
+        $this->assertNull($training->site_address);
+        $this->assertNotSame('Logged In HR', $training->official_name);
+        $this->assertNotSame('logged-in-hr@example.test', $training->official_email);
+        $this->assertNull($employer->opt_hours);
+        $this->assertNull($employer->hourly_rate);
+        $this->assertNull($employer->salary);
+        $this->assertNull($employer->start_date);
+
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'New Signer',
+            'signatory_title' => 'Director',
+        ])->assertRedirect();
+        $this->assertSame('Priya Shah', DB::table('i983_training_plans')->where('case_id', $caseId)->value('official_name'));
+        $this->assertSame('HR Manager', DB::table('i983_training_plans')->where('case_id', $caseId)->value('official_title'));
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Second Student',
+            'candidate_email' => 'second.signatory@example.test',
+        ])->assertRedirect();
+        $secondId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->where('candidate_email', 'second.signatory@example.test')->value('id');
+        $this->assertSame('New Signer', DB::table('i983_training_plans')->where('case_id', $secondId)->value('official_name'));
+        $this->assertSame('Director', DB::table('i983_training_plans')->where('case_id', $secondId)->value('official_title'));
+        $this->assertSame('Priya Shah', DB::table('i983_training_plans')->where('case_id', $caseId)->value('official_name'));
+
+        $this->actingAs($company->hr)->get('/company/settings')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('i983Signatory.name', 'New Signer')
+            ->where('i983Signatory.title', 'Director')
+            ->where('i983Signatory.hasImage', true)
+        );
     }
 
     /**

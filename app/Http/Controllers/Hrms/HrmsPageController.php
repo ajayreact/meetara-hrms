@@ -13,6 +13,7 @@ use App\Services\Hrms\EmployeeDirectory;
 use App\Services\Hrms\EmployeeEss;
 use App\Services\Hrms\GpsCapture;
 use App\Services\Hrms\I983EmployerProfile;
+use App\Services\Hrms\I983Signatory;
 use App\Services\Hrms\HelpDeskService;
 use App\Services\Hrms\LeaveDirectory;
 use App\Services\Hrms\OfferLetterCatalog;
@@ -134,6 +135,9 @@ class HrmsPageController extends Controller
                 : null,
             'i983Employer' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
                 ? app(I983EmployerProfile::class)->present($user)
+                : null,
+            'i983Signatory' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
+                ? app(I983Signatory::class)->present((int) $user->companyId())
                 : null,
             'notice' => session('status'),
             'error' => session('error'),

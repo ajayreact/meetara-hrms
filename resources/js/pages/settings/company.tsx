@@ -55,7 +55,13 @@ interface I983EmployerProfile {
     naics: string;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, i983Employer = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; i983Employer?: I983EmployerProfile | null; notice?: string | null; error?: string | null }) {
+interface I983Signatory {
+    name: string;
+    title: string;
+    hasImage: boolean;
+}
+
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, i983Employer = null, i983Signatory = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; i983Employer?: I983EmployerProfile | null; i983Signatory?: I983Signatory | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -76,6 +82,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
                         {candidateForm && <CandidateFormSettingsForm settings={candidateForm} />}
                     </div>
                     {i983Employer && <I983EmployerForm profile={i983Employer} />}
+                    {i983Signatory && <I983SignatoryForm signatory={i983Signatory} />}
                     {stationery && <LetterStationery stationery={stationery} />}
                 </>
             )}
@@ -229,7 +236,7 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
 
     return (
         <SectionCard title="U.S. employer information" className="mt-4">
-            <p className="text-sm leading-6 text-slate-600">These details are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Pay, hours, and the training site stay on the individual case.</p>
+            <p className="text-sm leading-6 text-slate-600">These details are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Salary, hourly rate, working hours, start date, and the training site stay on the individual case.</p>
             {!profile.ready && <p className="mt-3 text-sm text-amber-800">Employer information storage is not ready on this database, so this record cannot be saved.</p>}
             <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.i983-employer')); }}>
                 {fields.map(([key, label, placeholder]) => (
@@ -241,6 +248,41 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
                 ))}
                 <div className="md:col-span-2">
                     <Button type="submit" disabled={form.processing || !profile.ready}>{form.processing ? 'Working…' : 'Save employer information'}</Button>
+                </div>
+            </form>
+        </SectionCard>
+    );
+}
+
+function I983SignatoryForm({ signatory }: { signatory: I983Signatory }) {
+    const form = useForm<{ signatory_name: string; signatory_title: string; signature: File | null }>({
+        signatory_name: signatory.name,
+        signatory_title: signatory.title,
+        signature: null,
+    });
+
+    return (
+        <SectionCard title="Authorized I-983 signatory" className="mt-4">
+            <p className="text-sm leading-6 text-slate-600">This is the employer official for this company. A new I-983 copies the name and title. It does not use the name or email of the person who is signed in. Saving a new image does not change a PDF that is already stored, and it does not change the official name already copied onto an existing I-983.</p>
+            {signatory.hasImage && <img alt="Saved employer signature" className="mt-4 h-16 rounded-lg border border-slate-200 bg-white p-2" src={route('hrms.i983.signature.show')} />}
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); form.post(route('hrms.i983.signature.save')); }}>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-signatory-name">Signatory full name</Label>
+                    <Input id="i983-signatory-name" value={form.data.signatory_name} onChange={(event) => form.setData('signatory_name', event.target.value)} />
+                    <InputError message={form.errors.signatory_name} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-signatory-title">Official title</Label>
+                    <Input id="i983-signatory-title" value={form.data.signatory_title} onChange={(event) => form.setData('signatory_title', event.target.value)} />
+                    <InputError message={form.errors.signatory_title} />
+                </label>
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-signatory-image">Signature image (PNG or JPEG)</Label>
+                    <Input id="i983-signatory-image" type="file" accept="image/png,image/jpeg" onChange={(event) => form.setData('signature', event.target.files?.[0] ?? null)} />
+                    <InputError message={form.errors.signature} />
+                </label>
+                <div className="md:col-span-2">
+                    <Button type="submit" disabled={form.processing}>{form.processing ? 'Working…' : 'Save signatory'}</Button>
                 </div>
             </form>
         </SectionCard>

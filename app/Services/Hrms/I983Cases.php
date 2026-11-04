@@ -183,9 +183,10 @@ class I983Cases
         $now = now();
         $profile = $this->employerProfiles->snapshot($companyId);
         $suggestion = $profile ?? $this->companySuggestion($companyId);
+        $signatory = $this->signatory->present($companyId);
         $caseId = 0;
 
-        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $profile, &$caseId): void {
+        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $profile, $signatory, &$caseId): void {
             $caseId = DB::table('i983_cases')->insertGetId([
                 'tenant_id' => $companyId,
                 'reference' => $this->reference($companyId),
@@ -225,6 +226,8 @@ class I983Cases
                 'case_id' => $caseId,
                 'student_name' => $name,
                 'employer_name' => $suggestion['legal_name'],
+                'official_name' => $signatory['name'] !== '' ? mb_substr($signatory['name'], 0, 120) : null,
+                'official_title' => $signatory['title'] !== '' ? mb_substr($signatory['title'], 0, 120) : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
