@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Hrms\I983EmployerProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -91,8 +92,9 @@ class I983EmployerProfileTest extends TestCase
             'employee_count' => 7,
             'naics' => '541512',
         ])->assertRedirect();
-        $this->assertSame('Veltrix Profile LLC', DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('legal_name'));
+        $this->assertSame('Case Only LLC', DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('legal_name'));
         $this->assertSame('Case Only LLC', DB::table('i983_employers')->where('case_id', $caseId)->value('legal_name'));
+        $this->assertSame('The student will receive direct supervision and guidance from the assigned supervisor throughout the training period. The supervisor will provide project assignments, explain technical requirements, monitor daily activities, and review completed work. Regular meetings will be conducted to discuss progress, address technical challenges, and provide constructive feedback. The supervisor will also ensure that the student\'s work aligns with the training objectives and provides opportunities to apply and develop skills related to the STEM degree.', $training->oversight);
 
         $this->actingAs($owner)->put('/company/settings/i983-employer', [...$profile, 'legal_name' => 'Updated Profile LLC'])->assertRedirect();
         $this->assertSame('Updated Profile LLC', DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('legal_name'));
@@ -106,6 +108,85 @@ class I983EmployerProfileTest extends TestCase
         $otherCase = (int) DB::table('i983_cases')->where('tenant_id', $other->id)->value('id');
         $this->assertNull(DB::table('i983_employers')->where('case_id', $otherCase)->value('legal_name'));
         $this->actingAs($other->hr)->get('/i983/'.$caseId)->assertNotFound();
+    }
+
+    public function test_a_combined_address_and_training_defaults_fill_new_cases_only(): void
+    {
+        $parsed = app(I983EmployerProfile::class)->splitAddress('37085 Grand River Ave, Suite 1105, MI 48335 United States');
+        $this->assertSame('37085 Grand River Ave', $parsed['street']);
+        $this->assertSame('1105', $parsed['suite']);
+        $this->assertSame('', $parsed['city']);
+        $this->assertSame('MI', $parsed['state']);
+        $this->assertSame('48335', $parsed['zip']);
+        $locality = app(I983EmployerProfile::class)->splitLocality('Farmington, MI 48335');
+        $this->assertSame(['city' => 'Farmington', 'state' => 'MI', 'zip' => '48335'], $locality);
+        $this->assertSame('NorthIndustrialOverflow', app(I983EmployerProfile::class)->splitAddress('NorthIndustrialOverflow')['street']);
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'i983-address-split');
+        $combined = [
+            'legal_name' => 'Veltrix Digital Solutions Inc',
+            'website' => 'https://veltrixds.com',
+            'street' => '37085 Grand River Ave, Suite 1105, Farmington, MI 48335 United States',
+            'suite' => '',
+            'city' => '',
+            'state' => '',
+            'zip' => '',
+            'ein' => '43-2316091',
+            'employee_count' => 20,
+            'naics' => '541',
+            'oversight' => 'Custom oversight for the next student.',
+            'measures' => 'Custom measures for the next student.',
+        ];
+
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', $combined)->assertRedirect();
+        $stored = DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->first();
+        $this->assertSame('37085 Grand River Ave', $stored->street);
+        $this->assertSame('1105', $stored->suite);
+        $this->assertSame('Farmington', $stored->city);
+        $this->assertSame('MI', $stored->state);
+        $this->assertSame('48335', $stored->zip);
+        $this->assertSame('Custom oversight for the next student.', $stored->oversight);
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'First Student',
+            'candidate_email' => 'first.address@example.test',
+        ])->assertRedirect();
+        $firstId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        $firstEmployer = DB::table('i983_employers')->where('case_id', $firstId)->first();
+        $this->assertSame('37085 Grand River Ave', $firstEmployer->street);
+        $this->assertSame('1105', $firstEmployer->suite);
+        $this->assertSame('Farmington', $firstEmployer->city);
+        $this->assertSame('MI', $firstEmployer->state);
+        $this->assertSame('48335', $firstEmployer->zip);
+        $this->assertSame(20, (int) $firstEmployer->employee_count);
+        $this->assertSame('541', $firstEmployer->naics);
+        $this->assertNull($firstEmployer->opt_hours);
+        $this->assertNull($firstEmployer->start_date);
+        $this->assertSame('Custom oversight for the next student.', DB::table('i983_training_plans')->where('case_id', $firstId)->value('oversight'));
+        $this->assertSame('Custom measures for the next student.', DB::table('i983_training_plans')->where('case_id', $firstId)->value('measures'));
+
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', [
+            ...$combined,
+            'street' => '1 Main Street',
+            'suite' => '',
+            'city' => 'Troy',
+            'state' => 'MI',
+            'zip' => '48084',
+            'oversight' => 'Updated oversight.',
+            'measures' => 'Updated measures.',
+        ])->assertRedirect();
+        $this->assertSame('Custom oversight for the next student.', DB::table('i983_training_plans')->where('case_id', $firstId)->value('oversight'));
+        $this->assertSame('37085 Grand River Ave', DB::table('i983_employers')->where('case_id', $firstId)->value('street'));
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Second Student',
+            'candidate_email' => 'second.address@example.test',
+        ])->assertRedirect();
+        $secondId = (int) DB::table('i983_cases')->where('candidate_email', 'second.address@example.test')->value('id');
+        $this->assertSame('1 Main Street', DB::table('i983_employers')->where('case_id', $secondId)->value('street'));
+        $this->assertSame('Troy', DB::table('i983_employers')->where('case_id', $secondId)->value('city'));
+        $this->assertSame('Updated oversight.', DB::table('i983_training_plans')->where('case_id', $secondId)->value('oversight'));
+        $this->assertSame('Updated measures.', DB::table('i983_training_plans')->where('case_id', $secondId)->value('measures'));
+        $this->assertSame('Custom oversight for the next student.', DB::table('i983_training_plans')->where('case_id', $firstId)->value('oversight'));
     }
 
     public function test_a_new_case_copies_the_company_signatory_without_the_signed_in_user(): void

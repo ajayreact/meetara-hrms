@@ -1503,8 +1503,17 @@ class HrmsSchema
                 $table->text('ein_ciphertext');
                 $table->unsignedInteger('employee_count');
                 $table->string('naics', 10);
+                $table->text('oversight')->nullable();
+                $table->text('measures')->nullable();
                 $table->unsignedBigInteger('updated_by')->nullable();
                 $table->timestamps();
+            });
+        }
+
+        if (Schema::hasTable('i983_employer_profiles') && ! Schema::hasColumn('i983_employer_profiles', 'oversight')) {
+            Schema::table('i983_employer_profiles', function (Blueprint $table) {
+                $table->text('oversight')->nullable();
+                $table->text('measures')->nullable();
             });
         }
 

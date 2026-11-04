@@ -347,7 +347,7 @@ Nginx uses `server_name hrms.veltrixds.com;` and `root $APP_ROOT/public;`. The s
 
 Trusted hosts are the host from `APP_URL`, `localhost`, and `127.0.0.1`. Subdomains of `veltrixds.com` are not trusted automatically. There is no separate CORS configuration: the browser application is same-origin. Authentication and password-reset links are generated from `APP_URL`. Leave `SESSION_DOMAIN` empty so the session cookie is sent only to `hrms.veltrixds.com`. Do not set it to `.veltrixds.com`. When Nginx terminates TLS, set `TRUSTED_PROXIES=127.0.0.1` before `config:cache`.
 
-Mail from-addresses must be verified on `veltrixds.com` before `MAIL_FROM_ADDRESS` is set. The fresh production database is `veltrix_hrms`. Do not rename or import `meetara_hrms`. The GitHub repository stays `meetara-hrms`.
+The verified ZeptoMail domain is `hrms.veltrixds.com`. Set `MAIL_SENDER_DOMAIN=hrms.veltrixds.com` and `MAIL_FROM_ADDRESS=noreply@hrms.veltrixds.com`. The from address must be that verified sender. `MAIL_PASSWORD` is the ZeptoMail API key, including the `Zoho-enczapikey` prefix, and it stays only in the server `.env`. The fresh production database is `veltrix_hrms`. Do not rename or import `meetara_hrms`. The GitHub repository stays `meetara-hrms`.
 
 ## HTTPS and proxies
 

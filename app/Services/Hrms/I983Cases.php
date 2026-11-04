@@ -184,9 +184,10 @@ class I983Cases
         $profile = $this->employerProfiles->snapshot($companyId);
         $suggestion = $profile ?? $this->companySuggestion($companyId);
         $signatory = $this->signatory->present($companyId);
+        $trainingDefaults = $this->employerProfiles->trainingDefaults($companyId);
         $caseId = 0;
 
-        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $profile, $signatory, &$caseId): void {
+        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $signatory, $trainingDefaults, &$caseId): void {
             $caseId = DB::table('i983_cases')->insertGetId([
                 'tenant_id' => $companyId,
                 'reference' => $this->reference($companyId),
@@ -210,14 +211,14 @@ class I983Cases
                 'case_id' => $caseId,
                 'legal_name' => $suggestion['legal_name'],
                 'street' => $suggestion['street'],
-                'suite' => $profile['suite'] ?? null,
+                'suite' => $suggestion['suite'] ?? null,
                 'website' => $suggestion['website'],
-                'city' => $profile['city'] ?? null,
-                'state' => $profile['state'] ?? null,
-                'zip' => $profile['zip'] ?? null,
+                'city' => $suggestion['city'] ?? null,
+                'state' => $suggestion['state'] ?? null,
+                'zip' => $suggestion['zip'] ?? null,
                 'ein_ciphertext' => $this->seal($suggestion['ein']),
-                'employee_count' => $profile['employee_count'] ?? null,
-                'naics' => $profile['naics'] ?? null,
+                'employee_count' => $suggestion['employee_count'] ?? null,
+                'naics' => $suggestion['naics'] ?? null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -228,6 +229,8 @@ class I983Cases
                 'employer_name' => $suggestion['legal_name'],
                 'official_name' => $signatory['name'] !== '' ? mb_substr($signatory['name'], 0, 120) : null,
                 'official_title' => $signatory['title'] !== '' ? mb_substr($signatory['title'], 0, 120) : null,
+                'oversight' => $trainingDefaults['oversight'] !== '' ? $trainingDefaults['oversight'] : null,
+                'measures' => $trainingDefaults['measures'] !== '' ? $trainingDefaults['measures'] : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -271,11 +274,13 @@ class I983Cases
             'studentCertification' => $this->studentCertifications->present($caseId),
             'workflow' => $this->workflow($case),
             'addressLayout' => $this->documents->employerAddressMessages([
-                'street' => trim((string) ($employer->street ?? '')),
-                'suite' => trim((string) ($employer->suite ?? '')),
-                'city' => trim((string) ($employer->city ?? '')),
-                'state' => trim((string) ($employer->state ?? '')),
-                'zip' => trim((string) ($employer->zip ?? '')),
+                ...$this->employerProfiles->splitAddress(
+                    (string) ($employer->street ?? ''),
+                    (string) ($employer->suite ?? ''),
+                    (string) ($employer->city ?? ''),
+                    (string) ($employer->state ?? ''),
+                    (string) ($employer->zip ?? ''),
+                ),
                 'site_address' => trim((string) ($training->site_address ?? '')),
             ]),
         ];
@@ -288,6 +293,13 @@ class I983Cases
     {
         $case = $this->caseFor($actor, $caseId);
         $this->assertEditable($case);
+        $input = [...$input, ...$this->employerProfiles->splitAddress(
+            (string) ($input['street'] ?? ''),
+            (string) ($input['suite'] ?? ''),
+            (string) ($input['city'] ?? ''),
+            (string) ($input['state'] ?? ''),
+            (string) ($input['zip'] ?? ''),
+        )];
         $values = $this->employerValues($input);
         $this->documents->assertEmployerAddressLayout([
             'street' => (string) ($values['street'] ?? ''),
@@ -326,7 +338,36 @@ class I983Cases
             'updated_at' => now(),
         ]);
         $this->syncDerivedName((int) $case->tenant_id, $caseId, 'employer_name', (string) ($values['legal_name'] ?? ''), 'hr', (int) $actor->id);
+        $this->rememberCompanyProfile($actor, $values);
         $this->event((int) $case->tenant_id, $caseId, (int) $actor->id, 'hr', $finalize ? 'employer_finalized' : 'employer_saved', 'employer');
+    }
+
+    /**
+     * Section 3 shared fields become the company default for the next case. This case is the only employer row written above.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    private function rememberCompanyProfile(User $actor, array $values): void
+    {
+        foreach (['legal_name', 'street', 'city', 'state', 'zip', 'ein', 'employee_count', 'naics'] as $field) {
+            if ($values[$field] === null || $values[$field] === '') {
+                return;
+            }
+        }
+
+        if (preg_match('/^[A-Za-z]{2}$/', (string) $values['state']) !== 1
+            || preg_match('/^\d{5}(-\d{4})?$/', (string) $values['zip']) !== 1
+            || preg_match('/^\d{2}-?\d{7}$/', (string) $values['ein']) !== 1
+            || preg_match('/^\d{2,6}$/', (string) $values['naics']) !== 1
+            || (int) $values['employee_count'] < 1) {
+            return;
+        }
+
+        try {
+            $this->employerProfiles->save($actor, $values);
+        } catch (ValidationException) {
+            return;
+        }
     }
 
     /**
@@ -781,11 +822,14 @@ class I983Cases
     }
 
     /**
-     * @return array{legal_name: ?string, street: ?string, website: ?string, ein: ?string}
+     * @return array{legal_name: ?string, website: ?string, street: ?string, suite: ?string, city: ?string, state: ?string, zip: ?string, ein: ?string, employee_count: ?int, naics: ?string}
      */
     private function companySuggestion(int $companyId): array
     {
-        $empty = ['legal_name' => null, 'street' => null, 'website' => null, 'ein' => null];
+        $empty = [
+            'legal_name' => null, 'website' => null, 'street' => null, 'suite' => null, 'city' => null,
+            'state' => null, 'zip' => null, 'ein' => null, 'employee_count' => null, 'naics' => null,
+        ];
 
         if (! Schema::hasTable('usa_offer_profiles')) {
             return $empty;
@@ -797,11 +841,20 @@ class I983Cases
             return $empty;
         }
 
+        $address = $this->employerProfiles->splitAddress((string) ($row->address_line ?? ''));
+        $locality = $this->employerProfiles->splitLocality((string) ($row->city_line ?? ''));
+
         return [
             'legal_name' => $this->blank($row->company_name ?? null),
-            'street' => $this->blank($row->address_line ?? null),
             'website' => $this->blank($row->website ?? null),
+            'street' => $this->blank($address['street']),
+            'suite' => $this->blank($address['suite']),
+            'city' => $this->blank($address['city'] !== '' ? $address['city'] : $locality['city']),
+            'state' => $this->blank($address['state'] !== '' ? $address['state'] : $locality['state']),
+            'zip' => $this->blank($address['zip'] !== '' ? $address['zip'] : $locality['zip']),
             'ein' => $this->blank($row->federal_id ?? null),
+            'employee_count' => null,
+            'naics' => null,
         ];
     }
 
@@ -1012,14 +1065,22 @@ class I983Cases
             return [];
         }
 
+        $address = $this->employerProfiles->splitAddress(
+            (string) ($row->street ?? ''),
+            (string) ($row->suite ?? ''),
+            (string) ($row->city ?? ''),
+            (string) ($row->state ?? ''),
+            (string) ($row->zip ?? ''),
+        );
+
         return [
             'legalName' => (string) ($row->legal_name ?? ''),
-            'street' => (string) ($row->street ?? ''),
-            'suite' => (string) ($row->suite ?? ''),
+            'street' => $address['street'],
+            'suite' => $address['suite'],
             'website' => (string) ($row->website ?? ''),
-            'city' => (string) ($row->city ?? ''),
-            'state' => (string) ($row->state ?? ''),
-            'zip' => (string) ($row->zip ?? ''),
+            'city' => $address['city'],
+            'state' => $address['state'],
+            'zip' => $address['zip'],
             'ein' => $this->reveal($row->ein_ciphertext ?? null),
             'employeeCount' => $row->employee_count === null ? '' : (string) $row->employee_count,
             'naics' => (string) ($row->naics ?? ''),
@@ -1140,11 +1201,15 @@ class I983Cases
             'label' => $labels[$stage],
             'canGenerateFinal' => $blockers === [] && $case->status !== 'finalized',
             'blockers' => $blockers,
-            'steps' => array_map(function (string $key) use ($labels, $done, $stage): array {
+            'steps' => array_map(function (string $key) use ($labels, $stage): array {
+                $order = array_keys($labels);
+                $place = array_search($key, $order, true);
+                $stagePlace = array_search($stage, $order, true);
+
                 return [
                     'key' => $key,
                     'label' => $labels[$key],
-                    'state' => $key === $stage ? 'current' : ($done[$key] ? 'complete' : 'pending'),
+                    'state' => $key === $stage ? 'current' : ($place < $stagePlace ? 'complete' : 'pending'),
                 ];
             }, array_keys($labels)),
         ];
@@ -1157,19 +1222,61 @@ class I983Cases
             && $this->studentCertifications->present((int) $case->id)['latest'] !== null;
     }
 
+    public function employerSavedStatus(User $actor, int $caseId): string
+    {
+        $gaps = $this->employerIdentityGaps($this->caseFor($actor, $caseId));
+
+        if ($gaps === []) {
+            return 'Employer information saved. Continue with the Training Plan.';
+        }
+
+        return 'Employer information saved. The Training Plan opens after these are entered: '.implode(', ', $gaps).'.';
+    }
+
     private function employerStepReady(object $case): bool
+    {
+        return $this->employerIdentityGaps($case) === [];
+    }
+
+    /**
+     * Salary, hours, and the start date stay on the case and are checked before the final PDF.
+     *
+     * @return list<string>
+     */
+    private function employerIdentityGaps(object $case): array
     {
         $employer = DB::table('i983_employers')->where('case_id', $case->id)->first();
 
-        foreach (['legal_name', 'street', 'city', 'state', 'zip', 'employee_count', 'naics', 'opt_hours', 'start_date'] as $field) {
-            if (! $this->requirementFilled($employer->{$field} ?? null)) {
-                return false;
+        if ($employer === null) {
+            return ['Legal employer name', 'Street address', 'City', 'State', 'ZIP', 'EIN', 'Full-time U.S. employees', 'NAICS code'];
+        }
+
+        $address = $this->employerProfiles->splitAddress(
+            (string) ($employer->street ?? ''),
+            (string) ($employer->suite ?? ''),
+            (string) ($employer->city ?? ''),
+            (string) ($employer->state ?? ''),
+            (string) ($employer->zip ?? ''),
+        );
+        $values = [
+            'Legal employer name' => $employer->legal_name ?? null,
+            'Street address' => $address['street'],
+            'City' => $address['city'],
+            'State' => $address['state'],
+            'ZIP' => $address['zip'],
+            'EIN' => $this->reveal($employer->ein_ciphertext ?? null),
+            'Full-time U.S. employees' => $employer->employee_count ?? null,
+            'NAICS code' => $employer->naics ?? null,
+        ];
+        $gaps = [];
+
+        foreach ($values as $label => $value) {
+            if (! $this->requirementFilled($value)) {
+                $gaps[] = $label;
             }
         }
 
-        return $employer !== null
-            && $this->requirementFilled($this->reveal($employer->ein_ciphertext ?? null))
-            && $this->requirementFilled($employer->salary ?? $employer->annual_compensation ?? null);
+        return $gaps;
     }
 
     private function trainingStepReady(object $case): bool

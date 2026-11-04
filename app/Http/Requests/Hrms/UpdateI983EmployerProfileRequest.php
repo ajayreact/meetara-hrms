@@ -2,10 +2,23 @@
 
 namespace App\Http\Requests\Hrms;
 
+use App\Services\Hrms\I983EmployerProfile;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateI983EmployerProfileRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $address = app(I983EmployerProfile::class)->splitAddress(
+            (string) $this->input('street', ''),
+            (string) $this->input('suite', ''),
+            (string) $this->input('city', ''),
+            (string) $this->input('state', ''),
+            (string) $this->input('zip', ''),
+        );
+        $this->merge($address);
+    }
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -31,6 +44,8 @@ class UpdateI983EmployerProfileRequest extends FormRequest
             'ein' => ['required', 'string', 'regex:/^\d{2}-?\d{7}$/'],
             'employee_count' => ['required', 'integer', 'min:1', 'max:10000000'],
             'naics' => ['required', 'string', 'regex:/^\d{2,6}$/'],
+            'oversight' => ['nullable', 'string', 'max:5000'],
+            'measures' => ['nullable', 'string', 'max:5000'],
         ];
     }
 

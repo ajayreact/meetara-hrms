@@ -53,6 +53,8 @@ interface I983EmployerProfile {
     ein: string;
     employeeCount: string;
     naics: string;
+    oversight: string;
+    measures: string;
 }
 
 interface I983Signatory {
@@ -220,6 +222,8 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
         ein: profile.ein,
         employee_count: profile.employeeCount,
         naics: profile.naics,
+        oversight: profile.oversight,
+        measures: profile.measures,
     });
     const fields: Array<[keyof typeof form.data, string, string]> = [
         ['legal_name', 'Legal employer name', 'Veltrix Digital Solutions Inc'],
@@ -236,7 +240,7 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
 
     return (
         <SectionCard title="U.S. employer information" className="mt-4">
-            <p className="text-sm leading-6 text-slate-600">These details are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Salary, hourly rate, working hours, start date, and the training site stay on the individual case.</p>
+            <p className="text-sm leading-6 text-slate-600">These details, including the employer oversight and measures and assessments text, are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Salary, hourly rate, working hours, start date, and the training site stay on the individual case.</p>
             {!profile.ready && <p className="mt-3 text-sm text-amber-800">Employer information storage is not ready on this database, so this record cannot be saved.</p>}
             <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.i983-employer')); }}>
                 {fields.map(([key, label, placeholder]) => (
@@ -246,6 +250,16 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
                         <InputError message={form.errors[key]} />
                     </label>
                 ))}
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-oversight">Employer oversight default</Label>
+                    <textarea id="i983-oversight" className="min-h-28 rounded-md border border-slate-200 px-3 py-2" value={form.data.oversight} onChange={(event) => form.setData('oversight', event.target.value)} />
+                    <InputError message={form.errors.oversight} />
+                </label>
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-measures">Measures and assessments default</Label>
+                    <textarea id="i983-measures" className="min-h-28 rounded-md border border-slate-200 px-3 py-2" value={form.data.measures} onChange={(event) => form.setData('measures', event.target.value)} />
+                    <InputError message={form.errors.measures} />
+                </label>
                 <div className="md:col-span-2">
                     <Button type="submit" disabled={form.processing || !profile.ready}>{form.processing ? 'Working…' : 'Save employer information'}</Button>
                 </div>

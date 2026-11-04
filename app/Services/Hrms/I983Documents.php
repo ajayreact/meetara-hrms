@@ -428,12 +428,8 @@ class I983Documents
             'prior_degree' => $student === null || $student->prior_degree === null ? '' : (in_array($student->prior_degree, [1, '1', true, 'yes'], true) ? 'yes' : 'no'),
             'ead' => $this->reveal($student->ead_ciphertext ?? null),
             'employer_name' => trim((string) ($employer->legal_name ?? '')),
-            'street' => trim((string) ($employer->street ?? '')),
-            'suite' => trim((string) ($employer->suite ?? '')),
+            ...$this->splitEmployerAddress($employer),
             'website' => trim((string) ($employer->website ?? '')),
-            'city' => trim((string) ($employer->city ?? '')),
-            'state' => trim((string) ($employer->state ?? '')),
-            'zip' => trim((string) ($employer->zip ?? '')),
             'ein' => $this->reveal($employer->ein_ciphertext ?? null),
             'employee_count' => $employer === null || $employer->employee_count === null ? '' : (string) $employer->employee_count,
             'naics' => trim((string) ($employer->naics ?? '')),
@@ -505,6 +501,20 @@ class I983Documents
         }
 
         return number_format((float) $amount, 2, '.', '');
+    }
+
+    /**
+     * @return array{street: string, suite: string, city: string, state: string, zip: string}
+     */
+    private function splitEmployerAddress(?object $employer): array
+    {
+        return app(I983EmployerProfile::class)->splitAddress(
+            trim((string) ($employer->street ?? '')),
+            trim((string) ($employer->suite ?? '')),
+            trim((string) ($employer->city ?? '')),
+            trim((string) ($employer->state ?? '')),
+            trim((string) ($employer->zip ?? '')),
+        );
     }
 
     private function printedDate(mixed $value): string

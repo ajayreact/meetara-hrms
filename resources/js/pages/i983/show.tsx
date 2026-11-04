@@ -384,7 +384,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 <form onSubmit={saveEmployer}>
                     <SectionCard title="3. Employer Information">
                         {addressLayout.length > 0 && <ul className="mb-3 space-y-1 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
-                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving here changes only this I-983. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the saved company record</Link></p>
+                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving a complete Section 3 here also updates that company record for the next I-983. It does not change an I-983 that already exists. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the saved company record</Link></p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Legal employer name<input className={control} value={employerForm.data.legal_name} onChange={(event) => employerForm.setData('legal_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Website<input className={control} value={employerForm.data.website} onChange={(event) => employerForm.setData('website', event.target.value)} /></label>
@@ -443,7 +443,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 <>
                 <form onSubmit={saveTraining}>
                     <SectionCard title="4. Training Plan">
-                        <p className="mb-3 text-sm text-slate-600">Student Name comes from Section 1. Employer Name comes from Section 3. Employer HR and the student can both complete Student Role. Goals and Objectives are shared. The training site is saved separately from the employer&apos;s registered address. Site, official, oversight, measures, and remarks are employer-owned.</p>
+                        <p className="mb-3 text-sm text-slate-600">Student Name comes from Section 1. Employer Name comes from Section 3. Employer HR and the student can both complete Student Role. Goals and Objectives are shared. The training site is saved separately from the employer&apos;s registered address. Employer oversight and measures and assessments start from the company default. Changing them here updates this I-983 only. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the company default</Link></p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Student name · student-owned, from Section 1<input className={lockedControl} readOnly value={trainingForm.data.student_name} /></label>
                             <label className="text-sm text-slate-700">Employer name · from Section 3<input className={lockedControl} readOnly value={training.employerName} /></label>

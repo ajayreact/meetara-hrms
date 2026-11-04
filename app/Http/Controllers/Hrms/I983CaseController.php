@@ -59,7 +59,7 @@ class I983CaseController extends Controller
         $actor = $this->manager($request);
         $this->cases->saveEmployer($actor, $case, $request->all(), false);
 
-        return back()->with('status', 'Employer information saved. Review it before finalizing.');
+        return back()->with('status', $this->cases->employerSavedStatus($actor, $case));
     }
 
     public function finalizeEmployer(Request $request, int $case): RedirectResponse
