@@ -239,6 +239,39 @@ class I983Documents
         $this->pdf->assertFits($this->values($caseId), 'student');
     }
 
+    /**
+     * @param  array<string, string>  $values
+     */
+    public function assertEmployerAddressLayout(array $values): void
+    {
+        $this->pdf->assertEmployerAddressLayout($values);
+    }
+
+    /**
+     * @param  array<string, string>  $values
+     * @return list<string>
+     */
+    public function employerAddressMessages(array $values): array
+    {
+        try {
+            $this->pdf->assertEmployerAddressLayout($values);
+        } catch (ValidationException $exception) {
+            $messages = [];
+
+            foreach ($exception->errors() as $errors) {
+                foreach ($errors as $message) {
+                    if (is_string($message) && $message !== '') {
+                        $messages[] = $message;
+                    }
+                }
+            }
+
+            return $messages;
+        }
+
+        return [];
+    }
+
     private function store(object $case, string $kind, string $mode, ?int $actorId): void
     {
         $values = $this->values((int) $case->id);
@@ -250,7 +283,7 @@ class I983Documents
             $this->pdf->assertSignatureFits($signature);
         }
 
-        $this->persist($case, $kind, $this->pdf->render($values, $signature, $studentCertification), $actorId, null, 'pdf_generated');
+        $this->persist($case, $kind, $this->pdf->render($values, $signature, $studentCertification, false, $mode === 'student'), $actorId, null, 'pdf_generated');
     }
 
     /**

@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { SignaturePad } from './signature-pad';
 
 export interface CertificationRecord {
@@ -241,10 +241,6 @@ export function StudentDocument({
     error,
     printedName,
     reviewing,
-    onReview,
-    onCancelReview,
-    onConfirm,
-    processing,
     progress,
     signatureUrl,
 }: {
@@ -257,10 +253,6 @@ export function StudentDocument({
     error: (key: string) => string;
     printedName: string;
     reviewing: boolean;
-    onReview: () => void;
-    onCancelReview: () => void;
-    onConfirm: (event: FormEvent) => void;
-    processing: boolean;
     progress: Array<{ page: number; label: string; state: string }>;
     signatureUrl: string | null;
 }) {
@@ -514,74 +506,6 @@ export function StudentDocument({
                                         The form date will be {form.localDate} in {form.timezone}. You do not enter the date.
                                     </p>
                                 </Cell>
-                                {reviewing && (
-                                    <Plain>
-                                        <h3 className="font-semibold">Review before submission</h3>
-                                        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">Name</dt>
-                                                <dd>{printedName || '—'}</dd>
-                                            </div>
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">Email</dt>
-                                                <dd>{data.email || '—'}</dd>
-                                            </div>
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">School recommending STEM OPT</dt>
-                                                <dd>{data.school_recommending || '—'}</dd>
-                                            </div>
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">SEVIS ID</dt>
-                                                <dd>{data.sevis_id || '—'}</dd>
-                                            </div>
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">STEM OPT period</dt>
-                                                <dd>
-                                                    {displayDate(data.opt_start)} to {displayDate(data.opt_end)}
-                                                </dd>
-                                            </div>
-                                            <div>
-                                                <dt className="text-xs text-neutral-500">Degree</dt>
-                                                <dd>
-                                                    {data.degree_level || '—'} · {data.major_cip || '—'}
-                                                </dd>
-                                            </div>
-                                        </dl>
-                                        <p className="mt-3 text-sm">
-                                            Confirming submits Section 1 and this Section 2 certification together. It does not sign Section 4 or
-                                            Section 6, and it does not send the form to a school or agency.
-                                        </p>
-                                        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                                            <button
-                                                className="min-h-11 rounded-md border border-neutral-800 px-4 text-sm"
-                                                type="button"
-                                                onClick={onCancelReview}
-                                            >
-                                                Back to edit
-                                            </button>
-                                            <button
-                                                className="min-h-11 rounded-md bg-neutral-950 px-4 text-sm font-medium text-white"
-                                                type="button"
-                                                disabled={processing}
-                                                onClick={onConfirm}
-                                            >
-                                                Submit to employer
-                                            </button>
-                                        </div>
-                                    </Plain>
-                                )}
-                                {!reviewing && !finalized && (
-                                    <Plain>
-                                        <button
-                                            className="min-h-11 rounded-md bg-neutral-950 px-4 text-sm font-medium text-white"
-                                            type="button"
-                                            disabled={processing}
-                                            onClick={onReview}
-                                        >
-                                            Review information
-                                        </button>
-                                    </Plain>
-                                )}
                             </div>
                         )}
                         {form.certification.history.length > 0 && (
@@ -622,6 +546,49 @@ export function StudentDocument({
                                 <textarea className={area} rows={4} value={data.goals} onChange={(event) => setData('goals', event.target.value)} />
                             )}
                         </Cell>
+                        {reviewing && !finalized && (
+                            <Plain>
+                                <h3 className="font-semibold">Review before submission</h3>
+                                <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">Name</dt>
+                                        <dd>{printedName || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">Email</dt>
+                                        <dd>{data.email || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">School recommending STEM OPT</dt>
+                                        <dd>{data.school_recommending || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">SEVIS ID</dt>
+                                        <dd>{data.sevis_id || '—'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">STEM OPT period</dt>
+                                        <dd>
+                                            {displayDate(data.opt_start)} to {displayDate(data.opt_end)}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">Degree</dt>
+                                        <dd>
+                                            {data.degree_level || '—'} · {data.major_cip || '—'}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-neutral-500">Student role</dt>
+                                        <dd>{data.student_role || '—'}</dd>
+                                    </div>
+                                </dl>
+                                <p className="mt-3 text-sm">
+                                    Use Previous to correct Section 1 or the certification. Submit to Employer sends Section 1 and the Section 2
+                                    certification. It does not sign Section 4 or Section 6, and it does not send the form to a school or agency.
+                                </p>
+                            </Plain>
+                        )}
                         {(form.goalHistory ?? []).length > 0 && (
                             <Plain>
                                 <p className="font-semibold">Goals and objectives history</p>

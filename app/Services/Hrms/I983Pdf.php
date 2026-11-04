@@ -21,11 +21,18 @@ class I983Pdf
     ];
 
     /**
+     * Section 3 and the training-site address belong to the employer. Students never type them.
+     *
+     * @var list<string>
+     */
+    public const EMPLOYER_ADDRESS_KEYS = ['street', 'suite', 'city', 'state', 'zip', 'site_address'];
+
+    /**
      * @param  array<string, string>  $values
      * @param  array{image: string, name_title: string, date: string, organization: string}|null  $signature
      * @param  array{image: string, printed_name: string, date: string}|null  $studentCertification
      */
-    public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false): string
+    public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false, bool $deferEmployerAddress = false): string
     {
         $source = storage_path('app/private/i983/official-i983.pdf');
         $pdf = new Fpdi('P', 'pt', [612, 792]);
@@ -46,7 +53,11 @@ class I983Pdf
                 if ($box['page'] !== $page) {
                     continue;
                 }
-                $this->draw($pdf, $box, trim((string) ($values[$box['key']] ?? '')));
+                $text = trim((string) ($values[$box['key']] ?? ''));
+                if ($deferEmployerAddress && $this->employerAddressDeferred($pdf, $box, $text)) {
+                    continue;
+                }
+                $this->draw($pdf, $box, $text);
             }
 
             if ($page === 2) {
@@ -96,6 +107,10 @@ class I983Pdf
         $measure->SetFont('Helvetica', '', 8);
 
         foreach ($this->boxes() as $box) {
+            if ($mode === 'student' && in_array($box['key'], self::EMPLOYER_ADDRESS_KEYS, true)) {
+                continue;
+            }
+
             $text = trim((string) ($values[$box['key']] ?? ''));
 
             if ($text === '') {
@@ -143,6 +158,63 @@ class I983Pdf
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
+    }
+
+    /**
+     * Employer review and the final PDF measure these boxes. The stored text is left unchanged.
+     *
+     * @param  array<string, string>  $values
+     */
+    public function assertEmployerAddressLayout(array $values): void
+    {
+        if (! is_file(storage_path('app/private/i983/official-i983.pdf'))) {
+            return;
+        }
+
+        $errors = [];
+        $measure = new \FPDF('P', 'pt', [612, 792]);
+        $measure->SetFont('Helvetica', '', 8);
+
+        foreach ($this->boxes() as $box) {
+            if (! in_array($box['key'], self::EMPLOYER_ADDRESS_KEYS, true)) {
+                continue;
+            }
+
+            $text = trim((string) ($values[$box['key']] ?? ''));
+
+            if ($text === '') {
+                continue;
+            }
+
+            if ($box['key'] === 'site_address' && preg_match('/^(.+),\s*([^,]+),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/', $text) !== 1) {
+                $errors['site_address'] = 'Enter the training site as street, city, state, and ZIP. This address can differ from the employer\'s registered address.';
+
+                continue;
+            }
+
+            if ($this->employerAddressDeferred($measure, $box, $text)) {
+                $errors[$box['key']] = $box['label'].' does not fit in its box on the official form. Shorten it.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
+     * @param  array{key: string, label: string, page: int, x: float, y: float, w: float, h: float}  $box
+     */
+    private function employerAddressDeferred(\FPDF $pdf, array $box, string $text): bool
+    {
+        if ($text === '' || ! in_array($box['key'], self::EMPLOYER_ADDRESS_KEYS, true)) {
+            return false;
+        }
+
+        $lines = $this->wrap($pdf, $text, $box['w']);
+        $max = max(1, (int) floor($box['h'] / 10));
+
+        return $lines === null || count($lines) > $max;
     }
 
     /**

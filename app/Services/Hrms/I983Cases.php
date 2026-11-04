@@ -267,6 +267,14 @@ class I983Cases
             'canPreviewDraft' => $this->canPreviewDraft($actor),
             'studentCertification' => $this->studentCertifications->present($caseId),
             'workflow' => $this->workflow($case),
+            'addressLayout' => $this->documents->employerAddressMessages([
+                'street' => trim((string) ($employer->street ?? '')),
+                'suite' => trim((string) ($employer->suite ?? '')),
+                'city' => trim((string) ($employer->city ?? '')),
+                'state' => trim((string) ($employer->state ?? '')),
+                'zip' => trim((string) ($employer->zip ?? '')),
+                'site_address' => trim((string) ($training->site_address ?? '')),
+            ]),
         ];
     }
 
@@ -278,6 +286,13 @@ class I983Cases
         $case = $this->caseFor($actor, $caseId);
         $this->assertEditable($case);
         $values = $this->employerValues($input);
+        $this->documents->assertEmployerAddressLayout([
+            'street' => (string) ($values['street'] ?? ''),
+            'suite' => (string) ($values['suite'] ?? ''),
+            'city' => (string) ($values['city'] ?? ''),
+            'state' => (string) ($values['state'] ?? ''),
+            'zip' => (string) ($values['zip'] ?? ''),
+        ]);
 
         if ($finalize && ($values['legal_name'] === null || $values['street'] === null || $values['city'] === null || $values['state'] === null || $values['zip'] === null || $values['ein'] === null || $values['employee_count'] === null || $values['naics'] === null || $values['opt_hours'] === null || $values['salary'] === null || $values['start_date'] === null)) {
             throw ValidationException::withMessages([
@@ -319,6 +334,9 @@ class I983Cases
         $case = $this->caseFor($actor, $caseId);
         $this->assertEditable($case);
         $this->protectTraining('hr', $case, $input);
+        $this->documents->assertEmployerAddressLayout([
+            'site_address' => trim((string) ($input['site_address'] ?? '')),
+        ]);
         $this->writeTraining((int) $case->tenant_id, $caseId, $input, 'hr', (int) $actor->id, [...self::EMPLOYER_TRAINING_FIELDS, 'student_role', 'goals']);
         $this->event((int) $case->tenant_id, $caseId, (int) $actor->id, 'hr', 'training_saved', 'training');
     }

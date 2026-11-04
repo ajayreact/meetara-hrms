@@ -152,7 +152,9 @@ export default function I983Submit({ token, form, notice }: { token: string; for
     const signatureSource = retainedStudentSignature(page.data.signature !== null, form.signatureOnFile, cleared);
     const signatureUrl = signatureSource === 'stored' ? `/i983/s/${token}/signature` : null;
 
-    const firstServerError = Object.keys(serverErrors)[0] ?? '';
+    const employerAddressKeys = ['street', 'suite', 'city', 'state', 'zip', 'site_address'];
+    const studentServerErrors = Object.fromEntries(Object.entries(serverErrors).filter(([key]) => !employerAddressKeys.includes(key)));
+    const firstServerError = Object.keys(studentServerErrors)[0] ?? '';
     useEffect(() => {
         if (firstServerError !== '') {
             setCurrent(pageForError(firstServerError));
@@ -195,7 +197,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
         { page: 2, label: 'Student certification', state: certificationComplete ? 'Complete' : 'Pending' },
         { page: 3, label: 'Your training responses', state: roleComplete ? 'Complete' : 'Pending' },
     ];
-    const banner = Object.values(localErrors)[0] || Object.values(serverErrors)[0] || '';
+    const banner = Object.values(localErrors)[0] || Object.values(studentServerErrors)[0] || '';
 
     return (
         <>
@@ -295,24 +297,9 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                         }}
                         form={form}
                         finalized={finalized}
-                        error={(key) => localErrors[key] || serverErrors[key] || ''}
+                        error={(key) => localErrors[key] || studentServerErrors[key] || ''}
                         printedName={printedName}
                         reviewing={reviewing}
-                        onReview={() => {
-                            const found = validate(page.data, true, signatureSource !== 'empty');
-                            setLocalErrors(found);
-                            if (Object.keys(found).length > 0) {
-                                setCurrent(pageForError(Object.keys(found)[0]));
-                                setReviewing(false);
-
-                                return;
-                            }
-                            setReviewing(true);
-                            setCurrent(2);
-                        }}
-                        onCancelReview={() => setReviewing(false)}
-                        onConfirm={(event) => send(event, true)}
-                        processing={page.processing}
                         progress={progress}
                         signatureUrl={signatureUrl}
                     />
@@ -322,21 +309,58 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                                 className="min-h-11 rounded-md border border-neutral-300 px-4 text-sm"
                                 type="button"
                                 disabled={current === 1}
-                                onClick={() => setCurrent((value) => Math.max(1, value - 1))}
+                                onClick={() => {
+                                    setReviewing(false);
+                                    setCurrent((value) => Math.max(1, value - 1));
+                                }}
                             >
                                 Previous
                             </button>
-                            <button
-                                className="min-h-11 rounded-md border border-neutral-300 px-4 text-sm"
-                                type="button"
-                                disabled={current === 3}
-                                onClick={() => setCurrent((value) => Math.min(5, value + 1))}
-                            >
-                                Next
-                            </button>
+                            {current < 3 && (
+                                <button
+                                    className="min-h-11 rounded-md border border-neutral-300 px-4 text-sm"
+                                    type="button"
+                                    onClick={() => {
+                                        setReviewing(false);
+                                        setCurrent((value) => Math.min(3, value + 1));
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            )}
                             <button className="min-h-11 rounded-md border border-neutral-800 px-4 text-sm" type="submit" disabled={page.processing}>
-                                Save draft
+                                Save Draft
                             </button>
+                            {current === 3 && !form.locked && (
+                                <>
+                                    <button
+                                        className="min-h-11 rounded-md border border-neutral-800 px-4 text-sm"
+                                        type="button"
+                                        onClick={() => {
+                                            const found = validate(page.data, true, signatureSource !== 'empty');
+                                            setLocalErrors(found);
+                                            if (Object.keys(found).length > 0) {
+                                                setCurrent(pageForError(Object.keys(found)[0]));
+                                                setReviewing(false);
+
+                                                return;
+                                            }
+                                            setReviewing(true);
+                                            setCurrent(3);
+                                        }}
+                                    >
+                                        Review
+                                    </button>
+                                    <button
+                                        className="min-h-11 rounded-md bg-neutral-950 px-4 text-sm font-medium text-white"
+                                        type="button"
+                                        disabled={page.processing}
+                                        onClick={(event) => send(event, true)}
+                                    >
+                                        Submit to Employer
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </form>

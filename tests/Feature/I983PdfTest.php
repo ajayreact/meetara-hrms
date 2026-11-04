@@ -273,6 +273,67 @@ class I983PdfTest extends TestCase
         }
     }
 
+    public function test_a_long_employer_street_does_not_block_the_student_and_is_checked_before_the_final_pdf(): void
+    {
+        $long = trim(str_repeat('NorthIndustrialOverflow ', 8));
+        $pdf = app(I983Pdf::class);
+        $pdf->assertFits([...$this->values(), 'street' => $long], 'student');
+        $studentCopy = $pdf->render([...$this->values(), 'street' => $long, 'student_name' => 'Quinn, Riley'], null, null, false, true);
+        $this->assertStringContainsString('(Quinn, Riley)', $studentCopy);
+        $this->assertStringNotContainsString('NorthIndustrialOverflow', $studentCopy);
+        $fitted = $pdf->render([...$this->values(), 'street' => '1 Main Street'], null, null, false, true);
+        $this->assertStringContainsString('(1 Main Street)', $fitted);
+
+        try {
+            $pdf->assertEmployerAddressLayout(['street' => $long]);
+            $this->fail('The employer street was accepted even though it does not fit the official box.');
+        } catch (ValidationException $exception) {
+            $this->assertSame('Street address does not fit in its box on the official form. Shorten it.', $exception->errors()['street'][0]);
+        }
+
+        $company = CompanyFixture::make('Acme People', 'acme-i983-street');
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Riley Quinn',
+            'candidate_email' => 'riley.street@example.test',
+        ])->assertRedirect();
+        $link = (string) session('i983_link');
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        DB::table('i983_employers')->where('case_id', $caseId)->update(['street' => $long]);
+
+        $this->get($link)->assertOk()->assertDontSee('Street address does not fit');
+        $this->post($link, $this->student(['student_role' => 'Data analyst trainee', 'goals' => 'Practice one reviewed workflow.'], false))
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+        $this->post($link, $this->student(['student_role' => 'Data analyst trainee', 'goals' => 'Practice one reviewed workflow.'], true))
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertNotNull(DB::table('i983_cases')->where('id', $caseId)->value('student_submitted_at'));
+        $this->assertSame(1, DB::table('i983_student_certifications')->where('case_id', $caseId)->count());
+        $this->assertSame($long, DB::table('i983_employers')->where('case_id', $caseId)->value('street'));
+        $snapshot = Storage::disk('local')->get('i983/'.$company->id.'/'.$caseId.'/student_snapshot-v1.pdf');
+        $this->assertIsString($snapshot);
+        $this->assertStringNotContainsString('NorthIndustrialOverflow', $snapshot);
+        $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertSee('Street address does not fit in its box on the official form. Shorten it.');
+
+        $rejected = $this->employer();
+        $rejected['street'] = $long;
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $rejected)->assertSessionHasErrors('street');
+        $this->assertSame($long, DB::table('i983_employers')->where('case_id', $caseId)->value('street'));
+
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
+        $this->assertSame('1 Main Street', DB::table('i983_employers')->where('case_id', $caseId)->value('street'));
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training('Practice one reviewed workflow.'))->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/final', ['confirm' => '1'])->assertRedirect();
+        $this->assertSame('finalized', DB::table('i983_cases')->where('id', $caseId)->value('status'));
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'final_signed')->count());
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

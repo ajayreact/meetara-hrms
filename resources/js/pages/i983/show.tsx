@@ -117,7 +117,7 @@ interface Workflow {
     steps: Array<{ key: string; label: string; state: 'complete' | 'current' | 'pending' }>;
 }
 
-export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, canPreviewDraft = false, studentCertification = { latest: null, history: [] }, workflow = { stage: 'student_submission', label: 'Student Submission', canGenerateFinal: false, blockers: [], steps: [] }, notice }: HrmsPageProps & {
+export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, canPreviewDraft = false, studentCertification = { latest: null, history: [] }, workflow = { stage: 'student_submission', label: 'Student Submission', canGenerateFinal: false, blockers: [], steps: [] }, addressLayout = [], notice }: HrmsPageProps & {
     case: { id: number; reference: string; candidateName: string; candidateEmail: string; status: string; submittedAt: string };
     student: StudentInfo;
     employer: EmployerInfo;
@@ -132,6 +132,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
     canPreviewDraft?: boolean;
     studentCertification?: StudentCertification;
     workflow?: Workflow;
+    addressLayout?: string[];
     notice?: string;
 }) {
     const employerForm = useForm({
@@ -317,6 +318,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 {presentation('employer_information') === 'later' && <SectionCard title="3. Employer Information"><p className="text-sm text-slate-600">This step opens after the student submits Section 1 and Section 2.</p></SectionCard>}
                 {presentation('employer_information') === 'summary' && (
                     <SectionCard title="3. Employer Information">
+                        {addressLayout.length > 0 && <ul className="mb-3 space-y-1 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
                         <p className="text-sm text-slate-700">{employer.legalName || '—'} · {employer.city || '—'}, {employer.state || '—'} {employer.zip || ''}</p>
                         <p className="mt-1 text-sm text-slate-600">EIN {employer.ein || '—'} · {employer.optHours || '—'} hours · starts {employer.startDate || '—'}</p>
                         <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('employer_information')}>Edit employer information</button>
@@ -325,6 +327,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 {presentation('employer_information') === 'form' && (
                 <form onSubmit={saveEmployer}>
                     <SectionCard title="3. Employer Information">
+                        {addressLayout.length > 0 && <ul className="mb-3 space-y-1 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
                         <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving here changes only this I-983.</p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Legal employer name<input className={control} value={employerForm.data.legal_name} onChange={(event) => employerForm.setData('legal_name', event.target.value)} /></label>
@@ -351,11 +354,15 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             <label className="text-sm text-slate-700 md:col-span-2">Other compensation<textarea className={control} rows={2} value={employerForm.data.other_compensation} onChange={(event) => employerForm.setData('other_compensation', event.target.value)} /></label>
                         </div>
                         {employerForm.errors.employer && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.employer}</p>}
+                        {employerForm.errors.street && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.street}</p>}
+                        {employerForm.errors.suite && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.suite}</p>}
+                        {employerForm.errors.city && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.city}</p>}
+                        {employerForm.errors.state && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.state}</p>}
+                        {employerForm.errors.zip && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.zip}</p>}
                         {employerForm.errors.opt_hours && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.opt_hours}</p>}
                         {employerForm.errors.hourly_rate && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.hourly_rate}</p>}
                         {employerForm.errors.annual_compensation && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.annual_compensation}</p>}
                         {employerForm.errors.salary && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.salary}</p>}
-                        {employerForm.errors.state && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.state}</p>}
                         <button className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={employerForm.processing}>Save employer information</button>
                     </SectionCard>
                 </form>
@@ -453,6 +460,13 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={finalForm.data.confirm} onChange={(event) => finalForm.setData('confirm', event.target.checked)} /><span>I confirm this official is authorized to sign, and Section 1 through Section 6 are complete.</span></label>
                             {finalForm.errors.confirm && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.confirm}</p>}
                             {finalForm.errors.form && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.form}</p>}
+                            {finalForm.errors.street && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.street}</p>}
+                            {finalForm.errors.suite && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.suite}</p>}
+                            {finalForm.errors.city && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.city}</p>}
+                            {finalForm.errors.state && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.state}</p>}
+                            {finalForm.errors.zip && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.zip}</p>}
+                            {finalForm.errors.site_address && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.site_address}</p>}
+                            {addressLayout.length > 0 && <ul className="mt-2 space-y-1 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
                             {workflow.blockers.length > 0 && <ul className="mt-2 space-y-1 text-sm text-slate-600">{workflow.blockers.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul>}
                             <button className="mt-3 w-full rounded-xl bg-teal-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50" type="submit" disabled={finalForm.processing || !finalForm.data.confirm || !workflow.canGenerateFinal}>Generate Final PDF</button>
                         </form>
