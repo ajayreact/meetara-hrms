@@ -224,7 +224,7 @@ class PayrollDirectory
      */
     public function payments(User $user, ?string $status = null): array
     {
-        if ($user->applicationRole() !== 'accounts' || ! Schema::hasTable('payroll_payments')) {
+        if (! in_array($user->applicationRole(), ['company_admin', 'accounts'], true) || ! Schema::hasTable('payroll_payments')) {
             return [];
         }
 
@@ -256,7 +256,7 @@ class PayrollDirectory
      */
     public function payslips(User $user, ?int $year = null, ?int $month = null, ?string $search = null): array
     {
-        if ($user->companyId() === null || $user->applicationRole() === 'team_lead' || ! Schema::hasTable('payroll_items')) {
+        if ($user->companyId() === null || $user->applicationRole() === 'super_admin' || ! Schema::hasTable('payroll_items')) {
             return [];
         }
 

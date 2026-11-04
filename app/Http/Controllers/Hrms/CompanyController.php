@@ -16,7 +16,7 @@ class CompanyController extends Controller
         $validated = $request->validated();
         $company = $onboarding->create($request->user(), $validated);
         $message = trim((string) ($validated['admin_email'] ?? '')) !== ''
-            ? 'Company saved. The Company Admin account was created for this company.'
+            ? 'Company saved. The Head of Operations account was created for this company.'
             : 'Company saved. No invitation email was sent.';
 
         return redirect()->route('hrms.companies', ['company' => $company->id])->with('status', $message);

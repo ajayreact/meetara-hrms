@@ -176,7 +176,10 @@ class PayrollService
             DB::afterCommit(function () use ($locked, $actor): void {
                 $notifier = app(CompanyNotifier::class);
                 $notifier->onceEach(
-                    array_diff($notifier->roleUserIds((int) $locked->tenant_id, 'Accounts'), [$actor->id]),
+                    array_diff(array_values(array_unique([
+                        ...$notifier->roleUserIds((int) $locked->tenant_id, 'Owner'),
+                        ...$notifier->roleUserIds((int) $locked->tenant_id, 'Accounts'),
+                    ])), [$actor->id]),
                     'payroll-'.$locked->id.'-ready',
                     'Payroll ready to process',
                     'A payroll run is ready to process. Amounts are not included in this notice.',

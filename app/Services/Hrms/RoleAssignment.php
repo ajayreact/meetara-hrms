@@ -10,12 +10,18 @@ use Illuminate\Support\Facades\Schema;
 class RoleAssignment
 {
     /**
-     * Standard company roles. Owner is Company Admin and is never assigned here.
+     * Stored name for the reporting-manager access level.
+     * It reuses the team-lead permission set and does not replace Team Lead.
+     */
+    public const COMPANY_MANAGER = 'Company Manager';
+
+    /**
+     * Standard company roles. Owner is Head of Operations and is never removed here.
      * Manager is shown as Team Lead. Accounts stays optional.
      *
      * @var list<string>
      */
-    public const STANDARD = ['Owner', 'Employee', 'Manager', 'HR'];
+    public const STANDARD = ['Owner', 'Employee', 'Manager', 'HR', self::COMPANY_MANAGER];
 
     public function ensureStandard(int $companyId): void
     {
@@ -59,6 +65,26 @@ class RoleAssignment
         }
 
         return true;
+    }
+
+    /**
+     * @return list<int>
+     */
+    /**
+     * @return list<int>
+     */
+    public function reportingManagerUserIds(int $companyId): array
+    {
+        return DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_type', User::class)
+            ->where('model_has_roles.tenant_id', $companyId)
+            ->where('roles.tenant_id', $companyId)
+            ->whereIn('roles.name', [self::COMPANY_MANAGER, 'Manager'])
+            ->where('roles.guard_name', 'web')
+            ->pluck('model_has_roles.model_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     public function assign(User $actor, User $user, int $companyId, string $roleName): void

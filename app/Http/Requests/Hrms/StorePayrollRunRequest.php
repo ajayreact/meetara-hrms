@@ -8,7 +8,7 @@ class StorePayrollRunRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->applicationRole() === 'accounts';
+        return in_array($this->user()?->applicationRole(), ['company_admin', 'accounts'], true);
     }
 
     /**

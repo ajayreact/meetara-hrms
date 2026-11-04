@@ -9,7 +9,7 @@ class PayrollPaymentPolicy
 {
     public function manage(User $user, ?PayrollPayment $payment = null): bool
     {
-        return $user->applicationRole() === 'accounts'
+        return in_array($user->applicationRole(), ['company_admin', 'accounts'], true)
             && ($payment === null || (int) $payment->tenant_id === (int) $user->companyId());
     }
 }

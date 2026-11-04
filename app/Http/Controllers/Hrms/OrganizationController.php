@@ -72,7 +72,7 @@ class OrganizationController extends Controller
             return Inertia::render('hrms/forbidden', [
                 'workspace' => $workspace,
                 'title' => 'Access levels',
-                'message' => 'Only a Company Admin can open access levels. Company records are not loaded on this screen.',
+                'message' => 'Only a Head of Operations can open access levels. Company records are not loaded on this screen.',
             ]);
         }
 

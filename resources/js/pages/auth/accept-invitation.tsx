@@ -39,7 +39,7 @@ export default function AcceptInvitation({
                     <p className="mt-3 text-sm leading-6 text-slate-600">{messages[state] ?? messages.invalid}</p>
                 ) : (
                     <form className="mt-6 space-y-4" onSubmit={submit}>
-                        <p className="text-sm leading-6 text-slate-600">Create the Company Admin account for {companyName}. The email address is fixed to this invitation.</p>
+                        <p className="text-sm leading-6 text-slate-600">Create the Head of Operations account for {companyName}. The email address is fixed to this invitation.</p>
                         <div className="grid gap-1.5">
                             <Label htmlFor="invitation-email">Email</Label>
                             <Input id="invitation-email" value={email} readOnly />

@@ -49,12 +49,12 @@ class RoleAccessAuditTest extends TestCase
 
         $this->actingAs($owner)->get('/payroll')->assertOk();
         $this->actingAs($owner)->get('/salary')->assertOk();
-        $this->actingAs($owner)->get('/payments')->assertForbidden();
-        $this->actingAs($owner)->post('/payroll/runs/'.$company->payrollRunId.'/calculate')->assertForbidden();
+        $this->actingAs($owner)->get('/payments')->assertOk();
+        $this->actingAs($owner)->post('/payroll/runs/'.$company->payrollRunId.'/calculate')->assertRedirect();
         $this->actingAs($owner)->post('/payroll/runs/'.$company->payrollRunId.'/process', [
             'note' => 'Process now',
             'confirm' => 'PROCESS',
-        ])->assertForbidden();
+        ])->assertSessionHas('error');
         $this->actingAs($owner)->get('/employees')->assertOk()->assertSee($company->reportEmail)->assertDontSee($other->reportEmail);
         $this->actingAs($owner)->get('/company/settings')->assertInertia(fn (Assert $page) => $page->where('payrollSettings.statutory', 'Not configured'));
         $this->actingAs($owner)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index')->where('map.canViewPreciseLocations', true));
@@ -81,7 +81,7 @@ class RoleAccessAuditTest extends TestCase
 
         $this->actingAs($company->lead)->get('/salary')->assertForbidden();
         $this->actingAs($company->lead)->get('/payroll')->assertForbidden();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
         $this->actingAs($company->lead)->get('/payments')->assertForbidden();
         $this->actingAs($company->lead)->get('/employees/'.$company->outsideEmployeeId)->assertNotFound();
         $this->actingAs($company->lead)->get('/employees/'.$other->reportEmployeeId)->assertNotFound();

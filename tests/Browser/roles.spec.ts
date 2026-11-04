@@ -35,16 +35,17 @@ test('super admin sees companies and cannot open payroll', async ({ page }) => {
     await page.getByRole('button', { name: 'Save company' }).click();
     await expect(page.getByText('Company saved. No invitation email was sent.')).toBeVisible();
     await expect(page.getByText('Mail delivery is not configured, so an invitation email cannot be sent.')).toBeVisible();
-    await page.getByLabel('Company Admin email').fill('admin@browser-west.test');
+    await page.getByLabel('Head of Operations email').fill('admin@browser-west.test');
     await page.getByRole('button', { name: 'Send invitation' }).click();
     await expect(page.getByText('Mail delivery is not configured. The invitation was not created.')).toBeVisible();
     await expect(page.getByText('Invitation email sent.')).toHaveCount(0);
     await expect(page.getByRole('cell', { name: 'Browser West' })).toBeVisible();
     await page.getByRole('button', { name: 'Browser North' }).click();
-    await expect(page.getByText('This company already has a Company Admin.')).toBeVisible();
+    await expect(page.getByText('This company already has a Head of Operations.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Deactivate company' })).toBeDisabled();
     await page.getByRole('link', { name: 'Audit log' }).click();
-    await expect(page.getByText('No audit events yet').or(page.getByRole('cell', { name: 'Payroll' }))).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Company' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'created' })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('88.00');
     await page.setViewportSize({ width: 390, height: 844 });
     for (const path of ['/dashboard', '/companies', '/audit']) {
@@ -52,7 +53,7 @@ test('super admin sees companies and cannot open payroll', async ({ page }) => {
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
         expect(overflow).toBe(false);
     }
-    await expect(page.getByText('No audit events yet').or(page.getByRole('cell', { name: 'Payroll' }))).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Company' })).toBeVisible();
     await page.goto('/companies');
     await expect(page.getByRole('button', { name: 'Browser North' })).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -174,11 +175,14 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Salary' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'My Payslips' })).toBeVisible();
     await denied(page, '/salary', 403);
     await denied(page, '/offer-letters', 403);
     await denied(page, '/payroll', 403);
     await denied(page, '/payroll/runs', 403);
-    await denied(page, '/payslips', 403);
+    await page.goto('/payslips');
+    await expect(page.getByRole('heading', { name: 'My Payslips' })).toBeVisible();
+    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
     await denied(page, `/employees/${data.ids.northOutside}`, 404);
     await page.goto('/employees');
     await expect(page.getByText('report@browser-north.test').first()).toBeVisible();
@@ -206,23 +210,43 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
 
 test('hr manages help desk and cannot run payroll', async ({ page }) => {
     await signIn(page, data.emails.hr, data.password);
-    await expect(page.getByText('HR', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('HR & Assistant Operations', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
     await page.getByRole('link', { name: 'Offer letters' }).click();
-    await expect(page.getByText('Email delivery is not used for offer letters.')).toBeVisible();
-    await expect(page.getByLabel('Employee')).toBeVisible();
-    await expect(page.locator('#offer-employee option', { hasText: 'BRS-REP' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Offer letters' })).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('BRS-REP');
     await expect(page.getByText('No offer letters yet.')).toBeVisible();
     await expect(page.getByText('Offer letter storage is not ready on this database.')).toHaveCount(0);
+    await page.goto('/usa-offers');
+    await expect(page.getByRole('heading', { name: 'USA offers' })).toBeVisible();
+    await expect(page.getByText('No USA offers have been created.')).toBeVisible();
+    await expect(page.getByText('Upload a company letterhead and an HR signature in USA offer settings before previewing or generating a PDF.')).toBeVisible();
+    await page.goto('/i983');
+    await expect(page.getByRole('heading', { name: 'STEM OPT I-983' })).toBeVisible();
+    await expect(page.getByText('No I-983 cases yet.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Payroll', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Payments' })).toHaveCount(0);
     await page.goto('/payroll');
-    await expect(page.getByRole('heading', { name: 'Payroll' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Payroll', exact: true })).toBeVisible();
     await denied(page, '/payroll/runs', 403);
     await denied(page, '/payments', 403);
     await page.goto('/payslips');
-    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
+    await expect(page.getByText('No processed payslips match this period. Payslips appear after a payroll run is processed.')).toBeVisible();
     await denied(page, '/payslips/99999', 404);
+    await uploadPayroll(page, 'missing.csv', 'NO-SUCH,Nobody,100,0,0,0,100,0,0,0,0,0,0,100');
+    await expect(page.getByText('Employee ID was not found in this company.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirm imported amounts' })).toBeDisabled();
+    await uploadPayroll(page, 'september.csv', 'BRN-REP,North Report,30000,5000,0,0,35000,0,0,0,0,0,0,35000');
+    await expect(page.getByText('Employee ID was not found in this company.')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Confirm imported amounts' }).click();
+    await expect(page.getByText('Payroll import confirmed.')).toBeVisible();
+    await page.goto('/payslips?year=2026&month=9');
+    await expect(page.getByRole('cell', { name: 'BRN-REP', exact: true })).toBeVisible();
+    const payslipHref = await page.getByRole('link', { name: 'Download PDF' }).getAttribute('href');
+    expect(payslipHref).toBeTruthy();
+    const payslipPdf = await page.request.get(payslipHref ?? '');
+    expect(payslipPdf.status()).toBe(200);
+    expect(payslipPdf.headers()['content-type'] ?? '').toContain('pdf');
     await page.goto('/employees');
     await page.getByRole('row', { name: /accounts@browser-north.test/ }).getByRole('button', { name: 'View' }).click();
     await expect(page.getByRole('button', { name: 'Enable Accounts access' })).toHaveCount(0);
@@ -253,27 +277,36 @@ test('company admin assigns accounts and cannot process payroll', async ({ page 
     await signOut(page);
 
     await signIn(page, data.emails.owner, data.password);
-    await expect(page.getByText('Company Admin · Main office').first()).toBeVisible();
+    await expect(page.getByText('Head of Operations · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
     await expect(page.getByText("Here's what's happening at Browser North today.")).toBeVisible();
     await page.goto('/company/settings');
     await expect(page.getByText('Not configured').first()).toBeVisible();
     await expect(page.getByText('PF, ESI, LWF, TDS, and professional tax are not configured. Approval and processing stay blocked.')).toBeVisible();
     await denied(page, `/employees/${data.ids.southReport}`, 404);
-    await denied(page, '/payments', 403);
+    await page.goto('/payments');
+    await expect(page.getByText('It does not send money to a bank.')).toBeVisible();
+    await page.goto('/payroll');
+    await expect(page.getByRole('button', { name: 'Upload Monthly Payroll Excel' })).toHaveCount(0);
+    await page.goto(`/employees/${data.ids.northReport}`);
+    await expect(page.getByText('BRN-LEAD Person — Associate').first()).toBeVisible();
     await page.goto('/employees');
     await expect(page.locator('body')).not.toContainText('report@browser-south.test');
     await page.getByRole('row', { name: /accounts@browser-north.test/ }).getByRole('button', { name: 'View' }).click();
     await expect(page.getByRole('heading', { name: 'BRN-ACC Person' })).toBeVisible();
     await page.getByRole('button', { name: 'Enable Accounts access' }).click();
     await expect(page.getByText('Accounts access is available to assign. Nobody received it automatically.')).toBeVisible();
-    await page.locator('select', { hasText: 'Keep the current access level' }).selectOption({ label: 'Accounts' });
-    await page.getByRole('button', { name: 'Save Changes' }).click();
-    await expect(page.getByText('Employee updated.')).toBeVisible();
+    await expect(page.locator('select', { hasText: 'Keep the current access level' }).locator('option', { hasText: 'Accounts' })).toHaveCount(0);
+    await expect(page.locator('select', { hasText: 'Keep the current access level' }).locator('option', { hasText: 'Head of Operations' })).toHaveCount(1);
     await signOut(page);
 });
 
 test('accounts payroll confirmation does not describe a bank transfer', async ({ page }) => {
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('php', ['tests/Browser/assign-browser-role.php', 'accounts@browser-north.test', 'Accounts'], {
+        env: disposableEnv(),
+    });
+
     await signIn(page, data.emails.accounts, data.password);
     await expect(page.getByText('Accounts · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Employees' })).toHaveCount(0);
@@ -299,7 +332,8 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     }
 
     await page.goto('/payroll/runs');
-    await expect(page.getByText('No payroll runs yet.')).toBeVisible();
+    await expect(page.getByRole('link', { name: '2026-09' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Processed' })).toBeVisible();
     await page.locator('#year').fill('2026');
     await page.locator('#month').fill('10');
     await page.getByRole('button', { name: 'Create payroll run' }).click();
@@ -323,12 +357,15 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await signIn(page, data.emails.owner, data.password);
     await page.goto(runUrl);
     await expect(page.getByRole('button', { name: 'Calculate' })).toHaveCount(0);
-    expect(await postForm(page, `${runPath}/calculate`, {})).toBe(403);
+    await postForm(page, `${runPath}/calculate`, {}, false);
     await page.goto(runUrl);
+    await expect(page.getByText('This payroll run can no longer be calculated.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
     await expect(page.getByText('Statutory readiness is unresolved.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Process payroll' })).toHaveCount(0);
-    expect(await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' })).toBe(403);
+    await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' }, false);
+    await page.goto(runUrl);
+    await expect(page.getByText('Approve this payroll run before processing it.')).toBeVisible();
     await assignCalculator(runPath, data.emails.owner);
     await postForm(page, `${runPath}/approve`, { note: 'Trying own calculation' }, false);
     await page.goto(runUrl);
@@ -342,6 +379,11 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await expect(page.getByText('A missing setting or a zero deduction is not an exemption.')).toBeVisible();
     await expect(page.getByText('Under Review')).toBeVisible();
     await expect(page.getByText('Payroll approved.')).toHaveCount(0);
+    await page.goto('/payslips?year=2026&month=9');
+    await expect(page.getByRole('cell', { name: 'BRN-REP', exact: true })).toBeVisible();
+    const ownerPdf = await page.request.get((await page.getByRole('link', { name: 'Download PDF' }).getAttribute('href')) ?? '');
+    expect(ownerPdf.status()).toBe(200);
+    expect(ownerPdf.headers()['content-type'] ?? '').toContain('pdf');
     await signOut(page);
 
     await signIn(page, data.emails.accounts, data.password);
@@ -355,19 +397,31 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await expect(page.getByText('It does not send money to a bank.')).toBeVisible();
     await expect(page.getByText('No payments are waiting.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Record payment' })).toHaveCount(0);
-    await page.goto('/payslips');
-    await expect(page.getByText('No processed payslips yet.')).toBeVisible();
+    await page.goto('/payslips?year=2026&month=9');
+    await expect(page.getByRole('cell', { name: 'BRN-REP', exact: true })).toBeVisible();
     await signOut(page);
 
     await signIn(page, data.emails.report, data.password);
     await denied(page, runUrl, 404);
-    await page.goto('/payslips');
-    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
+    await page.goto('/payslips?year=2026&month=9');
+    await expect(page.getByRole('heading', { name: 'My Payslips' })).toBeVisible();
+    await expect(page.getByText('2026-09')).toBeVisible();
     await expect(page.locator('body')).not.toContainText('BRN-OUT');
-    await expect(page.locator('body')).not.toContainText('10.00');
+    await expect(page.locator('body')).not.toContainText('BRN-LEAD');
+    const ownHref = await page.getByRole('link', { name: 'Download PDF' }).getAttribute('href');
+    const ownPdf = await page.request.get(ownHref ?? '');
+    expect(ownPdf.status()).toBe(200);
+    expect(ownPdf.headers()['content-type'] ?? '').toContain('pdf');
     await page.goto('/inbox');
     await expect(page.getByRole('heading', { name: 'Help desk ticket updated' })).toBeVisible();
     await denied(page, '/payslips/99999', 404);
+    await signOut(page);
+
+    await signIn(page, data.emails.lead, data.password);
+    await denied(page, ownHref ?? '/payslips/99999', 404);
+    await page.goto('/payslips?year=2026&month=9');
+    await expect(page.getByText('No processed payslip is available for your employee record.')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('BRN-REP');
     await signOut(page);
 
     await signIn(page, data.emails.southHr, data.password);
@@ -378,64 +432,58 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await signOut(page);
 });
 
-test('linked offer letters follow the employee checklist', async ({ page }) => {
-    const { execFileSync } = await import('node:child_process');
-    execFileSync('php', ['tests/Browser/seed-unlinked-offer.php'], {
-        env: disposableEnv(),
-    });
-
+test('offer pages stay inside the company', async ({ page }) => {
     await signIn(page, data.emails.hr, data.password);
-    await page.goto('/offer-letters');
-    await expect(page.getByText('No employee record is linked.')).toBeVisible();
-    await expect(page.getByText('Company setup still needed before a letter can be issued')).toBeVisible();
-    await page.getByRole('button', { name: /BRN-REP Person/ }).click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.locator('#offer-salary').fill('45000');
-    await page.locator('#offer-joining').fill('2026-04-01');
-    await page.locator('#offer-hr').fill('North HR');
-    await page.locator('#offer-signature').fill('North HR');
-    await page.getByRole('button', { name: 'Save and edit letter' }).click();
-    await expect(page.getByText('Step 3: Edit and preview the letter')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Issue' })).toHaveCount(0);
-
     await page.goto(`/employees/${data.ids.northReport}`);
     await expect(page.locator('li', { hasText: 'Offer letter generated/issued' }).filter({ hasText: 'Completed' })).toHaveCount(0);
     await signOut(page);
 
-    await signIn(page, data.emails.owner, data.password);
-    await page.goto('/offer-letters');
-    await page.getByRole('button', { name: /BRN-OUT Person/ }).click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.locator('#offer-salary').fill('45000');
-    await page.locator('#offer-joining').fill('2026-04-01');
-    await page.locator('#offer-hr').fill('North Owner');
-    await page.locator('#offer-signature').fill('North Owner');
-    await page.getByRole('button', { name: 'Save and edit letter' }).click();
-    await expect(page.getByRole('button', { name: 'Issue' })).toHaveCount(0);
-    await signOut(page);
-
     await signIn(page, data.emails.report, data.password);
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'USA offers' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'STEM I-983' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
+    await denied(page, '/usa-offers', 403);
+    await denied(page, '/i983', 403);
     await signOut(page);
 
     await signIn(page, data.emails.lead, data.password);
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
+    await denied(page, '/usa-offers', 403);
+    await denied(page, '/i983', 403);
     await signOut(page);
 
     await signIn(page, data.emails.accounts, data.password);
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
+    await denied(page, '/usa-offers', 403);
+    await denied(page, '/i983', 403);
     await signOut(page);
 
     await signIn(page, data.emails.southHr, data.password);
     await page.goto('/offer-letters');
-    await expect(page.locator('#offer-employee option', { hasText: 'BRN-REP' })).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('BRN-REP Person');
+    await page.goto('/usa-offers');
+    await expect(page.locator('body')).not.toContainText('BRN-REP');
+    await page.goto('/i983');
+    await expect(page.getByText('No I-983 cases yet.')).toBeVisible();
     await denied(page, `/employees/${data.ids.northReport}`, 404);
     await signOut(page);
 });
+
+async function uploadPayroll(page: Page, filename: string, row: string): Promise<void> {
+    const { writeFileSync } = await import('node:fs');
+    const path = `storage/framework/${filename}`;
+    writeFileSync(path, `Employee ID,Employee Name,Basic Salary,HRA,Special Allowance,Other Earnings,Gross Salary,PF,ESI,Professional Tax,TDS,Other Deductions,Total Deductions,Net Salary\n${row}\n`);
+    await page.goto('/payroll');
+    await page.locator('#payroll-year').fill('2026');
+    await page.locator('#payroll-month').fill('9');
+    await page.getByRole('button', { name: 'Show month' }).click();
+    await page.locator('input[type="file"]').setInputFiles(path);
+    await page.getByRole('button', { name: 'Upload Monthly Payroll Excel' }).click();
+    await expect(page.getByText('Payroll file uploaded. Review the rows before confirming.')).toBeVisible();
+}
 
 async function assignCalculator(runPath: string, email: string): Promise<void> {
     const runId = runPath.split('/').pop() ?? '';

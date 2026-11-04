@@ -20,7 +20,7 @@ export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBo
     const waiting = leaveBoard?.queue ?? [];
 
     return (
-        <HrmsLayout workspace={workspace} title="Team">
+        <HrmsLayout workspace={workspace} title={workspace.roleLabel}>
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · people who report to you.`} />
             <div className="grid gap-3 md:grid-cols-2">
                 <MetricCard tone="blue" icon={Users} label="Team members" value={String(attendanceRoster?.counts.showing ?? 0)} />

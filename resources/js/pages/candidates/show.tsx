@@ -177,7 +177,7 @@ export default function CandidateShowPage({ workspace, submission, notice }: Hrm
                         <div className="mt-3">
                             {bank ? <Button type="button" variant="outline" onClick={() => setBank(null)}>Hide bank details</Button> : <Button type="button" variant="outline" onClick={() => { void revealBank(); }}>Reveal bank details</Button>}
                         </div>
-                    ) : <p className="mt-3 text-sm text-slate-500">Only a Company Admin can reveal these bank details.</p>}
+                    ) : <p className="mt-3 text-sm text-slate-500">Only a Head of Operations can reveal these bank details.</p>}
                 </SectionCard>
                 <SectionCard title="Work authorization">
                     <Facts values={{

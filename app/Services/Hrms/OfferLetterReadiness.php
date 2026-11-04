@@ -72,7 +72,7 @@ class OfferLetterReadiness
             'key' => 'template_approval',
             'label' => 'Approved template',
             'state' => 'not_configured',
-            'action' => 'Store an approved template version with the approving user and approval time. Legal review is required. A Company Admin or HR user cannot self-certify the wording.',
+            'action' => 'Store an approved template version with the approving user and approval time. Legal review is required. A Head of Operations or HR user cannot self-certify the wording.',
         ];
 
         if ($companyId === null || ! Schema::hasTable('offer_letter_template_versions')) {

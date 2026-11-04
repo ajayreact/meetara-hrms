@@ -240,8 +240,8 @@ class Announcements
     {
         $roles = match ($visibility) {
             'hr' => ['Owner', 'HR'],
-            'employees' => ['Employee', 'Manager'],
-            default => ['Owner', 'HR', 'Accounts', 'Manager', 'Employee'],
+            'employees' => ['Employee', 'Manager', 'Company Manager'],
+            default => ['Owner', 'HR', 'Accounts', 'Manager', 'Company Manager', 'Employee'],
         };
         $ids = [];
 

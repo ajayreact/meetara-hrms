@@ -153,7 +153,7 @@ class GpsCapture
             ? ' The retention setting is invalid, so locations are not collected until it is corrected.'
             : ' Saved points are deleted automatically '.$days.' days after capture.';
 
-        return 'When this setting is on, the browser location you share at clock-in or clock-out can be saved. It is requested only during that action, after you acknowledge this notice. Saved coordinates are rounded to about one meter. It is shown to you and to people in your company who can already open your attendance. It is not continuous tracking. A browser location can be inaccurate or spoofed, and it does not replace the approved office network check. Company Admin and HR can open company attendance locations. A team lead can open locations only for direct reports. Accounts and platform administrators do not receive these coordinates.'.$retention;
+        return 'When this setting is on, the browser location you share at clock-in or clock-out can be saved. It is requested only during that action, after you acknowledge this notice. Saved coordinates are rounded to about one meter. It is shown to you and to people in your company who can already open your attendance. It is not continuous tracking. A browser location can be inaccurate or spoofed, and it does not replace the approved office network check. Head of Operations and HR can open company attendance locations. A team lead can open locations only for direct reports. Accounts and platform administrators do not receive these coordinates.'.$retention;
     }
 
     public function setEnabled(User $actor, bool $enabled): void

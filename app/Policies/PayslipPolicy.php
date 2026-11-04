@@ -18,7 +18,7 @@ class PayslipPolicy
             return true;
         }
 
-        if (in_array($user->applicationRole(), ['team_lead', 'super_admin'], true)) {
+        if ($user->applicationRole() === 'super_admin' || ! in_array($user->applicationRole(), ['employee', 'team_lead'], true)) {
             return false;
         }
 

@@ -199,7 +199,7 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                                 <tr>
                                     <th className={headCell}>Employee</th>
                                     <th className={headCell}>Department</th>
-                                    <th className={headCell}>Manager</th>
+                                    <th className={headCell}>Reporting manager</th>
                                     <th className={headCell}>Office</th>
                                     <th className={headCell}>Joined</th>
                                     <th className={headCell}>Status</th>
@@ -348,7 +348,7 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                         </Field>
                         <Field label="Reporting manager" error={form.errors.manager_id}>
                             <Select value={form.data.manager_id} onChange={(value) => form.setData('manager_id', value)} options={options.managers} />
-                            <span className="text-xs text-slate-500">The first employee can be saved with no reporting manager. Saved employees can be chosen for the next person.</span>
+                            <span className="text-xs text-slate-500">Choose an active Team Lead or Company Manager in this company, or leave this as Not assigned.</span>
                         </Field>
                         <Field label="Holiday region" error={form.errors.holiday_calendar}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.holiday_calendar} onChange={(event) => form.setData('holiday_calendar', event.target.value)}>

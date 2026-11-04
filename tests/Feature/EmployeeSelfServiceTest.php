@@ -143,7 +143,7 @@ class EmployeeSelfServiceTest extends TestCase
             ->where('payslips', fn ($rows) => count($rows) === 1)
         );
         $this->actingAs($company->employee)->get('/payslips/'.$other->payrollItemId)->assertNotFound();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
         $this->actingAs($company->hr)->get('/payslips/'.$company->payrollItemId)->assertOk();
     }
 

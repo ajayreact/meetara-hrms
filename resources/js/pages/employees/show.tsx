@@ -169,7 +169,7 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
     const [tab, setTab] = useState('overview');
     const meta = [
         { icon: Building2, label: 'Department', value: employee.department ?? 'Not assigned' },
-        { icon: UserRound, label: 'Manager', value: employee.manager ?? 'Not assigned' },
+        { icon: UserRound, label: 'Reporting manager', value: employee.manager ?? 'Not assigned' },
         { icon: MapPin, label: 'Office', value: employee.office ?? 'Not assigned' },
         { icon: CalendarDays, label: 'Joining date', value: displayDate(employee.joined) },
         { icon: Mail, label: 'Work email', value: employee.email },
@@ -268,7 +268,7 @@ export default function EmployeeShowPage({ workspace, employee, options, canMana
                         <EditEmployee employee={employee} options={options} workspaceRole={workspace.role} onInvalid={() => setTab('overview')} />
                     ) : (
                         <SectionCard title="Profile">
-                            <p className="text-sm text-slate-600">Your account can view this record. Employment fields are changed by Company Admin or HR.</p>
+                            <p className="text-sm text-slate-600">Your account can view this record. Employment fields are changed by Head of Operations or HR.</p>
                             <p className="mt-2 text-sm text-slate-700">Phone: {employee.phone ?? 'Not recorded'}</p>
                         </SectionCard>
                     )}
@@ -537,7 +537,7 @@ function DocumentsPanel({ employeeId, onboarding }: { employeeId: number; onboar
     }
 
     if (!onboarding.canUpload && !onboarding.canReview && onboarding.documents.length === 0) {
-        return <SectionCard title="Documents"><p className="text-sm text-slate-600">Document files stay with the employee and with Company Admin or HR.</p></SectionCard>;
+        return <SectionCard title="Documents"><p className="text-sm text-slate-600">Document files stay with the employee and with Head of Operations or HR.</p></SectionCard>;
     }
 
     if (!onboarding.started) {

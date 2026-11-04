@@ -29,7 +29,7 @@ interface Filters {
 }
 
 export default function PayslipsPage({ workspace, payslips = [], filters = { year: null, month: null, search: '' }, canDownloadAll = false, notice, error }: HrmsPageProps & { payslips?: PayslipRow[]; filters?: Filters; canDownloadAll?: boolean; notice?: string | null; error?: string | null }) {
-    const mine = workspace.role === 'employee';
+    const mine = workspace.role === 'employee' || workspace.role === 'team_lead';
     const [year, setYear] = useState(filters.year ?? new Date().getFullYear());
     const [month, setMonth] = useState(filters.month ?? new Date().getMonth() + 1);
     const [search, setSearch] = useState(filters.search ?? '');

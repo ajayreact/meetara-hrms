@@ -84,13 +84,9 @@ abstract class EmployeeRequest extends FormRequest
                 }
             }
 
-            $managerId = $this->input('manager_id');
+            $this->validateReportingManager($validator, $companyId);
+
             $employee = $this->route('employee');
-
-            if ($managerId && $employee instanceof Employee && (int) $managerId === (int) $employee->id) {
-                $validator->errors()->add('manager_id', 'An employee cannot report to themselves.');
-            }
-
             $this->rejectInactiveCatalog($validator, 'department_id', 'departments', $employee instanceof Employee ? $employee->department_id : null, $companyId, 'Choose an active department.');
             $this->rejectInactiveCatalog($validator, 'designation_id', 'designations', $employee instanceof Employee ? $employee->designation_id : null, $companyId, 'Choose an active designation.');
         });
@@ -138,8 +134,8 @@ abstract class EmployeeRequest extends FormRequest
     protected function assignableRoles(): array
     {
         return match ($this->actor()->applicationRole()) {
-            'company_admin' => ['Employee', 'Manager', 'HR', 'Accounts', 'Owner'],
-            'hr' => ['Employee', 'Manager', 'HR'],
+            'company_admin' => ['Employee', 'Manager', RoleAssignment::COMPANY_MANAGER, 'HR', 'Owner'],
+            'hr' => ['Employee', 'Manager', RoleAssignment::COMPANY_MANAGER, 'HR'],
             default => [],
         };
     }
@@ -161,6 +157,72 @@ abstract class EmployeeRequest extends FormRequest
         }
 
         return (int) $employee->user_id;
+    }
+
+    private function validateReportingManager(Validator $validator, int $companyId): void
+    {
+        $managerId = $this->input('manager_id');
+
+        if (! $managerId) {
+            return;
+        }
+
+        $employee = $this->route('employee');
+        $managerId = (int) $managerId;
+
+        if ($employee instanceof Employee && $managerId === (int) $employee->id) {
+            $validator->errors()->add('manager_id', 'An employee cannot report to themselves.');
+
+            return;
+        }
+
+        if ($employee instanceof Employee && $employee->manager_id !== null && $managerId === (int) $employee->manager_id) {
+            return;
+        }
+
+        $manager = Employee::query()
+            ->whereKey($managerId)
+            ->where('tenant_id', $companyId)
+            ->first();
+
+        if ($manager === null) {
+            return;
+        }
+
+        $activeManager = $manager->status === 'active'
+            && $manager->user_id !== null
+            && in_array((int) $manager->user_id, app(RoleAssignment::class)->reportingManagerUserIds($companyId), true);
+
+        if (! $activeManager) {
+            $validator->errors()->add('manager_id', 'Choose an active Team Lead or Company Manager in this company.');
+
+            return;
+        }
+
+        if ($employee instanceof Employee && $this->reportingCycle($employee->id, $managerId, $companyId)) {
+            $validator->errors()->add('manager_id', 'That reporting manager would create a circular reporting line.');
+        }
+    }
+
+    private function reportingCycle(int $employeeId, int $managerId, int $companyId): bool
+    {
+        $cursor = $managerId;
+        $seen = [];
+
+        while ($cursor > 0) {
+            if ($cursor === $employeeId || isset($seen[$cursor])) {
+                return true;
+            }
+
+            $seen[$cursor] = true;
+            $next = DB::table('employees')
+                ->where('id', $cursor)
+                ->where('tenant_id', $companyId)
+                ->value('manager_id');
+            $cursor = $next === null ? 0 : (int) $next;
+        }
+
+        return false;
     }
 
     private function emptyToNull(string $key): mixed

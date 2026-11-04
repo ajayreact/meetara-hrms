@@ -793,7 +793,7 @@ export function StudentDocument({
                                 ))}
                             </ol>
                             <p className="mt-3">
-                                Only a Company Admin can apply the employer signature. This page does not accept a student signature.
+                                Only a Head of Operations can apply the employer signature. This page does not accept a student signature.
                             </p>
                         </Plain>
                         <SignatureLines

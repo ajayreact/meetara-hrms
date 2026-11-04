@@ -126,13 +126,13 @@ class UsaOfferDesignationTest extends TestCase
         $preview = $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview');
         $preview->assertOk();
         $this->assertStringStartsWith('%PDF', $preview->getContent());
-        $this->assertSame(1, (new UsaOfferPdf)->pages($preview->getContent()));
+        $this->assertSame(2, (new UsaOfferPdf)->pages($preview->getContent()));
         Storage::disk('local')->assertMissing('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
 
         $this->actingAs($company->hr)->post('/usa-offers/'.$offerId.'/generate')->assertRedirect();
         $stored = (string) Storage::disk('local')->get('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
         $this->assertStringStartsWith('%PDF', $stored);
-        $this->assertSame(1, (new UsaOfferPdf)->pages($stored));
+        $this->assertSame(2, (new UsaOfferPdf)->pages($stored));
         $this->assertStringNotContainsString('public/', (string) DB::table('usa_offers')->where('id', $offerId)->value('file_path'));
 
         $this->actingAs($company->hr)->post('/usa-offers/designations/'.$analyst->id, [
@@ -216,7 +216,7 @@ class UsaOfferDesignationTest extends TestCase
                 'start_date' => '2026-02-11',
                 'issue_date' => '2026-10-30',
             ], $this->profile());
-            $this->assertSame(1, (new UsaOfferPdf)->pages($bytes));
+            $this->assertSame(2, (new UsaOfferPdf)->pages($bytes));
             file_put_contents($directory.'/'.$file, $bytes);
         }
     }
@@ -358,6 +358,8 @@ class UsaOfferDesignationTest extends TestCase
             'start_date' => '2026-11-06',
             'issue_date' => '2026-11-04',
         ], $this->profile()));
+        $this->assertFileExists(resource_path('fonts/Carlito-Regular.ttf'));
+        $this->assertFileExists(resource_path('fonts/Carlito-Bold.ttf'));
         $this->assertFileExists(resource_path('fonts/LiberationSans-Regular.ttf'));
         $this->assertFileExists(resource_path('fonts/LiberationSans-Bold.ttf'));
         $this->assertStringNotContainsString('C:/Windows/Fonts', (string) file_get_contents(app_path('Services/Hrms/UsaOfferPdf.php')));

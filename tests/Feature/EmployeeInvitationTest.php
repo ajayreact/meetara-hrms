@@ -268,10 +268,11 @@ class EmployeeInvitationTest extends TestCase
                 $values = collect($roles)->map(fn ($role) => is_array($role) ? ($role['value'] ?? null) : $role);
 
                 return $values->contains('Owner')
-                    && $values->contains('Accounts')
+                    && ! $values->contains('Accounts')
                     && $values->contains('Employee')
                     && $values->contains('HR')
-                    && $values->contains('Manager');
+                    && $values->contains('Manager')
+                    && $values->contains('Company Manager');
             }));
         $this->actingAs($company->hr)->get('/employees')->assertInertia(fn (Assert $page) => $page
             ->where('options.roles', function ($roles) {
@@ -300,14 +301,14 @@ class EmployeeInvitationTest extends TestCase
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();
         $this->actingAs($company->hr)->get('/payslips')->assertOk();
         $this->actingAs($owner)->get('/payroll')->assertOk();
-        $this->actingAs($owner)->get('/payments')->assertForbidden();
+        $this->actingAs($owner)->get('/payments')->assertOk();
         $this->actingAs($owner)->get('/payslips')->assertOk();
         $this->actingAs($accounts)->get('/payroll')->assertOk();
         $this->actingAs($accounts)->get('/payslips')->assertOk();
         $this->actingAs($company->employee)->get('/payroll')->assertForbidden();
         $this->actingAs($company->employee)->get('/payslips')->assertOk();
         $this->actingAs($company->lead)->get('/payroll')->assertForbidden();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
     }
 
     public function test_invitation_acceptance_is_rate_limited(): void

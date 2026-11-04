@@ -69,7 +69,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
 
 function PlatformSettings() {
     const areas = [
-        ['Company directory', '/companies', 'Review saved companies, status, headcount, and the Company Admin account.'],
+        ['Company directory', '/companies', 'Review saved companies, status, headcount, and the Head of Operations account.'],
         ['Event history', '/audit', 'Read workflow events. Notes that could contain pay amounts are not shown.'],
         ['Ticket desk', '/help-desk', 'Company tickets are not listed on a platform account.'],
     ];

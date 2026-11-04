@@ -25,6 +25,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
     const [open, setOpen] = useState(false);
     const [compact, setCompact] = useState(false);
     const items = sidebarItems(workspace);
+    const context = [workspace.roleLabel, workspace.officeName, title !== workspace.roleLabel ? title : null].filter(Boolean).join(' · ');
     const sections = items.reduce<string[]>((names, item) => (names.includes(item.section) ? names : [...names, item.section]), []);
 
     useEffect(() => {
@@ -90,7 +91,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                             </span>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-slate-950">{workspace.companyName ?? 'Veltrix platform'}</p>
-                                <p className="truncate text-xs text-slate-500">{workspace.roleLabel}{workspace.officeName ? ` · ${workspace.officeName}` : ''} · {title}</p>
+                                <p className="truncate text-xs text-slate-500">{context}</p>
                             </div>
                         </div>
                         <div className="flex min-w-0 items-center gap-2">

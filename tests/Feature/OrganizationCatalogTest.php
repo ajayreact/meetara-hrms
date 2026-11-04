@@ -106,19 +106,24 @@ class OrganizationCatalogTest extends TestCase
                 ->component('organization/access-levels')
                 ->where('levels.1.label', 'Team Lead')
                 ->where('levels.1.available', true)
-                ->where('levels.3.label', 'Company Admin')
-                ->where('levels.3.protected', true)
-                ->where('levels.3.available', true));
+                ->where('levels.2.label', 'Company Manager')
+                ->where('levels.2.available', true)
+                ->where('levels.4.label', 'Head of Operations')
+                ->where('levels.4.protected', true)
+                ->where('levels.4.available', true)
+                ->where('workspace.role', 'company_admin')
+                ->where('workspace.roleLabel', 'Head of Operations'));
 
         $this->actingAs($owner)->get('/employees')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('options.roles.0.label', 'Employee')
                 ->where('options.roles.1.label', 'Team Lead')
-                ->where('options.roles.2.label', 'HR')
-                ->where('options.roles.3.label', 'Company Admin'));
+                ->where('options.roles.2.label', 'Company Manager')
+                ->where('options.roles.3.label', 'HR & Assistant Operations')
+                ->where('options.roles.4.label', 'Head of Operations'));
 
-        foreach (['Owner', 'Employee', 'Manager', 'HR'] as $role) {
+        foreach (['Owner', 'Employee', 'Manager', 'HR', 'Company Manager'] as $role) {
             $this->assertSame(1, DB::table('roles')->where('tenant_id', $company->id)->where('name', $role)->count());
         }
         $this->assertSame($ownerAssignments, DB::table('model_has_roles')->where('model_id', $owner->id)->count());
@@ -150,13 +155,42 @@ class OrganizationCatalogTest extends TestCase
             'manager_id' => $first->id,
             'create_login' => true,
             'role' => 'HR',
+        ]))->assertSessionHasErrors('manager_id');
+        $this->assertNull(Employee::query()->where('email', 'second@veltrix.test')->first());
+
+        $this->actingAs($owner)->post('/designations', ['name' => 'Operations Manager'])->assertRedirect();
+        $designationId = (int) DB::table('designations')->where('tenant_id', $company->id)->where('name', 'Operations Manager')->value('id');
+        $this->actingAs($owner)->post('/employees', $this->employeePayload([
+            'first_name' => 'Priya',
+            'last_name' => 'Shah',
+            'email' => 'priya@veltrix.test',
+            'employee_code' => 'VLTX-MGR',
+            'designation_id' => $designationId,
+            'create_login' => true,
+            'role' => 'Company Manager',
+        ]))->assertRedirect();
+        $manager = Employee::query()->where('email', 'priya@veltrix.test')->firstOrFail();
+        DB::table('users')->where('id', $manager->user_id)->update(['invite_accepted_at' => now()]);
+        DB::table('employees')->where('id', $manager->id)->update(['status' => 'active']);
+
+        $this->actingAs($owner)->post('/employees', $this->employeePayload([
+            'first_name' => 'Second',
+            'email' => 'second@veltrix.test',
+            'employee_code' => 'VLTX-004',
+            'manager_id' => $manager->id,
+            'create_login' => true,
+            'role' => 'HR',
         ]))->assertRedirect();
 
         $second = Employee::query()->where('email', 'second@veltrix.test')->firstOrFail();
-        $this->assertSame((int) $first->id, (int) $second->manager_id);
+        $this->assertSame((int) $manager->id, (int) $second->manager_id);
         $this->assertSame('HR', DB::table('roles')
             ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_id', $second->user_id)
+            ->value('roles.name'));
+        $this->assertSame('Company Manager', DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $manager->user_id)
             ->value('roles.name'));
 
         $this->actingAs($owner)->post('/employees', $this->employeePayload([
@@ -164,6 +198,179 @@ class OrganizationCatalogTest extends TestCase
             'employee_code' => 'VLTX-005',
             'department_id' => $other->departmentId,
         ]))->assertSessionHasErrors('department_id');
+    }
+
+    public function test_reporting_managers_are_active_company_managers_in_the_same_company(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'veltrix');
+        $other = CompanyFixture::make('Other Company', 'other');
+        $owner = $this->owner($company);
+        $platform = User::factory()->create();
+        $platform->forceFill([
+            'is_platform_admin' => true,
+            'tenant_id' => null,
+            'invite_accepted_at' => now(),
+        ])->save();
+
+        $this->actingAs($platform)->get('/companies')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('workspace.role', 'super_admin')
+                ->where('workspace.roleLabel', 'Super Admin'));
+        $this->actingAs($company->hr)->get('/employees')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('workspace.role', 'hr')
+                ->where('workspace.roleLabel', 'HR & Assistant Operations'));
+        $this->actingAs($company->lead)->get('/employees')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('workspace.role', 'team_lead')
+                ->where('workspace.roleLabel', 'Team Lead'));
+        $this->actingAs($company->employee)->post('/employees', $this->employeePayload([
+            'email' => 'blocked@veltrix.test',
+            'employee_code' => 'VLTX-BLOCK',
+        ]))->assertForbidden();
+
+        $this->actingAs($company->hr)->post('/designations', ['name' => 'Operations Manager'])->assertRedirect();
+        $designationId = (int) DB::table('designations')->where('tenant_id', $company->id)->where('name', 'Operations Manager')->value('id');
+        $firstManager = $this->activateManager($company->hr, 'Asha', 'asha@veltrix.test', 'VLTX-A', $designationId);
+        $secondManager = $this->activateManager($owner, 'Bala', 'bala@veltrix.test', 'VLTX-B', $designationId);
+
+        $this->actingAs($company->hr)->get('/employees')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('options.managers', function ($managers): bool {
+                    $names = collect($managers)->pluck('name');
+
+                    return $names->contains('Asha Shah — Operations Manager')
+                        && $names->contains('Bala Shah — Operations Manager')
+                        && $names->contains('veltrix-LEAD Person — veltrix-role');
+                }));
+
+        $this->actingAs($company->hr)->post('/employees', $this->employeePayload([
+            'first_name' => 'Neel',
+            'email' => 'neel@veltrix.test',
+            'employee_code' => 'VLTX-N',
+            'manager_id' => $firstManager->id,
+        ]))->assertRedirect();
+        $neel = Employee::query()->where('email', 'neel@veltrix.test')->firstOrFail();
+        $this->assertSame((int) $firstManager->id, (int) $neel->manager_id);
+
+        $this->actingAs($firstManager->user)->get('/employees')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('employees', function ($rows): bool {
+                    $emails = collect($rows)->pluck('email');
+
+                    return $emails->contains('neel@veltrix.test')
+                        && $emails->doesntContain('veltrix-outside@example.test');
+                }));
+
+        $this->actingAs($company->hr)->get('/employees/'.$neel->id)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('employee.manager', 'Asha Shah — Operations Manager'));
+
+        $this->actingAs($company->hr)->put('/employees/'.$neel->id, $this->employeePayload([
+            'first_name' => 'Neel',
+            'email' => 'neel@veltrix.test',
+            'employee_code' => 'VLTX-N',
+            'manager_id' => $secondManager->id,
+        ]))->assertRedirect();
+        $this->assertSame((int) $secondManager->id, (int) $neel->refresh()->manager_id);
+
+        $this->actingAs($company->hr)->put('/employees/'.$neel->id, $this->employeePayload([
+            'first_name' => 'Neel',
+            'email' => 'neel@veltrix.test',
+            'employee_code' => 'VLTX-N',
+            'manager_id' => '',
+        ]))->assertRedirect();
+        $this->assertNull($neel->refresh()->manager_id);
+
+        $this->actingAs($company->hr)->put('/employees/'.$firstManager->id, $this->employeePayload([
+            'first_name' => 'Asha',
+            'last_name' => 'Shah',
+            'email' => 'asha@veltrix.test',
+            'employee_code' => 'VLTX-A',
+            'designation_id' => $designationId,
+            'manager_id' => $firstManager->id,
+            'role' => 'Company Manager',
+        ]))->assertSessionHasErrors('manager_id');
+
+        $this->actingAs($company->hr)->put('/employees/'.$firstManager->id, $this->employeePayload([
+            'first_name' => 'Asha',
+            'last_name' => 'Shah',
+            'email' => 'asha@veltrix.test',
+            'employee_code' => 'VLTX-A',
+            'designation_id' => $designationId,
+            'manager_id' => $secondManager->id,
+            'role' => 'Company Manager',
+        ]))->assertRedirect();
+        $this->actingAs($company->hr)->put('/employees/'.$secondManager->id, $this->employeePayload([
+            'first_name' => 'Bala',
+            'last_name' => 'Shah',
+            'email' => 'bala@veltrix.test',
+            'employee_code' => 'VLTX-B',
+            'designation_id' => $designationId,
+            'manager_id' => $firstManager->id,
+            'role' => 'Company Manager',
+        ]))->assertSessionHasErrors('manager_id');
+        $this->assertNull($secondManager->refresh()->manager_id);
+
+        $this->actingAs($company->hr)->post('/employees', $this->employeePayload([
+            'email' => 'foreign@veltrix.test',
+            'employee_code' => 'VLTX-F',
+            'manager_id' => $other->reportEmployeeId,
+        ]))->assertSessionHasErrors('manager_id');
+        $this->assertDatabaseMissing('employees', ['email' => 'foreign@veltrix.test']);
+
+        DB::table('employees')->where('id', $secondManager->id)->update(['status' => 'inactive']);
+        $this->actingAs($company->hr)->post('/employees', $this->employeePayload([
+            'email' => 'inactive-manager@veltrix.test',
+            'employee_code' => 'VLTX-I',
+            'manager_id' => $secondManager->id,
+        ]))->assertSessionHasErrors('manager_id');
+
+        $report = Employee::query()->findOrFail($company->reportEmployeeId);
+        $this->assertSame($company->leadEmployeeId, (int) $report->manager_id);
+        $this->actingAs($company->hr)->put('/employees/'.$report->id, [
+            'first_name' => $report->first_name,
+            'last_name' => $report->last_name,
+            'email' => $report->email,
+            'phone' => $report->phone,
+            'employee_code' => $report->employee_code,
+            'department_id' => $report->department_id,
+            'designation_id' => $report->designation_id,
+            'location_id' => $report->location_id,
+            'manager_id' => $report->manager_id,
+            'date_of_joining' => '2026-01-15',
+            'holiday_calendar' => 'india',
+            'employment_type' => 'full_time',
+            'work_mode' => 'office',
+        ])->assertRedirect();
+        $this->assertSame($company->leadEmployeeId, (int) $report->refresh()->manager_id);
+    }
+
+    private function activateManager(User $owner, string $firstName, string $email, string $code, int $designationId): Employee
+    {
+        $this->actingAs($owner)->post('/employees', $this->employeePayload([
+            'first_name' => $firstName,
+            'last_name' => 'Shah',
+            'email' => $email,
+            'employee_code' => $code,
+            'designation_id' => $designationId,
+            'create_login' => true,
+            'role' => 'Company Manager',
+        ]))->assertRedirect();
+
+        $manager = Employee::query()->where('email', $email)->firstOrFail();
+        DB::table('users')->where('id', $manager->user_id)->update(['invite_accepted_at' => now()]);
+        DB::table('employees')->where('id', $manager->id)->update(['status' => 'active']);
+        $manager->refresh();
+        $manager->setRelation('user', User::query()->findOrFail($manager->user_id));
+
+        return $manager;
     }
 
     /**

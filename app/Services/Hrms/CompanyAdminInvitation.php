@@ -81,7 +81,7 @@ class CompanyAdminInvitation
             $this->assertOpen($invitation);
             if ((string) $company->status !== 'active') {
                 throw ValidationException::withMessages([
-                    'email' => 'Activate the company before resending a Company Admin invitation.',
+                    'email' => 'Activate the company before resending a Head of Operations invitation.',
                 ]);
             }
             $email = (string) $invitation->email;
@@ -155,7 +155,7 @@ class CompanyAdminInvitation
         $email = $this->normalizeEmail($email);
         if ($email === '' || trim($name) === '' || $password === '') {
             throw ValidationException::withMessages([
-                'admin_email' => 'Enter the Company Admin name, email, and password together.',
+                'admin_email' => 'Enter the Head of Operations name, email, and password together.',
             ]);
         }
         if ($this->emailTaken($email)) {
@@ -392,12 +392,12 @@ class CompanyAdminInvitation
         $company = DB::table('tenants')->where('id', $companyId)->first();
         if ($company === null || (string) $company->status !== 'active') {
             throw ValidationException::withMessages([
-                'email' => 'Activate the company before inviting a Company Admin.',
+                'email' => 'Activate the company before inviting a Head of Operations.',
             ]);
         }
         if ($this->ownerExists($companyId) || $this->acceptedExists($companyId)) {
             throw ValidationException::withMessages([
-                'email' => 'This company already has a Company Admin.',
+                'email' => 'This company already has a Head of Operations.',
             ]);
         }
         if ($this->openExists($companyId)) {

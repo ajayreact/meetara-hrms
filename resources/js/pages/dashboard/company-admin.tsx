@@ -23,9 +23,9 @@ interface PayrollBoard {
 }
 
 const roles = [
-    ['Company Admin', 'Can manage offices, shifts, and roles.'],
-    ['HR', 'Can maintain employees, attendance, and leave.'],
-    ['Accounts', 'Prepares payroll. Company Admin approves it. Payslips appear after processing.'],
+    ['Head of Operations', 'Can manage offices, shifts, and roles. Prepares calculated payroll, approves it, and records payments.'],
+    ['HR & Assistant Operations', 'Can maintain employees, attendance, leave, and salary imports.'],
+    ['Company Manager', 'Can be assigned as the reporting manager for employees.'],
     ['Team Lead', 'Sees the assigned team.'],
 ];
 

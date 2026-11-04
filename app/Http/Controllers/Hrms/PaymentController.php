@@ -17,7 +17,7 @@ class PaymentController extends Controller
 {
     public function index(Request $request, PayrollDirectory $directory): Response
     {
-        abort_unless($request->user()->applicationRole() === 'accounts', 403);
+        abort_unless(in_array($request->user()->applicationRole(), ['company_admin', 'accounts'], true), 403);
 
         return Inertia::render('payroll/payments', [
             'payments' => $directory->payments($request->user(), $request->string('status')->toString()),

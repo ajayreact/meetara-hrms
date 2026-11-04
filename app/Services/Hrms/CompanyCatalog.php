@@ -119,9 +119,10 @@ class CompanyCatalog
         $rows = [
             ['value' => 'Employee', 'label' => 'Employee', 'description' => 'Signs in to a personal workspace.', 'protected' => false],
             ['value' => 'Manager', 'label' => 'Team Lead', 'description' => 'Sees people who report to that employee.', 'protected' => false],
-            ['value' => 'HR', 'label' => 'HR', 'description' => 'Manages people, attendance, and leave for this company.', 'protected' => false],
-            ['value' => 'Owner', 'label' => 'Company Admin', 'description' => 'Protected administrative role. It cannot be removed or renamed.', 'protected' => true],
-            ['value' => 'Accounts', 'label' => 'Accounts', 'description' => 'Optional. Enabling it does not assign it to anyone.', 'protected' => false],
+            ['value' => RoleAssignment::COMPANY_MANAGER, 'label' => 'Company Manager', 'description' => 'Can be selected as the reporting manager for employees in this company.', 'protected' => false],
+            ['value' => 'HR', 'label' => 'HR & Assistant Operations', 'description' => 'Manages people, attendance, leave, documents, offers, and salary imports for this company.', 'protected' => false],
+            ['value' => 'Owner', 'label' => 'Head of Operations', 'description' => 'Protected administrative role. Existing access stays in place and cannot be removed.', 'protected' => true],
+            ['value' => 'Accounts', 'label' => 'Accounts', 'description' => 'Kept for existing assignments. New logins use Head of Operations for payroll preparation and payment records.', 'protected' => false],
         ];
 
         return array_map(fn (array $row) => [

@@ -106,9 +106,12 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         { label: 'Holidays', href: '/holidays', icon: CalendarDays, section: 'Time' },
     );
 
-    if (workspace.role !== 'team_lead') {
-        items.push({ label: workspace.role === 'employee' ? 'My Payslips' : 'Payslips', href: '/payslips', icon: Receipt, section: 'Pay' });
-    }
+    items.push({
+        label: workspace.role === 'employee' || workspace.role === 'team_lead' ? 'My Payslips' : 'Payslips',
+        href: '/payslips',
+        icon: Receipt,
+        section: 'Pay',
+    });
 
     items.push({ label: 'Help Desk', href: '/help-desk', icon: LifeBuoy, section: 'Support' });
 

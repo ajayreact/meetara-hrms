@@ -46,7 +46,7 @@ class EmployeeOnboardingTest extends TestCase
             'phone' => '5550100',
             'employee_code' => 'VEL-NEW',
             'department_id' => $company->departmentId,
-            'manager_id' => $company->leadEmployeeId,
+            'manager_id' => '',
             'date_of_joining' => '2026-02-01',
             'holiday_calendar' => 'india',
             'employment_type' => 'full_time',

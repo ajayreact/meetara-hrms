@@ -153,7 +153,7 @@ class PayrollImportTest extends TestCase
         $pdf = $this->actingAs($company->employee)->get("/payslips/{$item->id}/pdf")->assertOk()->getContent();
         $this->assertStringStartsWith('%PDF', $pdf);
         $this->actingAs($company->employee)->get("/payslips/{$failed->id}/pdf")->assertNotFound();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
         $this->actingAs($company->lead)->get("/payslips/{$item->id}/pdf")->assertNotFound();
         $this->actingAs($other->hr)->get("/payslips/{$item->id}/pdf")->assertNotFound();
         $this->actingAs($company->hr)->get("/payslips/{$item->id}/pdf")->assertOk();

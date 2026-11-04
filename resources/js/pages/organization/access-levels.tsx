@@ -23,7 +23,7 @@ export default function AccessLevelsPage({ workspace, levels, notice }: AccessLe
         <HrmsLayout workspace={workspace} title="Access levels">
             <PageIntro
                 title="Access levels"
-                subtitle="Employee, Team Lead, and HR are available for this company. Company Admin stays protected and is not removed."
+                subtitle="Employee, Team Lead, Company Manager, and HR & Assistant Operations are available for this company. Head of Operations stays protected and is not removed."
             />
             {notice && <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
             <SectionCard title="Roles for this company">
@@ -50,7 +50,7 @@ export default function AccessLevelsPage({ workspace, levels, notice }: AccessLe
                                     )}
                                     {level.protected && <span className="text-sm text-slate-500">Cannot be removed</span>}
                                     {level.value !== 'Accounts' && !level.protected && <span className="text-sm text-slate-500">Available when creating a login</span>}
-                                    {level.value === 'Accounts' && level.available && <span className="text-sm text-slate-500">Available when creating a login</span>}
+                                    {level.value === 'Accounts' && level.available && <span className="text-sm text-slate-500">Existing assignments only</span>}
                                 </td>
                             </tr>
                         ))}

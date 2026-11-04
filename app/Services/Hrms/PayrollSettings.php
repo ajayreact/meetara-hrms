@@ -89,7 +89,7 @@ class PayrollSettings
             'proration' => 'Not configured',
             'prorationNote' => 'An employee who joins after the first day of the month is left out of that run. Pay is not prorated.',
             'salaryVisibility' => 'Processed payslip only',
-            'salaryVisibilityNote' => 'An employee can open only their own processed payslips. Salary administration stays with HR, Accounts, and Company Admin.',
+            'salaryVisibilityNote' => 'An employee can open only their own processed payslips. Salary administration stays with HR, Accounts, and Head of Operations.',
         ];
     }
 

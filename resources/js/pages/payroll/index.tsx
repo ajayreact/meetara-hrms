@@ -138,7 +138,7 @@ export default function PayrollOverview({ workspace, overview, history = [], can
                             </>
                         ) : (
                             <div className="grid gap-3">
-                                <p className="text-sm text-slate-600">Accounts or HR uploads and confirms the monthly file. Company Admin can review the selected month, history and legacy payroll approvals.</p>
+                                <p className="text-sm text-slate-600">HR & Assistant Operations uploads and confirms the monthly file. Head of Operations prepares calculated payroll, approves it, and records payments.</p>
                                 <div className="flex flex-wrap gap-2">
                                     <Button type="button" variant="outline" onClick={() => { window.location.href = '/payroll/template'; }}>Download Sample Excel</Button>
                                     <Button type="button" variant="outline" onClick={() => { window.location.href = '/payroll/template?format=csv'; }}>Download CSV template</Button>

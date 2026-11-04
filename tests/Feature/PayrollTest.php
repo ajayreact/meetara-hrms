@@ -43,7 +43,7 @@ class PayrollTest extends TestCase
         $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
 
         $this->actingAs($company->lead)->get('/payroll')->assertForbidden();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
         $this->actingAs($company->employee)->get('/salary')->assertForbidden();
         $this->actingAs($company->employee)->get('/payroll')->assertForbidden();
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();
@@ -79,7 +79,7 @@ class PayrollTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('payroll/runs')
                 ->where('filter', 'review')
-                ->where('canPrepare', false));
+                ->where('canPrepare', true));
 
         $this->actingAs($accounts)->get('/dashboard')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('dashboard/accounts'));
@@ -296,7 +296,7 @@ class PayrollTest extends TestCase
         $this->assertNull(DB::table('payroll_runs')->where('id', $runId)->value('approved_by'));
         $this->assertSame(0, DB::table('payroll_payments')->count());
 
-        $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertForbidden();
+        $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertSessionHas('error');
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertSessionHas('error');
         $this->assertSame('under_review', DB::table('payroll_runs')->where('id', $runId)->value('status'));
 
@@ -404,15 +404,15 @@ class PayrollTest extends TestCase
         ];
 
         $this->from('/employees/'.$employee->id)->actingAs($company->hr)->put('/employees/'.$employee->id, $payload)->assertSessionHasErrors('role');
-        $this->actingAs($admin)->put('/employees/'.$employee->id, $payload)->assertRedirect();
+        $this->actingAs($admin)->put('/employees/'.$employee->id, $payload)->assertSessionHasErrors('role');
 
         $assignedRole = DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_id', $company->employee->id)
             ->where('model_has_roles.tenant_id', $company->id)
             ->value('roles.name');
-        $this->assertSame('Accounts', $assignedRole);
-        $this->assertSame(1, DB::table('role_assignment_events')->where('subject_user_id', $company->employee->id)->where('action', 'assigned')->count());
+        $this->assertSame('Employee', $assignedRole);
+        $this->assertSame(0, DB::table('role_assignment_events')->where('subject_user_id', $company->employee->id)->where('action', 'assigned')->count());
     }
 
     public function test_unresolved_payroll_rules_are_flagged_instead_of_invented(): void
@@ -447,7 +447,7 @@ class PayrollTest extends TestCase
 
         $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
         $runId = (int) DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 11)->value('id');
-        $this->actingAs($admin)->post("/payroll/runs/{$runId}/calculate")->assertForbidden();
+        $this->actingAs($admin)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/calculate")->assertRedirect();
 
         $warnings = json_decode((string) DB::table('payroll_runs')->where('id', $runId)->value('warnings'), true);
@@ -563,7 +563,7 @@ class PayrollTest extends TestCase
 
         $this->actingAs($this->owner($company))->get('/payroll')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('canPrepare', false)->where('overview.runs', 0));
+            ->assertInertia(fn (Assert $page) => $page->where('canPrepare', true)->where('overview.runs', 0));
         $this->assertSame($before, DB::table('payroll_runs')->count());
 
         $this->actingAs($accounts)->post('/payroll/runs', ['year' => 2026, 'month' => 11])->assertRedirect();
@@ -654,7 +654,7 @@ class PayrollTest extends TestCase
         $this->actingAs($company->hr)->get('/payroll')->assertOk();
         $this->actingAs($company->hr)->get('/payslips/archive?year=2026&month=11')->assertOk();
         $this->actingAs($company->employee)->get('/payslips/archive?year=2026&month=11')->assertForbidden();
-        $this->actingAs($company->lead)->get('/payslips')->assertForbidden();
+        $this->actingAs($company->lead)->get('/payslips')->assertOk();
         $this->actingAs($company->employee)->get('/payslips?year=2026&month=11')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('payslips.0.id', $itemId)->where('canDownloadAll', false));
         $this->actingAs($other->hr)->get("/payslips/{$itemId}/pdf")->assertNotFound();
@@ -763,7 +763,7 @@ class PayrollTest extends TestCase
         $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", [
             'note' => 'Process now',
             'confirm' => 'PROCESS',
-        ])->assertForbidden();
+        ])->assertSessionHas('error');
 
         DB::table('payroll_runs')->where('id', $runId)->update([
             'status' => 'processed',

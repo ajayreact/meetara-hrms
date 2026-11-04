@@ -16,7 +16,7 @@ class PayslipController extends Controller
 {
     public function index(Request $request, PayrollDirectory $directory): Response
     {
-        abort_unless(in_array($request->user()->applicationRole(), ['company_admin', 'hr', 'accounts', 'employee'], true), 403);
+        abort_unless(in_array($request->user()->applicationRole(), ['company_admin', 'hr', 'accounts', 'team_lead', 'employee'], true), 403);
 
         $year = $request->integer('year');
         $month = $request->integer('month');

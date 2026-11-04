@@ -17,9 +17,10 @@ class CompanyRole
         }
 
         return match ($roleName) {
-            'Owner' => ['role' => 'company_admin', 'roleLabel' => 'Company Admin'],
-            'HR' => ['role' => 'hr', 'roleLabel' => 'HR'],
+            'Owner' => ['role' => 'company_admin', 'roleLabel' => 'Head of Operations'],
+            'HR' => ['role' => 'hr', 'roleLabel' => 'HR & Assistant Operations'],
             'Accounts' => ['role' => 'accounts', 'roleLabel' => 'Accounts'],
+            'Company Manager' => ['role' => 'team_lead', 'roleLabel' => 'Company Manager'],
             'Manager' => ['role' => 'team_lead', 'roleLabel' => 'Team Lead'],
             'Employee' => ['role' => 'employee', 'roleLabel' => 'Employee'],
             default => ['role' => 'employee', 'roleLabel' => 'Employee'],
@@ -35,7 +36,7 @@ class CompanyRole
             return self::fromStored(null, true);
         }
 
-        $priority = ['Owner', 'HR', 'Accounts', 'Manager', 'Employee'];
+        $priority = ['Owner', 'HR', 'Accounts', 'Company Manager', 'Manager', 'Employee'];
 
         foreach ($priority as $name) {
             if (in_array($name, $roleNames ?? [], true)) {
@@ -88,6 +89,7 @@ class CompanyRole
                 'salaryManage' => true,
                 'payrollView' => true,
                 'payrollApprove' => true,
+                'payrollPay' => true,
                 'offices' => true,
                 'exportAttendance' => true,
                 'i983Sign' => true,

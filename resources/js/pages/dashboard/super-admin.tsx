@@ -22,7 +22,7 @@ interface Platform {
 }
 
 const shortcuts = [
-    { href: '/companies?create=1', label: 'Add company', detail: 'Name, legal name, contact details, status, and Company Admin', icon: Building2, tile: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+    { href: '/companies?create=1', label: 'Add company', detail: 'Name, legal name, contact details, status, and Head of Operations', icon: Building2, tile: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
     { href: '/audit', label: 'Event history', detail: 'Workflow events without pay amounts', icon: ScrollText, tile: 'bg-teal-50 text-teal-700 hover:bg-teal-100' },
     { href: '/company/settings', label: 'Administration notes', detail: 'What can and cannot be changed here', icon: Settings, tile: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
     { href: '/help-desk', label: 'Ticket desk', detail: 'Requests stay inside each company', icon: LifeBuoy, tile: 'bg-rose-50 text-rose-700 hover:bg-rose-100' },

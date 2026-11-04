@@ -28,7 +28,7 @@ class PayrollRunPolicy
 
     public function prepare(User $user, ?PayrollRun $run = null): bool
     {
-        return $user->applicationRole() === 'accounts'
+        return in_array($user->applicationRole(), ['company_admin', 'accounts'], true)
             && ($run === null || (int) $run->tenant_id === (int) $user->companyId());
     }
 

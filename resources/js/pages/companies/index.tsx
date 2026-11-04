@@ -151,7 +151,7 @@ export default function CompaniesPage({
                                             <PeopleCount value={company.headcount} />
                                             <span>{company.timezone}</span>
                                         </div>
-                                        <p className="mt-1 text-sm text-slate-500">{company.administrators.length === 0 ? 'No Company Admin' : company.administrators.join(', ')}</p>
+                                        <p className="mt-1 text-sm text-slate-500">{company.administrators.length === 0 ? 'No Head of Operations' : company.administrators.join(', ')}</p>
                                     </div>
                                 </li>
                             ))}
@@ -164,7 +164,7 @@ export default function CompaniesPage({
                                         <th className={headCell}>Status</th>
                                         <th className={headCell}>Time zone</th>
                                         <th className={headCell}>People</th>
-                                        <th className={headCell}>Company Admin</th>
+                                        <th className={headCell}>Head of Operations</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -178,7 +178,7 @@ export default function CompaniesPage({
                                             <td className={bodyCell}><CompanyStatus value={company.status} /></td>
                                             <td className={bodyCell}>{company.timezone}</td>
                                             <td className={bodyCell}><PeopleCount value={company.headcount} /></td>
-                                            <td className={bodyCell}>{company.administrators.length === 0 ? 'No Company Admin' : company.administrators.join(', ')}</td>
+                                            <td className={bodyCell}>{company.administrators.length === 0 ? 'No Head of Operations' : company.administrators.join(', ')}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -207,7 +207,7 @@ export default function CompaniesPage({
                                 ['Week off', detail.weekOff],
                                 ['Address', detail.address],
                                 ['Created', detail.createdAt],
-                                ['Company Admin', detail.administrators.length === 0 ? 'No Company Admin' : detail.administrators.join(', ')],
+                                ['Head of Operations', detail.administrators.length === 0 ? 'No Head of Operations' : detail.administrators.join(', ')],
                             ] as Array<[string, string]>).map(([label, value]) => (
                                 <div key={label}>
                                     <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</dt>
@@ -254,7 +254,7 @@ function CreateCompany({ timezones }: { timezones: string[] }) {
                 <InputError message={form.errors.status} />
             </label>
             <fieldset className="mb-4 grid gap-3">
-                <legend className="text-sm font-medium text-slate-700">Company Admin</legend>
+                <legend className="text-sm font-medium text-slate-700">Head of Operations</legend>
                 <p className="text-sm text-slate-500">Leave these blank to save the company without an administrator. The account belongs only to this company.</p>
                 <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-name">Administrator name</Label><Input id="admin-name" value={form.data.admin_name} onChange={(event) => form.setData('admin_name', event.target.value)} autoComplete="off" /><InputError message={form.errors.admin_name} /></label>
                 <label className="grid gap-1.5 text-sm"><Label htmlFor="admin-email">Administrator email</Label><Input id="admin-email" type="email" value={form.data.admin_email} onChange={(event) => form.setData('admin_email', event.target.value)} autoComplete="off" /><InputError message={form.errors.admin_email} /></label>
@@ -351,7 +351,7 @@ function CompanyInvitationPanel({ companyId, invitation, mailConfigured, hasAdmi
 
     return (
         <div className="mt-6 border-t border-slate-100 pt-4">
-            <h3 className="text-sm font-semibold text-slate-950">Company Admin invitation</h3>
+            <h3 className="text-sm font-semibold text-slate-950">Head of Operations invitation</h3>
             {invitation && (
                 <div className="mt-3 grid gap-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
@@ -365,7 +365,7 @@ function CompanyInvitationPanel({ companyId, invitation, mailConfigured, hasAdmi
                         {invitation.revokedAt && <div><dt className="text-xs uppercase tracking-wide text-slate-500">Revoked</dt><dd>{invitation.revokedAt}</dd></div>}
                     </dl>
                     {invitation.delivery === 'not_sent' && invitation.state !== 'revoked' && invitation.state !== 'accepted' && <p className="text-amber-800">The invitation email was not sent.</p>}
-                    {invitation.state === 'accepted' && <p className="text-slate-600">The Company Admin accepted this invitation.</p>}
+                    {invitation.state === 'accepted' && <p className="text-slate-600">The Head of Operations accepted this invitation.</p>}
                 </div>
             )}
             {open && (
@@ -383,11 +383,11 @@ function CompanyInvitationPanel({ companyId, invitation, mailConfigured, hasAdmi
                     <Button type="submit" variant="outline" disabled={revoke.processing || revoke.data.confirm === ''}>{revoke.processing ? 'Saving…' : 'Revoke invitation'}</Button>
                 </form>
             )}
-            {hasAdmin && !invitation && <p className="mt-3 text-sm text-slate-600">This company already has a Company Admin.</p>}
+            {hasAdmin && !invitation && <p className="mt-3 text-sm text-slate-600">This company already has a Head of Operations.</p>}
             {!hasAdmin && !open && (
                 <form className="mt-3 grid max-w-md gap-2" onSubmit={(event) => { event.preventDefault(); invite.post(`/companies/${companyId}/invitations`); }}>
                     {!mailConfigured && <p className="text-sm text-amber-800">Mail delivery is not configured, so an invitation email cannot be sent.</p>}
-                    <Label htmlFor="company-admin-email">Company Admin email</Label>
+                    <Label htmlFor="company-admin-email">Head of Operations email</Label>
                     <Input id="company-admin-email" type="email" value={invite.data.email} onChange={(event) => invite.setData('email', event.target.value)} autoComplete="off" />
                     <InputError message={invite.errors.email} />
                     <Button type="submit" disabled={invite.processing}>{invite.processing ? 'Sending…' : 'Send invitation'}</Button>

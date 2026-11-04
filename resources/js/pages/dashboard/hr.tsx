@@ -24,7 +24,7 @@ export default function HrDashboard({ workspace, companyStats, attendanceRoster,
     const requests = leaveBoard?.queue ?? [];
 
     return (
-        <HrmsLayout workspace={workspace} title="HR">
+        <HrmsLayout workspace={workspace} title="HR & Assistant Operations">
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · headcount, attendance, and leave from company records.`} />
             <div className="grid gap-3 md:grid-cols-3">
                 <MetricCard tone="blue" icon={Users} label="Headcount" value={String(companyStats?.headcount ?? 0)} />

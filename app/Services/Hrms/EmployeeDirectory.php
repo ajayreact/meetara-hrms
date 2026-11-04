@@ -26,7 +26,7 @@ class EmployeeDirectory
 
         $query = Employee::query()
             ->inCompany($companyId)
-            ->with(['department', 'designation', 'office', 'manager', 'user'])
+            ->with(['department', 'designation', 'office', 'manager.designation', 'user'])
             ->orderBy('first_name')
             ->orderBy('last_name');
 
@@ -61,7 +61,7 @@ class EmployeeDirectory
      */
     public function detail(Employee $employee): array
     {
-        $employee->load(['department', 'designation', 'office', 'manager', 'user']);
+        $employee->load(['department', 'designation', 'office', 'manager.designation', 'user']);
 
         return array_merge($this->summarize($employee), [
             'phone' => $employee->phone,
@@ -94,17 +94,30 @@ class EmployeeDirectory
             ];
         }
 
-        app(RoleAssignment::class)->ensureStandard($companyId);
+        $roles = app(RoleAssignment::class);
+        $roles->ensureStandard($companyId);
 
         $managers = Employee::query()
             ->inCompany($companyId)
+            ->with('designation')
+            ->where('status', 'active')
+            ->whereIn('user_id', $roles->reportingManagerUserIds($companyId))
             ->when($exceptEmployeeId, fn ($query) => $query->whereKeyNot($exceptEmployeeId))
             ->orderBy('first_name')
+            ->orderBy('last_name')
             ->limit(200)
             ->get();
         $current = $exceptEmployeeId === null
             ? null
-            : Employee::query()->inCompany($companyId)->whereKey($exceptEmployeeId)->first(['department_id', 'designation_id']);
+            : Employee::query()->inCompany($companyId)->whereKey($exceptEmployeeId)->first(['department_id', 'designation_id', 'manager_id']);
+
+        if ($current?->manager_id && ! $managers->contains('id', (int) $current->manager_id)) {
+            $kept = Employee::query()->inCompany($companyId)->with('designation')->whereKey($current->manager_id)->first();
+
+            if ($kept !== null) {
+                $managers->prepend($kept);
+            }
+        }
 
         return [
             'departments' => $this->named($this->activeCatalog(Department::query()->inCompany($companyId), $current?->department_id)->orderBy('name')->get()),
@@ -112,7 +125,7 @@ class EmployeeDirectory
             'offices' => $this->named(Office::query()->inCompany($companyId)->orderBy('name')->get()),
             'managers' => $managers->map(fn (Employee $employee) => [
                 'id' => (int) $employee->id,
-                'name' => trim($employee->first_name.' '.$employee->last_name),
+                'name' => $this->personLabel($employee),
             ])->values()->all(),
             'roles' => $this->roles($actor),
         ];
@@ -132,7 +145,7 @@ class EmployeeDirectory
         $employee = Employee::query()
             ->inCompany($companyId)
             ->where('user_id', $user->id)
-            ->with(['department', 'designation', 'office'])
+            ->with(['department', 'designation', 'office', 'manager.designation'])
             ->first();
 
         return $employee ? $this->summarize($employee) : null;
@@ -154,7 +167,7 @@ class EmployeeDirectory
         $employee = Employee::query()
             ->inCompany($companyId)
             ->where('user_id', $user->id)
-            ->with(['department', 'designation', 'office', 'manager'])
+            ->with(['department', 'designation', 'office', 'manager.designation'])
             ->first();
 
         if ($employee === null) {
@@ -194,7 +207,7 @@ class EmployeeDirectory
     {
         $rows = $this->list($actor);
         $handle = fopen('php://temp', 'r+');
-        fputcsv($handle, ['Employee ID', 'Name', 'Email', 'Department', 'Designation', 'Manager', 'Office', 'Joined', 'Status']);
+        fputcsv($handle, ['Employee ID', 'Name', 'Email', 'Department', 'Designation', 'Reporting manager', 'Office', 'Joined', 'Status']);
 
         foreach ($rows as $row) {
             fputcsv($handle, [
@@ -235,7 +248,7 @@ class EmployeeDirectory
             'department' => $this->sameCompanyName($employee->department, $companyId),
             'designation' => $this->sameCompanyName($employee->designation, $companyId),
             'manager' => $employee->manager && (int) $employee->manager->tenant_id === $companyId
-                ? trim($employee->manager->first_name.' '.$employee->manager->last_name)
+                ? $this->personLabel($employee->manager)
                 : null,
             'office' => $this->sameCompanyName($employee->office, $companyId),
             'joined' => optional($employee->date_of_joining)->toDateString(),
@@ -368,8 +381,8 @@ class EmployeeDirectory
     private function roles(User $actor): array
     {
         $allowed = match ($actor->applicationRole()) {
-            'company_admin' => ['Employee' => 'Employee', 'Manager' => 'Team Lead', 'HR' => 'HR', 'Accounts' => 'Accounts', 'Owner' => 'Company Admin'],
-            'hr' => ['Employee' => 'Employee', 'Manager' => 'Team Lead', 'HR' => 'HR'],
+            'company_admin' => ['Employee' => 'Employee', 'Manager' => 'Team Lead', RoleAssignment::COMPANY_MANAGER => 'Company Manager', 'HR' => 'HR & Assistant Operations', 'Owner' => 'Head of Operations'],
+            'hr' => ['Employee' => 'Employee', 'Manager' => 'Team Lead', RoleAssignment::COMPANY_MANAGER => 'Company Manager', 'HR' => 'HR & Assistant Operations'],
             default => [],
         };
 
@@ -389,6 +402,14 @@ class EmployeeDirectory
         }
 
         return $roles;
+    }
+
+    private function personLabel(Employee $employee): string
+    {
+        $name = trim($employee->first_name.' '.$employee->last_name);
+        $designation = $this->sameCompanyName($employee->designation, (int) $employee->tenant_id);
+
+        return $designation === null ? $name : $name.' — '.$designation;
     }
 
     private function csv(string $value): string

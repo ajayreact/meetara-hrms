@@ -20,11 +20,11 @@ class UsaOfferPdf
 
     private const BODY_BOTTOM = 742.0;
 
-    private const BODY = 11.0;
+    private const BODY = 11.04;
 
-    private const LEADING = 14.0;
+    private const LEADING = 16.3;
 
-    private const HEADING = 13.0;
+    private const HEADING = 11.04;
 
     private ?string $letterhead = null;
 
@@ -49,7 +49,7 @@ class UsaOfferPdf
         try {
             foreach ($pages as $page) {
                 $file = sys_get_temp_dir().DIRECTORY_SEPARATOR.'usa-offer-'.bin2hex(random_bytes(8)).'.jpg';
-                imagejpeg($page, $file, 90);
+                imagejpeg($page, $file, 95);
                 imagedestroy($page);
                 unset($page);
                 $files[] = $file;
@@ -726,11 +726,13 @@ class UsaOfferPdf
 
         $candidates = $bold
             ? [
+                resource_path('fonts/Carlito-Bold.ttf'),
                 resource_path('fonts/LiberationSans-Bold.ttf'),
                 '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             ]
             : [
+                resource_path('fonts/Carlito-Regular.ttf'),
                 resource_path('fonts/LiberationSans-Regular.ttf'),
                 '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',

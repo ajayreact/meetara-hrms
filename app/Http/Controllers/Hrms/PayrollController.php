@@ -63,7 +63,7 @@ class PayrollController extends Controller
             'filter' => $request->string('status')->toString(),
             'year' => $this->year($request),
             'month' => $this->month($request),
-            'canPrepare' => $request->user()->applicationRole() === 'accounts',
+            'canPrepare' => in_array($request->user()->applicationRole(), ['company_admin', 'accounts'], true),
             'notice' => session('status'),
             'error' => session('error'),
         ]);
