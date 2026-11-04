@@ -83,8 +83,8 @@ class AuthenticatedWorkspace
 
         $officeName = null;
 
-        if (isset($employee->location_id) && Schema::hasTable('locations')) {
-            $officeName = DB::table('locations')->where('id', $employee->location_id)->where('tenant_id', $employee->tenant_id)->value('name');
+        if (Schema::hasTable('locations')) {
+            $officeName = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id ?? null)?->name;
         }
 
         $region = null;

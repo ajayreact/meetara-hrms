@@ -1,5 +1,6 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
+import { TimingCard, type TimingState } from '@/components/hrms/timing-card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -58,7 +59,8 @@ interface Correction {
 interface Person { id: number; name: string; code: string }
 interface Authorization { id: number; employee: string; code: string; date: string; kind: string; reason: string | null }
 
-export default function AttendanceManagePage({ workspace, roster, filters, canCorrect, canExport, corrections = [], authorizations = [], people = [], notice }: HrmsPageProps & {
+export default function AttendanceManagePage({ workspace, timing, roster, filters, canCorrect, canExport, corrections = [], authorizations = [], people = [], notice }: HrmsPageProps & {
+    timing?: TimingState;
     roster: Roster;
     filters: { date: string; office: string; status: string; employee: string };
     canCorrect: boolean;
@@ -83,6 +85,11 @@ export default function AttendanceManagePage({ workspace, roster, filters, canCo
     return (
         <HrmsLayout workspace={workspace} title="Attendance">
             <PageIntro title="Attendance" subtitle={`Saved attendance for ${workspace.companyName ?? 'your company'}. Network approval is checked on the server.`} />
+            {timing && (
+                <div className="mb-4 max-w-xl">
+                    <TimingCard timing={timing} />
+                </div>
+            )}
             <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Summary label="Showing" value={String(roster.counts.showing)} />
                 <Summary label="In today" value={String(roster.counts.present)} />

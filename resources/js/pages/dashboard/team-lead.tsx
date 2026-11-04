@@ -1,3 +1,4 @@
+import { TimingCard, type TimingState } from '@/components/hrms/timing-card';
 import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
@@ -11,7 +12,8 @@ interface Roster {
     counts: { showing: number; present: number };
 }
 
-export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBoard, workplace }: HrmsPageProps & {
+export default function TeamLeadDashboard({ workspace, timing, attendanceRoster, leaveBoard, workplace }: HrmsPageProps & {
+    timing?: TimingState;
     workplace?: WorkplacePayload;
     attendanceRoster?: Roster | null;
     leaveBoard?: { queue: { id: number; employee: string | null; type: string | null; start: string; end: string; status: string }[] };
@@ -22,6 +24,7 @@ export default function TeamLeadDashboard({ workspace, attendanceRoster, leaveBo
     return (
         <HrmsLayout workspace={workspace} title={workspace.roleLabel}>
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · people who report to you.`} />
+            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
             <div className="grid gap-3 md:grid-cols-2">
                 <MetricCard tone="blue" icon={Users} label="Team members" value={String(attendanceRoster?.counts.showing ?? 0)} />
                 <MetricCard tone="green" icon={CalendarCheck} label="Clocked in today" value={String(attendanceRoster?.counts.present ?? 0)} />

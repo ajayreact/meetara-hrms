@@ -71,7 +71,9 @@ export default function MyAttendancePage({ workspace, timing, history, correctio
                     <Count label="Weekly Off" value={history.summary.weeklyOff} />
                 </div>
             )}
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+                <TimingCard timing={timing} notice={notice} />
+                <div className="grid content-start gap-4">
                 <SectionCard
                     title="History"
                     extra={(
@@ -152,8 +154,6 @@ export default function MyAttendancePage({ workspace, timing, history, correctio
                         ))}
                     </div>
                 </SectionCard>
-                <div className="grid content-start gap-4">
-                <TimingCard timing={timing} notice={notice} />
                 <SectionCard title="Detail">
                     {selected ? (
                         <dl className="space-y-2 text-sm">

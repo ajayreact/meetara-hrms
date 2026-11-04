@@ -602,6 +602,131 @@ class OfficeNetworkAttendanceTest extends TestCase
         $this->assertSame(0, DB::table('location_networks')->where('tenant_id', $other->id)->count());
     }
 
+    public function test_an_unassigned_employee_must_pass_the_only_office_ip_and_gps_checks(): void
+    {
+        $company = $this->prepare(CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix'));
+        DB::table('employees')->where('id', $company->reportEmployeeId)->update(['location_id' => null]);
+        DB::table('location_networks')->where('location_id', $company->officeId)->update(['cidr' => '103.211.39.102/32']);
+        DB::table('locations')->where('id', $company->officeId)->update([
+            'name' => 'Veltrix India',
+            'latitude' => 17.458894,
+            'longitude' => 78.363567,
+            'verification_radius_meters' => 350,
+            'gps_verification_enabled' => true,
+        ]);
+        $inside = ['latitude' => 17.458894, 'longitude' => 78.363567];
+        $before = DB::table('attendance_logs')->count();
+
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn (Assert $page) => $page
+            ->where('timing.officeName', 'Veltrix India')
+            ->where('timing.gpsRequired', true)
+            ->where('workspace.officeName', 'Veltrix India')
+        );
+
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->post('/attendance/clock-in', $inside)
+            ->assertSessionHasErrors(['attendance' => 'You are not connected through an approved office network. Clock-in is blocked.']);
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '103.211.39.102'])
+            ->post('/attendance/clock-in', ['latitude' => 17.468000, 'longitude' => 78.363567])
+            ->assertSessionHasErrors(['attendance' => 'You are outside the configured office location. Clock-in is blocked.']);
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '103.211.39.102'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors(['attendance' => 'A browser location inside the office radius is required. Clock-in is blocked.']);
+        $this->assertSame($before, DB::table('attendance_logs')->count());
+        $this->assertNull(DB::table('employees')->where('id', $company->reportEmployeeId)->value('location_id'));
+
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '103.211.39.102'])
+            ->post('/attendance/clock-in', $inside)
+            ->assertSessionHasNoErrors();
+        $log = DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-10-19')->first();
+        $this->assertSame('103.211.39.102', $log->check_in_ip);
+        $this->assertSame('public_ip_and_gps', $log->verified_as);
+        $this->assertSame($company->officeId, (int) $log->location_id);
+
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->post('/attendance/clock-out', $inside)
+            ->assertSessionHasErrors(['attendance' => 'You are not connected through an approved office network. Clock-out is blocked.']);
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '103.211.39.102'])
+            ->post('/attendance/clock-out', ['latitude' => 17.468000, 'longitude' => 78.363567])
+            ->assertSessionHasErrors(['attendance' => 'You are outside the configured office location. Clock-out is blocked.']);
+        $this->assertNull(DB::table('attendance_logs')->where('id', $log->id)->value('check_out'));
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '103.211.39.102'])
+            ->post('/attendance/clock-out', $inside)
+            ->assertSessionHasNoErrors();
+        $this->assertNotNull(DB::table('attendance_logs')->where('id', $log->id)->value('check_out'));
+    }
+
+    public function test_an_unassigned_employee_is_not_given_an_office_when_several_are_active(): void
+    {
+        $company = $this->prepare(CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix'));
+        DB::table('employees')->where('id', $company->reportEmployeeId)->update(['location_id' => null]);
+        DB::table('locations')->insert([
+            'tenant_id' => $company->id,
+            'name' => 'Second office',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $before = DB::table('attendance_logs')->count();
+
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn (Assert $page) => $page
+            ->where('timing.officeName', null)
+            ->where('timing.gpsRequired', false)
+        );
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-in', ['latitude' => 17.458894, 'longitude' => 78.363567])
+            ->assertSessionHasErrors(['attendance' => 'You are not assigned to an office. Contact HR.']);
+        $this->assertSame($before, DB::table('attendance_logs')->count());
+    }
+
+    public function test_an_assigned_office_keeps_clock_actions_available_without_writing_attendance(): void
+    {
+        $company = $this->prepare(CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix'));
+        DB::table('locations')->where('id', $company->officeId)->update([
+            'name' => 'Veltrix India',
+            'latitude' => 17.458894,
+            'longitude' => 78.363567,
+            'verification_radius_meters' => 350,
+            'gps_verification_enabled' => true,
+        ]);
+        DB::table('location_networks')->where('location_id', $company->officeId)->update(['cidr' => '103.211.39.102/32']);
+        $before = DB::table('attendance_logs')->count();
+
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn (Assert $page) => $page
+            ->where('timing.officeName', 'Veltrix India')
+            ->where('timing.gpsRequired', true)
+            ->where('timing.state', 'out')
+            ->where('timing.canClockIn', true)
+            ->where('timing.canClockOut', false)
+        );
+        $this->actingAs($company->employee)->get('/dashboard')->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/employee')
+            ->where('timing.canClockIn', true)
+            ->where('timing.canClockOut', false)
+            ->where('timing.gpsRequired', true)
+        );
+        $this->actingAs($company->lead)->get('/attendance')->assertInertia(fn (Assert $page) => $page
+            ->component('attendance/manage')
+            ->where('timing.officeName', 'Veltrix India')
+            ->where('timing.canClockIn', true)
+            ->where('timing.gpsRequired', true)
+        );
+        $this->actingAs($company->lead)->get('/dashboard')->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/team-lead')
+            ->where('timing.canClockIn', true)
+            ->where('timing.gpsRequired', true)
+        );
+        $this->assertSame($before, DB::table('attendance_logs')->count());
+    }
+
     public function test_opening_attendance_does_not_create_records(): void
     {
         $company = $this->prepare(CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix'));

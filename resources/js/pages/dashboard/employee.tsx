@@ -50,6 +50,7 @@ export default function EmployeeDashboard({ workspace, timing, history, leaveBoa
         <HrmsLayout workspace={workspace} title="Dashboard">
             {notice && <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{notice}</p>}
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${company} · ${workspace.designation} · ${workspace.officeName ?? 'No office assigned'}`} />
+            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
             {ess && <EmployeeWelcome ess={ess} />}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard tone="blue" icon={CalendarDays} label="Expected Hours" value={summary ? formatDuration(summary.expectedMinutes) : '—'} />
@@ -57,7 +58,7 @@ export default function EmployeeDashboard({ workspace, timing, history, leaveBoa
                 <MetricCard tone="orange" icon={Hourglass} label="Remaining" value={summary ? formatDuration(summary.remainingMinutes) : '—'} />
                 <MetricCard tone="red" icon={AlarmClock} label="Total Early Out" value={summary ? formatDuration(summary.earlyMinutes) : '—'} />
             </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
+            <div className="mt-4">
                 <TimeLogChart
                     days={days}
                     monthLabel={history?.label ?? 'This month'}
@@ -72,7 +73,6 @@ export default function EmployeeDashboard({ workspace, timing, history, leaveBoa
                         </label>
                     )}
                 />
-                {timing ? <TimingCard timing={timing} /> : null}
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
                 <SectionCard title="My Attendance" extra={<Link href={route('hrms.my-attendance')} className="text-sm font-medium text-blue-700">Request correction</Link>}>

@@ -56,6 +56,7 @@ class AttendanceController extends Controller
 
         return Inertia::render('attendance/manage', [
             'workspace' => $workspace,
+            'timing' => $this->directory->timing($user),
             'roster' => $this->directory->roster(
                 $user,
                 $request->query('date'),

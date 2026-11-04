@@ -1,3 +1,4 @@
+import { TimingCard, type TimingState } from '@/components/hrms/timing-card';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
@@ -27,12 +28,13 @@ interface Overview {
     activity: Activity[];
 }
 
-export default function AccountsDashboard({ workspace, payrollBoard }: HrmsPageProps & { payrollBoard?: Overview }) {
+export default function AccountsDashboard({ workspace, timing, payrollBoard }: HrmsPageProps & { timing?: TimingState; payrollBoard?: Overview }) {
     const board = payrollBoard ?? { runs: 0, draft: 0, calculated: 0, underReview: 0, review: 0, approved: 0, processed: 0, outstanding: 0, processedGross: '0.00', processedNet: '0.00', employees: 0, currencyNote: '', activity: [] };
 
     return (
         <HrmsLayout workspace={workspace} title="Accounts">
             <PageIntro title={greetingName(workspace.userName)} subtitle={board.currencyNote || `${workspace.companyName ?? 'Your company'} · payroll figures come from saved runs.`} />
+            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
             {board.runs === 0 ? (
                 <SectionCard title="Payroll" extra={<PayrollLinks />}>
                     <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">

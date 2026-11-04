@@ -9,6 +9,7 @@ use App\Models\LocationNetwork;
 use App\Models\Office;
 use App\Models\User;
 use App\Support\ClientAddress;
+use App\Support\EmployeeOffice;
 use App\Support\GeoDistance;
 use App\Support\NetworkAddress;
 use App\Support\OfficeVerification;
@@ -228,18 +229,16 @@ class AttendanceService
 
     private function office(Employee $employee, ?int $requestedOfficeId): Office
     {
-        if ($employee->location_id === null) {
-            throw new AttendanceRejected('Your office network could not be verified. Contact HR.');
-        }
-
-        if ($requestedOfficeId !== null && $requestedOfficeId !== (int) $employee->location_id) {
-            throw new AttendanceRejected('You are not authorized to attend that office.');
-        }
-
-        $office = Office::query()->whereKey($employee->location_id)->where('tenant_id', $employee->tenant_id)->first();
+        $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
 
         if ($office === null) {
-            throw new AttendanceRejected('Your office network could not be verified. Contact HR.');
+            throw new AttendanceRejected($employee->location_id === null
+                ? 'You are not assigned to an office. Contact HR.'
+                : 'Your office network could not be verified. Contact HR.');
+        }
+
+        if ($requestedOfficeId !== null && $requestedOfficeId !== (int) $office->id) {
+            throw new AttendanceRejected('You are not authorized to attend that office.');
         }
 
         if ((string) $office->status !== 'active') {
@@ -421,7 +420,9 @@ class AttendanceService
     private function officeForLog(AttendanceLog $log, Employee $employee): Office
     {
         $officeId = $log->location_id ?: $employee->location_id;
-        $office = Office::query()->whereKey($officeId)->where('tenant_id', $employee->tenant_id)->first();
+        $office = $officeId
+            ? Office::query()->whereKey($officeId)->where('tenant_id', $employee->tenant_id)->first()
+            : EmployeeOffice::resolve((int) $employee->tenant_id, null);
 
         if ($office === null) {
             throw new AttendanceRejected('Your office network could not be verified. Contact HR.');

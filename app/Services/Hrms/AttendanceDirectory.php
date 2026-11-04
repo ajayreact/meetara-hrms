@@ -7,6 +7,7 @@ use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\Office;
 use App\Models\User;
+use App\Support\EmployeeOffice;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -40,7 +41,7 @@ class AttendanceDirectory
             return $empty;
         }
 
-        $office = Office::query()->whereKey($employee->location_id)->where('tenant_id', $employee->tenant_id)->first();
+        $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
         $timezone = $this->timezone($office, (int) $employee->tenant_id);
         $now = now()->timezone($timezone);
         $log = AttendanceLog::query()
@@ -212,7 +213,7 @@ class AttendanceDirectory
      */
     private function days(Employee $employee, Carbon $month): array
     {
-        $office = Office::query()->whereKey($employee->location_id)->where('tenant_id', $employee->tenant_id)->first();
+        $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
         $timezone = $this->timezone($office, (int) $employee->tenant_id);
         $today = now()->timezone($timezone)->startOfDay();
         $logs = AttendanceLog::query()
