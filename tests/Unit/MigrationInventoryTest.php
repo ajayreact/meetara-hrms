@@ -19,6 +19,7 @@ class MigrationInventoryTest extends TestCase
             '2026_11_04_030000_add_organization_catalog_status',
             '2026_11_04_040000_add_i983_compensation_and_site_arrangement',
             '2026_11_04_050000_reassign_accounts_only_users_to_owner',
+            '2026_11_04_060000_add_i983_employer_profiles',
         ], $inventory->filesAfterDump());
     }
 
@@ -75,6 +76,7 @@ class MigrationInventoryTest extends TestCase
             '2026_11_04_030000_add_organization_catalog_status',
             '2026_11_04_040000_add_i983_compensation_and_site_arrangement',
             '2026_11_04_050000_reassign_accounts_only_users_to_owner',
+            '2026_11_04_060000_add_i983_employer_profiles',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());

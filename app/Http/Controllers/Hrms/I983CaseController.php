@@ -160,6 +160,13 @@ class I983CaseController extends Controller
         return back()->with('status', 'Employer signature applied. A new signed PDF was stored. The unsigned working PDF was not changed, and nothing was emailed.');
     }
 
+    public function generateFinal(Request $request, int $case): RedirectResponse
+    {
+        $this->cases->generateFinal($this->manager($request), $case, $request->all());
+
+        return back()->with('status', 'The final I-983 PDF is stored. Earlier versions were not replaced, and nothing was emailed.');
+    }
+
     public function finalizeDocument(Request $request, int $case): RedirectResponse
     {
         $this->cases->finalizeDocument($this->manager($request), $case, $request->all());

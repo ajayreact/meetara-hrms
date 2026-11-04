@@ -1,6 +1,7 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { FormEvent, useEffect, useState } from 'react';
 import { pageForError, StudentDocument, StudentDraft, StudentFormView } from './student-form/document';
+import { retainedStudentSignature } from './student-form/signature-source';
 
 const requiredFields: Array<keyof StudentDraft> = [
     'surname',
@@ -64,7 +65,7 @@ function emailLooksValid(value: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function validate(data: StudentDraft, submit: boolean): Record<string, string> {
+function validate(data: StudentDraft, submit: boolean, signatureReady: boolean): Record<string, string> {
     const errors: Record<string, string> = {};
     if (data.opt_start !== '' && data.opt_end !== '' && data.opt_end < data.opt_start) {
         errors.opt_end = 'The STEM OPT end date must be on or after the start date.';
@@ -92,7 +93,7 @@ function validate(data: StudentDraft, submit: boolean): Record<string, string> {
     if (!data.confirm_name) {
         errors.confirm_name = 'Confirm the printed name.';
     }
-    if (data.signature === null) {
+    if (!signatureReady) {
         errors.signature = 'Draw your signature before submitting.';
     }
 
@@ -109,6 +110,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
     const [current, setCurrent] = useState(1);
     const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
     const [reviewing, setReviewing] = useState(false);
+    const [cleared, setCleared] = useState(false);
     const page = useForm({
         surname: form.student.surname,
         given_name: form.student.givenName,
@@ -147,6 +149,8 @@ export default function I983Submit({ token, form, notice }: { token: string; for
         signature: null,
     });
     const printedName = printedCertificationName(page.data.surname, page.data.given_name, page.data.middle_name);
+    const signatureSource = retainedStudentSignature(page.data.signature !== null, form.signatureOnFile, cleared);
+    const signatureUrl = signatureSource === 'stored' ? `/i983/s/${token}/signature` : null;
 
     const firstServerError = Object.keys(serverErrors)[0] ?? '';
     useEffect(() => {
@@ -161,7 +165,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
         if (finalized) {
             return;
         }
-        const found = validate(page.data, submit);
+        const found = validate(page.data, submit, signatureSource !== 'empty');
         setLocalErrors(found);
         if (Object.keys(found).length > 0) {
             setCurrent(pageForError(Object.keys(found)[0]));
@@ -172,7 +176,8 @@ export default function I983Submit({ token, form, notice }: { token: string; for
         page.transform((data) => ({
             ...data,
             submit,
-            signature: submit ? data.signature : null,
+            signature: data.signature,
+            clear_signature: !submit && cleared && data.signature === null ? '1' : '0',
             confirm_certification: submit ? data.confirm_certification : false,
             confirm_name: submit ? data.confirm_name : false,
         }));
@@ -185,14 +190,10 @@ export default function I983Submit({ token, form, notice }: { token: string; for
         page.data.opt_end >= page.data.opt_start;
     const certificationComplete = form.locked && form.certification.latest !== null;
     const roleComplete = filled(page.data.student_role) || form.locked;
-    const employerSigned = form.employerCertification?.signed === true || finalized;
-    const evaluationRecorded = (form.evaluations ?? []).some((item) => item.narrative.trim() !== '');
     const progress = [
         { page: 1, label: 'Student information', state: sectionOneComplete ? 'Complete' : 'Pending' },
         { page: 2, label: 'Student certification', state: certificationComplete ? 'Complete' : 'Pending' },
-        { page: 3, label: 'Employer and training', state: roleComplete ? 'Student role complete' : 'Student role pending' },
-        { page: 4, label: 'Employer certification', state: employerSigned ? 'Signed' : 'Waiting for employer' },
-        { page: 5, label: 'Evaluations', state: evaluationRecorded ? 'Recorded' : 'Blank' },
+        { page: 3, label: 'Your training responses', state: roleComplete ? 'Complete' : 'Pending' },
     ];
     const banner = Object.values(localErrors)[0] || Object.values(serverErrors)[0] || '';
 
@@ -246,10 +247,15 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                     <div>
                         <h1 className="text-2xl font-semibold text-neutral-950">STEM OPT Form I-983</h1>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
-                            This link expires {form.expiresAt}. Save a draft and return with the same link. Submitting saves Section 1 and your
-                            Section 2 certification together. It locks Section 1 and Student Role. Goals and Objectives stay shared. It does not sign
-                            Section 4 or Section 6, and it does not send the form to a school or agency.
+                            This link expires {form.expiresAt}. Save a draft and return with the same link. Review your information, then submit it to
+                            your employer. You cannot change employer details. After you submit, Section 1 and Student Role stay locked unless your
+                            employer reopens them.
                         </p>
+                        {form.locked && (
+                            <p className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                                Submitted to your employer. This form cannot be submitted again unless the employer asks for a correction.
+                            </p>
+                        )}
                     </div>
                 )}
                 {form.correctionReason && (
@@ -273,6 +279,9 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                         }}
                         data={page.data}
                         setData={(key, value) => {
+                            if (key === 'signature') {
+                                setCleared(value === null);
+                            }
                             page.setData(key as 'surname', value as string);
                             setLocalErrors((current) => {
                                 if (current[key] === undefined) {
@@ -290,7 +299,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                         printedName={printedName}
                         reviewing={reviewing}
                         onReview={() => {
-                            const found = validate(page.data, true);
+                            const found = validate(page.data, true, signatureSource !== 'empty');
                             setLocalErrors(found);
                             if (Object.keys(found).length > 0) {
                                 setCurrent(pageForError(Object.keys(found)[0]));
@@ -305,6 +314,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                         onConfirm={(event) => send(event, true)}
                         processing={page.processing}
                         progress={progress}
+                        signatureUrl={signatureUrl}
                     />
                     {!finalized && (
                         <div className="mx-auto mt-4 flex max-w-[860px] flex-col gap-2 sm:flex-row">
@@ -319,7 +329,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                             <button
                                 className="min-h-11 rounded-md border border-neutral-300 px-4 text-sm"
                                 type="button"
-                                disabled={current === 5}
+                                disabled={current === 3}
                                 onClick={() => setCurrent((value) => Math.min(5, value + 1))}
                             >
                                 Next

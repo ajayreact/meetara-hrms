@@ -20,6 +20,7 @@ class I983Cases
         private readonly I983Signatory $signatory,
         private readonly I983StudentCertifications $studentCertifications,
         private readonly StoredFileQuarantine $quarantine,
+        private readonly I983EmployerProfile $employerProfiles,
     ) {}
 
     public const TRAINING_FIELDS = [
@@ -54,15 +55,21 @@ class I983Cases
             ->where('tenant_id', $companyId)
             ->orderByDesc('id')
             ->get()
-            ->map(fn (object $row): array => [
-                'id' => (int) $row->id,
-                'reference' => (string) $row->reference,
-                'candidate' => (string) $row->candidate_name,
-                'email' => (string) $row->candidate_email,
-                'status' => (string) $row->status,
-                'submitted' => $row->student_submitted_at !== null,
-                'createdAt' => substr((string) $row->created_at, 0, 10),
-            ])
+            ->map(function (object $row): array {
+                $workflow = $this->workflow($row);
+
+                return [
+                    'id' => (int) $row->id,
+                    'reference' => (string) $row->reference,
+                    'candidate' => (string) $row->candidate_name,
+                    'email' => (string) $row->candidate_email,
+                    'status' => (string) $row->status,
+                    'stage' => $workflow['stage'],
+                    'stageLabel' => $workflow['label'],
+                    'submitted' => $row->student_submitted_at !== null,
+                    'createdAt' => substr((string) $row->created_at, 0, 10),
+                ];
+            })
             ->all();
     }
 
@@ -174,10 +181,11 @@ class I983Cases
         $companyId = (int) $actor->companyId();
         $token = bin2hex(random_bytes(32));
         $now = now();
-        $suggestion = $this->companySuggestion($companyId);
+        $profile = $this->employerProfiles->snapshot($companyId);
+        $suggestion = $profile ?? $this->companySuggestion($companyId);
         $caseId = 0;
 
-        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, &$caseId): void {
+        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $profile, &$caseId): void {
             $caseId = DB::table('i983_cases')->insertGetId([
                 'tenant_id' => $companyId,
                 'reference' => $this->reference($companyId),
@@ -201,8 +209,14 @@ class I983Cases
                 'case_id' => $caseId,
                 'legal_name' => $suggestion['legal_name'],
                 'street' => $suggestion['street'],
+                'suite' => $profile['suite'] ?? null,
                 'website' => $suggestion['website'],
+                'city' => $profile['city'] ?? null,
+                'state' => $profile['state'] ?? null,
+                'zip' => $profile['zip'] ?? null,
                 'ein_ciphertext' => $this->seal($suggestion['ein']),
+                'employee_count' => $profile['employee_count'] ?? null,
+                'naics' => $profile['naics'] ?? null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -252,6 +266,7 @@ class I983Cases
             'canSign' => $this->canSign($actor),
             'canPreviewDraft' => $this->canPreviewDraft($actor),
             'studentCertification' => $this->studentCertifications->present($caseId),
+            'workflow' => $this->workflow($case),
         ];
     }
 
@@ -443,6 +458,32 @@ class I983Cases
         return $this->manages($actor);
     }
 
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    public function generateFinal(User $actor, int $caseId, array $input): void
+    {
+        abort_unless($this->canSign($actor), 403);
+        $case = $this->caseFor($actor, $caseId);
+        $this->assertEditable($case);
+
+        if (! $this->confirmed($input)) {
+            throw ValidationException::withMessages([
+                'confirm' => 'Confirm that the employer official is authorized to sign and that this I-983 is complete.',
+            ]);
+        }
+
+        $blockers = $this->finalBlockers($case);
+
+        if ($blockers !== []) {
+            throw ValidationException::withMessages(['form' => $blockers[0]]);
+        }
+
+        $this->generateWorkingCopy($actor, $caseId);
+        $this->applySignature($actor, $caseId, ['confirm' => '1']);
+        $this->finalizeDocument($actor, $caseId, ['confirm' => '1']);
+    }
+
     public function reissue(User $actor, int $caseId): string
     {
         $case = $this->caseFor($actor, $caseId);
@@ -487,14 +528,15 @@ class I983Cases
             'correctionReason' => $correction['reason'] ?? '',
             'student' => $this->studentArray($student),
             'training' => $this->presentTraining($training, $student, $employer),
-            'employer' => $this->employerArray($employer),
-            'employerCertification' => $this->presentEmployerCertification((int) $case->id),
-            'evaluations' => $this->presentEvaluations((int) $case->id),
+            'employer' => $this->studentEmployer(),
+            'employerCertification' => ['signed' => false, 'printedName' => '', 'title' => '', 'certifiedOn' => ''],
+            'evaluations' => [],
             'goalHistory' => $this->revisions((int) $case->id, 'goals'),
             'statements' => I983StudentCertifications::STATEMENTS,
             'timezone' => $this->studentCertifications->timezoneFor((int) $case->tenant_id),
             'localDate' => $this->studentCertifications->localDate((int) $case->tenant_id),
             'certification' => $this->studentCertifications->present((int) $case->id),
+            'signatureOnFile' => $this->studentCertifications->storedSignatureBytes($case) !== null,
         ];
     }
 
@@ -512,6 +554,32 @@ class I983Cases
     }
 
     /**
+     * @return array{bytes: string}|null
+     */
+    public function studentSignatureFile(string $token): ?array
+    {
+        $link = $this->link($token);
+
+        if ($link === null) {
+            return null;
+        }
+
+        $case = DB::table('i983_cases')->where('id', $link->case_id)->where('tenant_id', $link->tenant_id)->first();
+
+        if ($case === null) {
+            return null;
+        }
+
+        $bytes = $this->studentCertifications->storedSignatureBytes($case);
+
+        if (! is_string($bytes) || $bytes === '') {
+            return null;
+        }
+
+        return ['bytes' => $bytes];
+    }
+
+    /**
      * @param  array<string, mixed>  $input
      */
     public function saveStudent(string $token, array $input, bool $submit): void
@@ -526,7 +594,9 @@ class I983Cases
             throw ValidationException::withMessages(['student' => 'This information has already been submitted.']);
         }
 
-        DB::transaction(function () use ($case, $link, $input, $submit): void {
+        $removeDraft = false;
+
+        DB::transaction(function () use ($case, $link, $input, $submit, &$removeDraft): void {
             $current = DB::table('i983_cases')->where('id', $case->id)->lockForUpdate()->first();
             $locked = $this->sectionLocked($current);
 
@@ -551,7 +621,31 @@ class I983Cases
             $this->protectTraining('student', $current, $input);
             $this->writeTraining((int) $current->tenant_id, (int) $current->id, $input, 'student', null, $locked ? ['goals'] : ['student_role', 'goals']);
 
+            if (! $locked && ! $submit) {
+                $this->keepStudentDraftSignature($current, $input);
+            }
+
             if ($submit && ! $locked) {
+                $incoming = $input['signature'] ?? null;
+
+                if (is_string($incoming) && trim($incoming) !== '') {
+                    throw ValidationException::withMessages([
+                        'signature' => 'Draw your signature before submitting. A typed name is not accepted.',
+                    ]);
+                }
+
+                if (! $incoming instanceof \Illuminate\Http\UploadedFile) {
+                    $incoming = $this->studentCertifications->draftUpload($current);
+
+                    if (! $incoming instanceof \Illuminate\Http\UploadedFile) {
+                        throw ValidationException::withMessages([
+                            'signature' => 'Draw your signature before submitting. A typed name is not accepted.',
+                        ]);
+                    }
+
+                    $input['signature'] = $incoming;
+                }
+
                 $this->documents->assertStudentFormFits((int) $current->id);
                 $saved = DB::table('i983_students')->where('case_id', $current->id)->first();
                 $certification = $this->studentCertifications->record(
@@ -575,6 +669,7 @@ class I983Cases
                     $this->event((int) $current->tenant_id, (int) $current->id, null, 'student', 'student_certified', 'v'.$certification['version'].' link '.$link->id);
                     $this->event((int) $current->tenant_id, (int) $current->id, null, 'student', $resubmit ? 'student_resubmitted' : 'student_submitted', 'section_1');
                     $this->documents->studentSnapshot((int) $current->id, null);
+                    $removeDraft = true;
                 } catch (\Throwable $exception) {
                     Storage::disk('local')->delete($certification['path']);
 
@@ -584,6 +679,28 @@ class I983Cases
                 $this->event((int) $current->tenant_id, (int) $current->id, null, 'student', $locked ? 'training_saved' : 'student_draft_saved', $locked ? 'training' : 'section_1');
             }
         });
+
+        if ($removeDraft) {
+            $this->studentCertifications->forgetDraft($case);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function keepStudentDraftSignature(object $case, array $input): void
+    {
+        $file = $input['signature'] ?? null;
+
+        if ($file instanceof \Illuminate\Http\UploadedFile && $file->isValid() && (int) $file->getSize() > 0) {
+            $this->studentCertifications->rememberDraft($case, $file);
+
+            return;
+        }
+
+        if (in_array($input['clear_signature'] ?? null, [true, 1, '1', 'on', 'true'], true)) {
+            $this->studentCertifications->forgetDraft($case);
+        }
     }
 
     private function assertManager(User $actor): void
@@ -962,6 +1079,187 @@ class I983Cases
             ->value('created_at');
 
         return $created === null ? '' : Carbon::parse($created)->format('F j, Y');
+    }
+
+    /**
+     * @return array{stage: string, label: string, canGenerateFinal: bool, blockers: list<string>, steps: list<array{key: string, label: string, state: string}>}
+     */
+    private function workflow(object $case): array
+    {
+        $done = [
+            'create_case' => true,
+            'student_submission' => $this->studentStepReady($case),
+            'employer_information' => $this->employerStepReady($case),
+            'training_plan' => $this->trainingStepReady($case),
+            'employer_certification' => $this->signatoryStepReady($case),
+            'final_pdf' => $case->status === 'finalized',
+        ];
+        $labels = [
+            'create_case' => 'Create Case',
+            'student_submission' => 'Student Submission',
+            'employer_information' => 'Employer Information',
+            'training_plan' => 'Training Plan',
+            'employer_certification' => 'Employer Certification',
+            'final_pdf' => 'Generate Final PDF',
+        ];
+        $stage = 'final_pdf';
+
+        foreach ($done as $key => $complete) {
+            if (! $complete) {
+                $stage = $key;
+
+                break;
+            }
+        }
+
+        $blockers = $this->finalBlockers($case);
+
+        return [
+            'stage' => $stage,
+            'label' => $labels[$stage],
+            'canGenerateFinal' => $blockers === [] && $case->status !== 'finalized',
+            'blockers' => $blockers,
+            'steps' => array_map(function (string $key) use ($labels, $done, $stage): array {
+                return [
+                    'key' => $key,
+                    'label' => $labels[$key],
+                    'state' => $key === $stage ? 'current' : ($done[$key] ? 'complete' : 'pending'),
+                ];
+            }, array_keys($labels)),
+        ];
+    }
+
+    private function studentStepReady(object $case): bool
+    {
+        return $case->student_submitted_at !== null
+            && $case->status !== 'correction_requested'
+            && $this->studentCertifications->present((int) $case->id)['latest'] !== null;
+    }
+
+    private function employerStepReady(object $case): bool
+    {
+        $employer = DB::table('i983_employers')->where('case_id', $case->id)->first();
+
+        foreach (['legal_name', 'street', 'city', 'state', 'zip', 'employee_count', 'naics', 'opt_hours', 'start_date'] as $field) {
+            if (! $this->requirementFilled($employer->{$field} ?? null)) {
+                return false;
+            }
+        }
+
+        return $employer !== null
+            && $this->requirementFilled($this->reveal($employer->ein_ciphertext ?? null))
+            && $this->requirementFilled($employer->salary ?? $employer->annual_compensation ?? null);
+    }
+
+    private function trainingStepReady(object $case): bool
+    {
+        $training = DB::table('i983_training_plans')->where('case_id', $case->id)->first();
+
+        foreach (['student_role', 'site_name', 'site_address', 'official_name', 'official_title', 'official_email', 'official_phone'] as $field) {
+            if (! $this->requirementFilled($training->{$field} ?? null)) {
+                return false;
+            }
+        }
+
+        return $training !== null && in_array($training->work_arrangement, ['remote', 'on_site', 'hybrid'], true);
+    }
+
+    private function signatoryStepReady(object $case): bool
+    {
+        try {
+            $this->signatory->ready((int) $case->tenant_id);
+        } catch (ValidationException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function requirementFilled(mixed $value): bool
+    {
+        return $value !== null && trim((string) $value) !== '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function finalBlockers(object $case): array
+    {
+        if ($case->status === 'finalized') {
+            return ['The final PDF is already stored.'];
+        }
+
+        $blockers = [];
+
+        if ($case->student_submitted_at === null || $this->studentCertifications->present((int) $case->id)['latest'] === null) {
+            $blockers[] = 'The student must submit Section 1 and certify Section 2.';
+        }
+
+        $employer = DB::table('i983_employers')->where('case_id', $case->id)->first();
+        $training = DB::table('i983_training_plans')->where('case_id', $case->id)->first();
+        $checks = [
+            'Employer legal name' => $employer->legal_name ?? null,
+            'Street address' => $employer->street ?? null,
+            'City' => $employer->city ?? null,
+            'State' => $employer->state ?? null,
+            'ZIP' => $employer->zip ?? null,
+            'EIN' => $this->reveal($employer->ein_ciphertext ?? null),
+            'Full-time U.S. employees' => $employer->employee_count ?? null,
+            'NAICS code' => $employer->naics ?? null,
+            'OPT hours per week' => $employer->opt_hours ?? null,
+            'Compensation' => $employer->salary ?? $employer->annual_compensation ?? null,
+            'Employment start date' => $employer->start_date ?? null,
+            'Student role' => $training->student_role ?? null,
+            'Training site name' => $training->site_name ?? null,
+            'Training site address' => $training->site_address ?? null,
+            'Employer official name' => $training->official_name ?? null,
+            'Employer official title' => $training->official_title ?? null,
+            'Employer official email' => $training->official_email ?? null,
+            'Employer official phone' => $training->official_phone ?? null,
+            'Work arrangement' => in_array($training->work_arrangement ?? null, ['remote', 'on_site', 'hybrid'], true) ? $training->work_arrangement : null,
+        ];
+
+        foreach ($checks as $label => $value) {
+            if ($value === null || trim((string) $value) === '') {
+                $blockers[] = $label.' is required before the final PDF.';
+            }
+        }
+
+        try {
+            $this->signatory->ready((int) $case->tenant_id);
+        } catch (ValidationException) {
+            $blockers[] = 'Save the employer official signature before generating the final PDF.';
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * The student link never receives employer identifiers or employer certification.
+     *
+     * @return array<string, string>
+     */
+    private function studentEmployer(): array
+    {
+        return [
+            'legalName' => '',
+            'street' => '',
+            'suite' => '',
+            'website' => '',
+            'city' => '',
+            'state' => '',
+            'zip' => '',
+            'ein' => '',
+            'employeeCount' => '',
+            'naics' => '',
+            'optHours' => '',
+            'salary' => '',
+            'salaryFrequency' => '',
+            'annualCompensation' => '',
+            'otherCompensation' => '',
+            'startDate' => '',
+            'finalizedAt' => '',
+        ];
     }
 
     /**

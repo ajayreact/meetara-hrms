@@ -10,6 +10,7 @@ interface CaseRow {
     candidate: string;
     email: string;
     status: string;
+    stageLabel?: string;
     submitted: boolean;
     createdAt: string;
 }
@@ -17,12 +18,11 @@ interface CaseRow {
 const control = 'mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm';
 
 const labels: Record<string, string> = {
-    awaiting_student: 'Awaiting Student',
-    student_draft: 'Student Draft',
-    student_submitted: 'Student Submitted',
-    correction_requested: 'Correction Requested',
-    resubmitted: 'Resubmitted',
-    finalized: 'Finalized',
+    awaiting_student: 'Student Submission',
+    student_submitted: 'Employer Information',
+    correction_requested: 'Student Submission',
+    resubmitted: 'Employer Information',
+    finalized: 'Generate Final PDF',
 };
 
 function label(status: string): string {
@@ -40,7 +40,7 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
 
     return (
         <HrmsLayout workspace={workspace}>
-            <PageIntro title="STEM OPT I-983" subtitle="Create a case, share a private student link, then review Section 1, employer information, and the training plan. This does not file the form or create an employee." />
+            <PageIntro title="STEM OPT I-983" subtitle="Create a case, then follow Student Submission, Employer Information, Training Plan, Employer Certification, and Generate Final PDF." />
             {notice && <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
             {errors.delete && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{errors.delete}</p>}
             <form className="mb-4" onSubmit={submit}>
@@ -73,7 +73,7 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
                                         <td className="py-2 pr-3">{item.reference}</td>
                                         <td className="py-2 pr-3">{item.candidate}</td>
                                         <td className="py-2 pr-3">{item.email}</td>
-                                        <td className="py-2 pr-3">{label(item.status)}</td>
+                                        <td className="py-2 pr-3">{item.stageLabel || label(item.status)}</td>
                                         <td className="py-2 pr-3">{item.createdAt}</td>
                                         <td className="py-2">
                                             <div className="flex flex-wrap items-center gap-3">

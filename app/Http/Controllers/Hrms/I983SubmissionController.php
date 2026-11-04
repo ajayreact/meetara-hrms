@@ -49,6 +49,19 @@ class I983SubmissionController extends Controller
         return $this->pdf($this->cases->studentFinal($token), 'attachment');
     }
 
+    public function signature(string $token): HttpResponse
+    {
+        $file = $this->cases->studentSignatureFile($token);
+        abort_if($file === null, 404);
+
+        return response($file['bytes'], 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="student-signature.png"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
     /**
      * @param  array{bytes: string, filename: string}  $file
      */

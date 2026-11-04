@@ -12,6 +12,7 @@ use App\Services\Hrms\CompanyAdminInvitation;
 use App\Services\Hrms\EmployeeDirectory;
 use App\Services\Hrms\EmployeeEss;
 use App\Services\Hrms\GpsCapture;
+use App\Services\Hrms\I983EmployerProfile;
 use App\Services\Hrms\HelpDeskService;
 use App\Services\Hrms\LeaveDirectory;
 use App\Services\Hrms\OfferLetterCatalog;
@@ -130,6 +131,9 @@ class HrmsPageController extends Controller
             'candidateForm' => $user->applicationRole() === 'company_admin' ? app(CandidateOnboarding::class)->settings($user) : null,
             'stationery' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
                 ? app(OfferLetterCatalog::class)->stationery($user)
+                : null,
+            'i983Employer' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
+                ? app(I983EmployerProfile::class)->present($user)
                 : null,
             'notice' => session('status'),
             'error' => session('error'),

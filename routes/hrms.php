@@ -15,6 +15,7 @@ use App\Http\Controllers\Hrms\HelpDeskController;
 use App\Http\Controllers\Hrms\HolidayController;
 use App\Http\Controllers\Hrms\HrmsPageController;
 use App\Http\Controllers\Hrms\I983CaseController;
+use App\Http\Controllers\Hrms\I983EmployerProfileController;
 use App\Http\Controllers\Hrms\I983SubmissionController;
 use App\Http\Controllers\Hrms\InboxController;
 use App\Http\Controllers\Hrms\LeaveController;
@@ -44,6 +45,7 @@ Route::middleware([PublicFormHeaders::class, 'throttle:60,1,candidate-form-read'
 Route::middleware([PublicFormHeaders::class, 'throttle:10,1,candidate-form-submit'])->post('/apply/{token}', [CandidateSubmissionController::class, 'store'])->where('token', '[a-f0-9]{64}')->name('apply.store');
 
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}', [I983SubmissionController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('i983.submit.show');
+Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/signature', [I983SubmissionController::class, 'signature'])->where('token', '[a-f0-9]{64}')->name('i983.submit.signature');
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final', [I983SubmissionController::class, 'preview'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final');
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final/download', [I983SubmissionController::class, 'download'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final.download');
 Route::middleware([PublicFormHeaders::class, 'throttle:20,1,i983-form-save'])->post('/i983/s/{token}', [I983SubmissionController::class, 'update'])->where('token', '[a-f0-9]{64}')->name('i983.submit.update');
@@ -175,6 +177,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/i983/{case}/documents/{document}/download', [I983CaseController::class, 'download'])->whereNumber(['case', 'document'])->name('hrms.i983.documents.download');
     Route::post('/i983/{case}/signature', [I983CaseController::class, 'applySignature'])->whereNumber('case')->name('hrms.i983.signature.apply');
     Route::post('/i983/{case}/finalize', [I983CaseController::class, 'finalizeDocument'])->whereNumber('case')->name('hrms.i983.finalize');
+    Route::post('/i983/{case}/final', [I983CaseController::class, 'generateFinal'])->whereNumber('case')->name('hrms.i983.final');
     Route::post('/i983/{case}/link/revoke', [I983CaseController::class, 'revoke'])->whereNumber('case')->name('hrms.i983.link.revoke');
     Route::post('/i983/{case}/link', [I983CaseController::class, 'reissue'])->whereNumber('case')->name('hrms.i983.link.reissue');
     Route::delete('/i983/{case}', [I983CaseController::class, 'destroy'])->whereNumber('case')->name('hrms.i983.destroy');
@@ -254,6 +257,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/offices/{office}/networks/{network}', [OfficeController::class, 'destroyNetwork'])->name('hrms.offices.networks.destroy');
     Route::get('/company/settings', [HrmsPageController::class, 'companySettings'])->name('hrms.company-settings');
     Route::put('/company/settings/payroll', [PayrollSettingsController::class, 'update'])->name('hrms.company-settings.payroll');
+    Route::put('/company/settings/i983-employer', [I983EmployerProfileController::class, 'update'])->name('hrms.company-settings.i983-employer');
     Route::put('/company/settings/candidate-form', [CandidateFormSettingsController::class, 'update'])->name('hrms.company-settings.candidate-form');
     Route::post('/company/settings/candidate-form/token', [CandidateFormSettingsController::class, 'rotate'])->name('hrms.company-settings.candidate-form.rotate');
     Route::get('/companies', [HrmsPageController::class, 'companies'])->name('hrms.companies');

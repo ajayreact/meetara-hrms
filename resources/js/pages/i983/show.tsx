@@ -2,7 +2,7 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
-import { FormEvent, useEffect } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 interface StudentInfo {
     surname: string;
@@ -96,15 +96,6 @@ interface Signatory {
 
 const control = 'mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm';
 
-const statusLabels: Record<string, string> = {
-    awaiting_student: 'Awaiting student',
-    student_draft: 'Student draft',
-    student_submitted: 'Student submitted',
-    correction_requested: 'Correction requested',
-    resubmitted: 'Resubmitted',
-    finalized: 'Finalized',
-};
-
 const documentLabels: Record<string, string> = {
     student_snapshot: 'Student-submitted',
     hr_working: 'HR working',
@@ -118,7 +109,15 @@ interface StudentCertification {
     history: Array<{ version: number; printedName: string; certifiedOn: string; timezone: string }>;
 }
 
-export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, canPreviewDraft = false, studentCertification = { latest: null, history: [] }, notice }: HrmsPageProps & {
+interface Workflow {
+    stage: string;
+    label: string;
+    canGenerateFinal: boolean;
+    blockers: string[];
+    steps: Array<{ key: string; label: string; state: 'complete' | 'current' | 'pending' }>;
+}
+
+export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, canPreviewDraft = false, studentCertification = { latest: null, history: [] }, workflow = { stage: 'student_submission', label: 'Student Submission', canGenerateFinal: false, blockers: [], steps: [] }, notice }: HrmsPageProps & {
     case: { id: number; reference: string; candidateName: string; candidateEmail: string; status: string; submittedAt: string };
     student: StudentInfo;
     employer: EmployerInfo;
@@ -132,6 +131,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
     canSign?: boolean;
     canPreviewDraft?: boolean;
     studentCertification?: StudentCertification;
+    workflow?: Workflow;
     notice?: string;
 }) {
     const employerForm = useForm({
@@ -169,29 +169,25 @@ export default function I983Show({ workspace, case: record, student, employer, t
         remarks: training.remarks,
     });
     const correctionForm = useForm({ reason: '' });
-    const studentPdf = useForm({});
-    const workingPdf = useForm({});
     const signatureForm = useForm<{ signatory_name: string; signatory_title: string; signature: File | null }>({
         signatory_name: signatory.name,
         signatory_title: signatory.title,
         signature: null,
     });
-    const latestWorking = [...documents].reverse().find((document) => document.kind === 'hr_working');
-    const latestSigned = [...documents].reverse().find((document) => document.kind === 'employer_signed');
-    const workingIsSigned = latestWorking !== undefined && documents.some((document) => document.kind === 'employer_signed' && document.sourceDocumentId === latestWorking.id);
-    const signedIsFinal = latestSigned !== undefined && documents.some((document) => document.kind === 'final_signed' && document.sourceDocumentId === latestSigned.id);
-    const applyForm = useForm({ confirm: false });
-    const finalizeForm = useForm({ confirm: false });
+    const finalForm = useForm({ confirm: false });
+    const [editing, setEditing] = useState<string | null>(null);
 
     useEffect(() => {
         if (trainingForm.data.employer_name !== training.employerName) {
             trainingForm.setData('employer_name', training.employerName);
         }
+        // useForm returns a new object on every render, so only the name values belong in the dependency list.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [training.employerName, trainingForm.data.employer_name]);
 
-    function saveEmployer(event: FormEvent, finalize: boolean) {
+    function saveEmployer(event: FormEvent) {
         event.preventDefault();
-        employerForm.post(finalize ? route('hrms.i983.employer.finalize', record.id) : route('hrms.i983.employer', record.id));
+        employerForm.post(route('hrms.i983.employer', record.id));
     }
 
     function saveTraining(event: FormEvent) {
@@ -209,14 +205,9 @@ export default function I983Show({ workspace, case: record, student, employer, t
         signatureForm.post(route('hrms.i983.signature.save'));
     }
 
-    function applySignature(event: FormEvent) {
+    function generateFinal(event: FormEvent) {
         event.preventDefault();
-        applyForm.post(route('hrms.i983.signature.apply', record.id));
-    }
-
-    function finalizeI983(event: FormEvent) {
-        event.preventDefault();
-        finalizeForm.post(route('hrms.i983.finalize', record.id));
+        finalForm.post(route('hrms.i983.final', record.id));
     }
 
     const facts = [
@@ -239,13 +230,59 @@ export default function I983Show({ workspace, case: record, student, employer, t
         ['Employment authorization number', student.ead],
     ];
 
+    function presentation(key: string): 'form' | 'summary' | 'later' {
+        if (editing === key) {
+            return 'form';
+        }
+
+        const step = workflow.steps.find((item) => item.key === key);
+
+        if (step?.state === 'current') {
+            return 'form';
+        }
+
+        if (step?.state === 'complete') {
+            return 'summary';
+        }
+
+        return 'later';
+    }
+
     return (
         <HrmsLayout workspace={workspace}>
-            <PageIntro title={record.reference} subtitle={`${record.candidateName} · ${record.candidateEmail} · ${statusLabels[record.status] ?? record.status}`} />
+            <PageIntro title={record.reference} subtitle={`${record.candidateName} · ${record.candidateEmail} · ${workflow.label}`} />
             {notice && <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
             <div className="mb-4"><Link className="text-sm font-medium text-blue-700" href={route('hrms.i983')}>Back to I-983 cases</Link></div>
+            <ol className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+                {workflow.steps.map((step, index) => (
+                    <li key={step.key} className={`rounded-xl border px-3 py-2 text-sm ${step.state === 'current' ? 'border-blue-700 bg-blue-50 text-blue-950' : step.state === 'complete' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-500'}`}>
+                        <p className="text-[11px] font-semibold tracking-wide uppercase">{index + 1}. {step.state === 'current' ? 'Now' : step.state === 'complete' ? 'Done' : 'Later'}</p>
+                        <p className="font-medium">{step.label}</p>
+                    </li>
+                ))}
+            </ol>
+            {canPreviewDraft && record.status !== 'finalized' && (
+                <p className="mb-4 text-sm text-slate-600">
+                    <a className="text-blue-700" href={route('hrms.i983.draft', record.id)} target="_blank" rel="noreferrer">Preview draft</a>
+                    {' '}— DRAFT – NOT FOR SUBMISSION. This preview is not stored and does not apply the employer signature.
+                </p>
+            )}
             <div className="grid gap-4">
-                <SectionCard title="Student link">
+                <SectionCard title="1. Create Case">
+                    <p className="text-sm text-slate-700">{record.candidateName} · {record.candidateEmail}</p>
+                    <p className="mt-1 text-sm text-slate-500">This case is open. The student link is in the next step.</p>
+                </SectionCard>
+                {presentation('student_submission') === 'later' && <SectionCard title="2. Student Submission"><p className="text-sm text-slate-600">This step opens after Create Case.</p></SectionCard>}
+                {presentation('student_submission') === 'summary' && (
+                    <SectionCard title="2. Student Submission">
+                        <p className="text-sm text-slate-700">Submitted {record.submittedAt || '—'}{studentCertification.latest ? ` · ${studentCertification.latest.printedName}` : ''}.</p>
+                        <p className="mt-2 text-sm text-slate-600">{link.revoked ? 'The latest link is revoked.' : link.active ? `The link is active until ${link.expiresAt}.` : 'The latest link is expired.'}</p>
+                        <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('student_submission')}>Review or change the link</button>
+                    </SectionCard>
+                )}
+                {presentation('student_submission') === 'form' && (
+                <div className="grid gap-4">
+                <SectionCard title="2. Student Submission">
                     <p className="text-sm text-slate-600">{link.revoked ? 'The latest link is revoked.' : link.active ? `Active until ${link.expiresAt}.` : 'The latest link is expired.'} The link is not emailed. After submission, Section 1 and Student Role stay locked unless you request a correction. Goals stay shared. Employer fields stay on this page.</p>
                     {linkUrl && <p className="mt-3 break-all rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">{linkUrl}</p>}
                     <div className="mt-3 flex flex-wrap gap-3">
@@ -264,9 +301,31 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         ))}
                     </dl>
                 </SectionCard>
-                <form onSubmit={(event) => saveEmployer(event, false)}>
-                    <SectionCard title="Section 3 employer information">
-                        <p className="mb-3 text-sm text-slate-600">Name, street, website, and EIN may be suggested from USA company settings. Review every value. Saving does not sign or file the form. {employer.finalizedAt ? `Last finalized ${employer.finalizedAt}.` : 'Not finalized.'}</p>
+                {record.submittedAt && (
+                    <form onSubmit={requestCorrection}>
+                        <SectionCard title="Request a student correction">
+                            <p className="mb-3 text-sm text-slate-600">This unlocks Section 1 and Student Role for the student. It does not rewrite earlier answers or replace a stored PDF.</p>
+                            {correction && <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Open request from {correction.requestedAt}: {correction.reason}</p>}
+                            <label className="text-sm text-slate-700">Reason<textarea className={control} rows={3} value={correctionForm.data.reason} onChange={(event) => correctionForm.setData('reason', event.target.value)} /></label>
+                            {correctionForm.errors.reason && <p className="mt-2 text-sm text-rose-700">{correctionForm.errors.reason}</p>}
+                            <button className="mt-3 rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit" disabled={correctionForm.processing}>Request correction</button>
+                        </SectionCard>
+                    </form>
+                )}
+                </div>
+                )}
+                {presentation('employer_information') === 'later' && <SectionCard title="3. Employer Information"><p className="text-sm text-slate-600">This step opens after the student submits Section 1 and Section 2.</p></SectionCard>}
+                {presentation('employer_information') === 'summary' && (
+                    <SectionCard title="3. Employer Information">
+                        <p className="text-sm text-slate-700">{employer.legalName || '—'} · {employer.city || '—'}, {employer.state || '—'} {employer.zip || ''}</p>
+                        <p className="mt-1 text-sm text-slate-600">EIN {employer.ein || '—'} · {employer.optHours || '—'} hours · starts {employer.startDate || '—'}</p>
+                        <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('employer_information')}>Edit employer information</button>
+                    </SectionCard>
+                )}
+                {presentation('employer_information') === 'form' && (
+                <form onSubmit={saveEmployer}>
+                    <SectionCard title="3. Employer Information">
+                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving here changes only this I-983.</p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Legal employer name<input className={control} value={employerForm.data.legal_name} onChange={(event) => employerForm.setData('legal_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Website<input className={control} value={employerForm.data.website} onChange={(event) => employerForm.setData('website', event.target.value)} /></label>
@@ -297,14 +356,22 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         {employerForm.errors.annual_compensation && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.annual_compensation}</p>}
                         {employerForm.errors.salary && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.salary}</p>}
                         {employerForm.errors.state && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.state}</p>}
-                        <div className="mt-3 flex flex-wrap gap-3">
-                            <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit" disabled={employerForm.processing}>Save employer information</button>
-                            <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white" type="button" disabled={employerForm.processing} onClick={(event) => saveEmployer(event, true)}>Finalize reviewed values</button>
-                        </div>
+                        <button className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={employerForm.processing}>Save employer information</button>
                     </SectionCard>
                 </form>
+                )}
+                {presentation('training_plan') === 'later' && <SectionCard title="4. Training Plan"><p className="text-sm text-slate-600">This step opens after Employer Information is saved.</p></SectionCard>}
+                {presentation('training_plan') === 'summary' && (
+                    <SectionCard title="4. Training Plan">
+                        <p className="text-sm text-slate-700">{training.siteName || '—'} · {training.workArrangement || 'work arrangement not selected'}</p>
+                        <p className="mt-1 text-sm text-slate-600">{training.officialName || '—'}, {training.officialTitle || '—'}</p>
+                        <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('training_plan')}>Edit training plan</button>
+                    </SectionCard>
+                )}
+                {presentation('training_plan') === 'form' && (
+                <>
                 <form onSubmit={saveTraining}>
-                    <SectionCard title="Section 5 training plan">
+                    <SectionCard title="4. Training Plan">
                         <p className="mb-3 text-sm text-slate-600">Student Name comes from Section 1. Employer Name comes from Section 3. Employer HR and the student can both complete Student Role. Goals and Objectives are shared. The training site is saved separately from the employer&apos;s registered address. Site, official, oversight, measures, and remarks are employer-owned.</p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Student name · student-owned, from Section 1<input className={lockedControl} readOnly value={trainingForm.data.student_name} /></label>
@@ -337,8 +404,31 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         <button className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={trainingForm.processing}>Save training plan</button>
                     </SectionCard>
                 </form>
+                {revisions.length > 0 && (
+                    <SectionCard title="Training plan changes">
+                        <ul className="space-y-3 text-sm text-slate-700">
+                            {revisions.map((revision, index) => (
+                                <li key={`${revision.field}-${revision.at}-${index}`}>
+                                    <p>{revision.at} · {revision.editor} ({revision.actor}) changed {revision.field.replaceAll('_', ' ')}</p>
+                                    <p className="text-slate-500">Previous: {revision.previous || '—'}</p>
+                                    <p>New: {revision.next || '—'}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    </SectionCard>
+                )}
+                </>
+                )}
+                {presentation('employer_certification') === 'later' && <SectionCard title="5. Employer Certification"><p className="text-sm text-slate-600">This step opens after the Training Plan is saved.</p></SectionCard>}
+                {presentation('employer_certification') === 'summary' && (
+                    <SectionCard title="5. Employer Certification">
+                        <p className="text-sm text-slate-700">{signatory.name || '—'}, {signatory.title || '—'}. The signature image is saved for this company and is applied when the final PDF is generated.</p>
+                        <button className="mt-3 text-sm font-medium text-blue-700" type="button" onClick={() => setEditing('employer_certification')}>Replace the saved signature</button>
+                    </SectionCard>
+                )}
+                {presentation('employer_certification') === 'form' && (
                 <form onSubmit={saveSignature}>
-                    <SectionCard title="Employer signature">
+                    <SectionCard title="5. Employer Certification">
                         <p className="mb-3 text-sm text-slate-600">Upload the employer official&apos;s signature, name, and title. Saving this image does not sign an I-983. The image stays private to this company.</p>
                         {signatory.hasImage && <img alt="Uploaded employer signature" className="mb-3 h-16 rounded-lg border border-slate-200 bg-white p-2" src={route('hrms.i983.signature.show')} />}
                         <div className="grid gap-3 md:grid-cols-2">
@@ -352,54 +442,22 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         <button className="mt-3 rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit" disabled={signatureForm.processing}>Save signature</button>
                     </SectionCard>
                 </form>
-                {canSign && latestWorking && !workingIsSigned && record.status !== 'finalized' && (
-                    <form onSubmit={applySignature}>
-                        <SectionCard title="Apply employer signature">
-                            <p className="mb-3 text-sm text-slate-600">This signs HR working version {latestWorking.version}. The unsigned file stays stored. Page 5 evaluation fields stay blank.</p>
-                            <dl className="mb-3 grid gap-2 text-sm text-slate-800 md:grid-cols-2">
-                                <div><dt className="text-xs uppercase tracking-wide text-slate-500">Student</dt><dd>{training.studentName || record.candidateName}</dd></div>
-                                <div><dt className="text-xs uppercase tracking-wide text-slate-500">Employer</dt><dd>{training.employerName || employer.legalName || '—'}</dd></div>
-                                <div><dt className="text-xs uppercase tracking-wide text-slate-500">Signatory</dt><dd>{signatory.name || '—'}</dd></div>
-                                <div><dt className="text-xs uppercase tracking-wide text-slate-500">Title</dt><dd>{signatory.title || '—'}</dd></div>
-                                <div><dt className="text-xs uppercase tracking-wide text-slate-500">Document</dt><dd>HR working version {latestWorking.version}</dd></div>
-                            </dl>
-                            <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={applyForm.data.confirm} onChange={(event) => applyForm.setData('confirm', event.target.checked)} /><span>I confirm this official is authorized to sign this I-983.</span></label>
-                            {applyForm.errors.confirm && <p className="mt-2 text-sm text-rose-700">{applyForm.errors.confirm}</p>}
-                            {applyForm.errors.form && <p className="mt-2 text-sm text-rose-700">{applyForm.errors.form}</p>}
-                            {applyForm.errors.signature && <p className="mt-2 text-sm text-rose-700">{applyForm.errors.signature}</p>}
-                            <button className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={applyForm.processing || !applyForm.data.confirm}>Apply Employer Signature</button>
-                        </SectionCard>
-                    </form>
                 )}
-                {canSign && workingIsSigned && !signedIsFinal && record.status !== 'finalized' && (
-                    <form onSubmit={finalizeI983}>
-                        <SectionCard title="Finalize I-983">
-                            <p className="mb-3 text-sm text-slate-600">Finalizing stores a new immutable copy of the signed five-page PDF. Earlier student, working, and signed versions stay unchanged.</p>
-                            <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={finalizeForm.data.confirm} onChange={(event) => finalizeForm.setData('confirm', event.target.checked)} /><span>I confirm Section 1, Section 3, Section 4, Section 5, and Section 6 are complete and this I-983 is ready to finalize.</span></label>
-                            {finalizeForm.errors.confirm && <p className="mt-2 text-sm text-rose-700">{finalizeForm.errors.confirm}</p>}
-                            {finalizeForm.errors.form && <p className="mt-2 text-sm text-rose-700">{finalizeForm.errors.form}</p>}
-                            <button className="mt-3 rounded-xl bg-teal-800 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={finalizeForm.processing || !finalizeForm.data.confirm}>Finalize I-983</button>
-                        </SectionCard>
-                    </form>
-                )}
-                <SectionCard title="Official form versions">
+                {presentation('final_pdf') === 'later' && <SectionCard title="6. Generate Final PDF"><p className="text-sm text-slate-600">One Generate Final PDF action stores the HR working copy, the employer-signed copy, and the final file after the earlier steps are complete.</p></SectionCard>}
+                {presentation('final_pdf') !== 'later' && (
+                <SectionCard title="6. Generate Final PDF">
                     <p className="mb-3 text-sm text-slate-600">Each generation stores a new private copy for this company. Preview and download use the stored file. Nothing is emailed.</p>
                     <p className="mb-3 text-sm text-slate-600">{studentCertification.latest ? `Student Section 2 certification version ${studentCertification.latest.version}: ${studentCertification.latest.printedName}, ${studentCertification.latest.certifiedOn} (${studentCertification.latest.timezone}).${studentCertification.history.length > 1 ? ' Earlier certifications remain stored.' : ''}` : 'Section 2 stays blank until the student certifies it. HR cannot sign Section 2 for the student.'}</p>
-                    {canPreviewDraft && record.status !== 'finalized' && (
-                        <p className="mb-4 text-sm text-slate-600">
-                            <a className="text-blue-700" href={route('hrms.i983.draft', record.id)} target="_blank" rel="noreferrer">Preview draft</a>
-                            {' '}— DRAFT – NOT FOR SUBMISSION. This preview uses the information saved so far. It is not stored, it does not apply the employer signature, and it is not a completed official form. Section 2 is included only after the student certifies it.
-                        </p>
+                    {canSign && presentation('final_pdf') === 'form' && record.status !== 'finalized' && (
+                        <form className="mb-4" onSubmit={generateFinal}>
+                            <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={finalForm.data.confirm} onChange={(event) => finalForm.setData('confirm', event.target.checked)} /><span>I confirm this official is authorized to sign, and Section 1 through Section 6 are complete.</span></label>
+                            {finalForm.errors.confirm && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.confirm}</p>}
+                            {finalForm.errors.form && <p className="mt-2 text-sm text-rose-700">{finalForm.errors.form}</p>}
+                            {workflow.blockers.length > 0 && <ul className="mt-2 space-y-1 text-sm text-slate-600">{workflow.blockers.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul>}
+                            <button className="mt-3 w-full rounded-xl bg-teal-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50" type="submit" disabled={finalForm.processing || !finalForm.data.confirm || !workflow.canGenerateFinal}>Generate Final PDF</button>
+                        </form>
                     )}
-                    {record.status === 'finalized' ? <p className="mb-4 text-sm text-slate-600">This I-983 is finalized. Request a correction before changing it. The finalized PDF is not replaced.</p> : record.submittedAt ? (
-                        <div className="mb-4 flex flex-wrap gap-3">
-                            <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" disabled={studentPdf.processing} type="button" onClick={() => studentPdf.post(route('hrms.i983.documents.student', record.id))}>Generate student-submitted PDF</button>
-                            <button className="rounded-xl bg-teal-700 px-4 py-2 text-sm text-white" disabled={workingPdf.processing} type="button" onClick={() => workingPdf.post(route('hrms.i983.documents.working', record.id))}>Generate HR working PDF</button>
-                        </div>
-                    ) : <p className="mb-4 text-sm text-slate-600">The first student-submitted PDF is stored when the student submits Section 1 and certifies Section 2.</p>}
-                    {[...Object.values(studentPdf.errors), ...Object.values(workingPdf.errors)].map((message) => (
-                        <p key={message} className="mb-2 text-sm text-rose-700">{message}</p>
-                    ))}
+                    {record.status === 'finalized' && <p className="mb-4 text-sm text-slate-600">The final PDF is stored below. It is not replaced.</p>}
                     {documents.length === 0 ? <p className="text-sm text-slate-600">No official PDF has been stored.</p> : (
                         <ul className="space-y-3 text-sm text-slate-700">
                             {documents.map((document) => (
@@ -416,30 +474,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         </ul>
                     )}
                 </SectionCard>
-                {record.submittedAt && (
-                    <form onSubmit={requestCorrection}>
-                        <SectionCard title="Request a student correction">
-                            <p className="mb-3 text-sm text-slate-600">This unlocks Section 1 and Student Role for the student. Employer HR can also update Student Role. It does not rewrite earlier answers or replace a finalized PDF.</p>
-                            {correction && <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Open request from {correction.requestedAt}: {correction.reason}</p>}
-                            <label className="text-sm text-slate-700">Reason<textarea className={control} rows={3} value={correctionForm.data.reason} onChange={(event) => correctionForm.setData('reason', event.target.value)} /></label>
-                            {correctionForm.errors.reason && <p className="mt-2 text-sm text-rose-700">{correctionForm.errors.reason}</p>}
-                            <button className="mt-3 rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit" disabled={correctionForm.processing}>Request correction</button>
-                        </SectionCard>
-                    </form>
                 )}
-                <SectionCard title="Training plan changes">
-                    {revisions.length === 0 ? <p className="text-sm text-slate-600">No training-plan changes yet.</p> : (
-                        <ul className="space-y-3 text-sm text-slate-700">
-                            {revisions.map((revision, index) => (
-                                <li key={`${revision.field}-${revision.at}-${index}`}>
-                                    <p>{revision.at} · {revision.editor} ({revision.actor}) changed {revision.field.replaceAll('_', ' ')}</p>
-                                    <p className="text-slate-500">Previous: {revision.previous || '—'}</p>
-                                    <p>New: {revision.next || '—'}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </SectionCard>
             </div>
         </HrmsLayout>
     );

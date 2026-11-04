@@ -1489,6 +1489,25 @@ class HrmsSchema
             });
         }
 
+        if (! Schema::hasTable('i983_employer_profiles')) {
+            Schema::create('i983_employer_profiles', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id')->unique();
+                $table->string('legal_name', 191);
+                $table->string('website', 191)->nullable();
+                $table->string('street', 191);
+                $table->string('suite', 40)->nullable();
+                $table->string('city', 80);
+                $table->string('state', 2);
+                $table->string('zip', 10);
+                $table->text('ein_ciphertext');
+                $table->unsignedInteger('employee_count');
+                $table->string('naics', 10);
+                $table->unsignedBigInteger('updated_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (! Schema::hasTable('i983_training_plans')) {
             Schema::create('i983_training_plans', function (Blueprint $table) {
                 $table->id();

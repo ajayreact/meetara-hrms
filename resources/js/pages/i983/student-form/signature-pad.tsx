@@ -1,8 +1,19 @@
-import { PointerEvent, useRef } from 'react';
+import { PointerEvent, useEffect, useRef } from 'react';
 
-export function SignaturePad({ disabled, onChange }: { disabled: boolean; onChange: (file: File | null) => void }) {
+export function SignaturePad({
+    disabled,
+    value,
+    restoreUrl,
+    onChange,
+}: {
+    disabled: boolean;
+    value: File | null;
+    restoreUrl: string | null;
+    onChange: (file: File | null) => void;
+}) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawing = useRef(false);
+    const producedLocally = useRef(false);
 
     function point(event: PointerEvent<HTMLCanvasElement>) {
         const canvas = canvasRef.current;
@@ -60,9 +71,52 @@ export function SignaturePad({ disabled, onChange }: { disabled: boolean; onChan
             return;
         }
         canvas.toBlob((blob) => {
+            producedLocally.current = blob !== null;
             onChange(blob ? new File([blob], 'student-signature.png', { type: 'image/png' }) : null);
         }, 'image/png');
     }
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext('2d');
+
+        if (!canvas || !context) {
+            return;
+        }
+
+        if (producedLocally.current && value) {
+            producedLocally.current = false;
+
+            return;
+        }
+
+        const source = value ? URL.createObjectURL(value) : restoreUrl;
+
+        if (!source) {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            return;
+        }
+
+        let cancelled = false;
+        const image = new Image();
+        image.onload = () => {
+            if (cancelled) {
+                return;
+            }
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        };
+        image.src = source;
+
+        return () => {
+            cancelled = true;
+
+            if (value) {
+                URL.revokeObjectURL(source);
+            }
+        };
+    }, [restoreUrl, value]);
 
     function clear() {
         const canvas = canvasRef.current;

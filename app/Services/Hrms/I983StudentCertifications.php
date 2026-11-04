@@ -49,6 +49,45 @@ class I983StudentCertifications
         return ($instant ?? now())->copy()->timezone($this->timezoneFor($tenantId))->format('m-d-Y');
     }
 
+    public function rememberDraft(object $case, UploadedFile $file): void
+    {
+        $upload = $this->png($file);
+        $this->assertReusable($case, $upload['upload_sha256'], $upload['png_sha256']);
+        $path = $this->draftPath($case);
+
+        try {
+            Storage::disk('local')->put($path, $upload['png']);
+            Storage::disk('local')->put($this->draftHashPath($case), $upload['png_sha256']);
+        } catch (\Throwable $exception) {
+            $this->forgetDraft($case);
+
+            throw $exception;
+        }
+    }
+
+    public function forgetDraft(object $case): void
+    {
+        Storage::disk('local')->delete([$this->draftPath($case), $this->draftHashPath($case)]);
+    }
+
+    public function draftUpload(object $case): ?UploadedFile
+    {
+        if ($this->verifiedDraft($case) === null) {
+            return null;
+        }
+
+        return new UploadedFile(Storage::disk('local')->path($this->draftPath($case)), 'student-signature.png', 'image/png', null, true);
+    }
+
+    public function storedSignatureBytes(object $case): ?string
+    {
+        if ($case->student_submitted_at !== null) {
+            return $this->certificationBytes($case) ?? $this->verifiedDraft($case);
+        }
+
+        return $this->verifiedDraft($case);
+    }
+
     /**
      * @param  array<string, mixed>  $input
      * @return array{path: string, version: int}
@@ -334,5 +373,59 @@ class I983StudentCertifications
     private function accepted(mixed $value): bool
     {
         return in_array($value, [true, 1, '1', 'on', 'true'], true);
+    }
+
+    private function draftPath(object $case): string
+    {
+        return 'i983/'.$case->tenant_id.'/'.$case->id.'/student-signature-draft.png';
+    }
+
+    private function draftHashPath(object $case): string
+    {
+        return $this->draftPath($case).'.sha256';
+    }
+
+    private function verifiedDraft(object $case): ?string
+    {
+        $path = $this->draftPath($case);
+        $bytes = Storage::disk('local')->get($path);
+        $hash = Storage::disk('local')->get($this->draftHashPath($case));
+
+        if (! is_string($bytes) || $bytes === '' || ! is_string($hash) || ! hash_equals(trim($hash), hash('sha256', $bytes))) {
+            return null;
+        }
+
+        if (! str_starts_with($bytes, "\x89PNG")) {
+            return null;
+        }
+
+        return $bytes;
+    }
+
+    private function certificationBytes(object $case): ?string
+    {
+        if (! Schema::hasTable('i983_student_certifications')) {
+            return null;
+        }
+
+        $row = DB::table('i983_student_certifications')
+            ->where('tenant_id', $case->tenant_id)
+            ->where('case_id', $case->id)
+            ->orderByDesc('version')
+            ->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        $expected = 'i983/'.$case->tenant_id.'/'.$case->id.'/student-signature-v'.$row->version.'.png';
+        $path = (string) $row->signature_path;
+        $bytes = $path === $expected ? Storage::disk('local')->get($path) : null;
+
+        if (! is_string($bytes) || $bytes === '' || ! hash_equals((string) $row->signature_sha256, hash('sha256', $bytes))) {
+            return null;
+        }
+
+        return $bytes;
     }
 }

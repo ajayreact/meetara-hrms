@@ -145,6 +145,7 @@ export interface StudentFormView {
     timezone: string;
     localDate: string;
     certification: { latest: CertificationRecord | null; history: CertificationRecord[] };
+    signatureOnFile: boolean;
     employer?: Partial<EmployerInfo> | EmployerInfo[];
     employerCertification?: EmployerCertification;
     evaluations?: EvaluationView[];
@@ -154,43 +155,6 @@ const line =
     'w-full min-h-11 border-b border-neutral-700 bg-transparent px-0 py-1 text-base text-neutral-950 outline-none placeholder:text-neutral-400 disabled:text-neutral-800 sm:min-h-9 sm:text-sm';
 const area = `${line} min-h-28 resize-y`;
 
-const employerCertificationPoints = [
-    'I have reviewed and understand this Plan, and I will ensure that the supervising Official follows this Plan.',
-    'I will notify the DSO at the earliest available opportunity regarding any material changes to this Plan, including any change of Employer Identification Number resulting from a corporate restructuring, any reduction in compensation from the amount previously submitted on the Plan that is not tied to a reduction in hours worked, any significant decrease in hours per week that a student engages in a STEM training opportunity, and any decrease in hours below the 20-hours-per-week minimum required under this rule.',
-    'Within five business days of the termination or departure of the student during the authorized period of OPT, I will report such termination or departure to the DSO. Five business days do not include federal holidays or weekend days, and an employer shall consider a student to have departed when the employer knows the student has left the practical training opportunity, or when the student has not reported for practical training for a period of five consecutive business days without the consent of the employer.',
-    'I will adhere to all applicable regulatory provisions that govern this program (see 8 CFR Part 214), including the STEM degree relationship, on-site supervision, sufficient resources, commensurate terms and conditions, and applicable Federal and State employment requirements.',
-];
-
-const sectionSixPoints = [
-    'I have reviewed, understand, and will follow this Training Plan for STEM OPT Students (Plan).',
-    'I will conduct the required periodic evaluations of the student.',
-    'I will adhere to all applicable regulatory provisions that govern this program (see 8 CFR Part 214.2(f)(10)(ii)).',
-    'I will notify the DSO regarding any material changes to or material deviations from this Plan at the earliest available opportunity, including if I believe the student is not receiving appropriate training as delineated in this Plan.',
-];
-
-function employerOf(form: StudentFormView): EmployerInfo {
-    const source = form.employer && !Array.isArray(form.employer) ? form.employer : {};
-
-    return {
-        legalName: source.legalName ?? '',
-        street: source.street ?? '',
-        suite: source.suite ?? '',
-        website: source.website ?? '',
-        city: source.city ?? '',
-        state: source.state ?? '',
-        zip: source.zip ?? '',
-        ein: source.ein ?? '',
-        employeeCount: source.employeeCount ?? '',
-        naics: source.naics ?? '',
-        optHours: source.optHours ?? '',
-        salary: source.salary ?? '',
-        salaryFrequency: source.salaryFrequency ?? '',
-        annualCompensation: source.annualCompensation ?? '',
-        otherCompensation: source.otherCompensation ?? '',
-        startDate: source.startDate ?? '',
-    };
-}
-
 function textOf(value: string): string {
     return value.trim() === '' ? '—' : value;
 }
@@ -199,12 +163,6 @@ function displayDate(value: string): string {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
     return match ? `${match[2]}-${match[3]}-${match[1]}` : textOf(value);
-}
-
-function salaryText(employer: EmployerInfo): string {
-    const annual = employer.annualCompensation.trim();
-
-    return annual === '' ? '—' : annual;
 }
 
 function Cell({
@@ -288,6 +246,7 @@ export function StudentDocument({
     onConfirm,
     processing,
     progress,
+    signatureUrl,
 }: {
     current: number;
     onPage: (page: number) => void;
@@ -303,15 +262,10 @@ export function StudentDocument({
     onConfirm: (event: FormEvent) => void;
     processing: boolean;
     progress: Array<{ page: number; label: string; state: string }>;
+    signatureUrl: string | null;
 }) {
     const locked = form.locked || finalized;
-    const employer = employerOf(form);
-    const certification = form.employerCertification ?? { signed: false, printedName: '', title: '', certifiedOn: '' };
     const recorded = form.certification.latest;
-    const evaluations = form.evaluations ?? [];
-    const progressEvaluation = evaluations.find((item) => item.kind !== 'final');
-    const finalEvaluation = evaluations.find((item) => item.kind === 'final');
-    const nameTitle = [certification.printedName, certification.title].filter(Boolean).join(', ');
 
     function text(key: keyof StudentDraft) {
         return <input className={line} value={String(data[key] ?? '')} disabled={locked} onChange={(event) => setData(key, event.target.value)} />;
@@ -319,7 +273,7 @@ export function StudentDocument({
 
     return (
         <div className="mt-4">
-            <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <ol className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {progress.map((item) => (
                     <li key={item.page}>
                         <button
@@ -485,12 +439,11 @@ export function StudentDocument({
                         <Cell label="Employment authorization number" hint="Student" error={error('ead')}>
                             {text('ead')}
                         </Cell>
-                        <Plain>A draft saves Section 1 without signing Section 2. Submit is a separate certification step.</Plain>
+                        <Plain>A draft keeps Section 1 and the signature drawing on this link. Submit is the separate Section 2 certification step.</Plain>
                     </div>
                 )}
 
-                {current === 2 && (
-                    <div>
+                <div className={current === 2 ? undefined : 'hidden'} hidden={current !== 2}>
                         <SectionBar>Section 2: Student certification</SectionBar>
                         <Plain>
                             <p>
@@ -513,6 +466,9 @@ export function StudentDocument({
                                     Date: {recorded.certifiedOn} ({recorded.timezone})
                                 </p>
                                 <p>Recorded at: {recorded.certifiedAt}</p>
+                                {signatureUrl && (
+                                    <img alt="Stored student signature" className="mt-3 h-16 border-b border-neutral-800 bg-white" src={signatureUrl} />
+                                )}
                             </Plain>
                         ) : (
                             <div>
@@ -548,7 +504,12 @@ export function StudentDocument({
                                     hint="Draw the signature. A typed name is not accepted."
                                     error={error('signature')}
                                 >
-                                    <SignaturePad disabled={finalized} onChange={(file) => setData('signature', file)} />
+                                    <SignaturePad
+                                        disabled={finalized}
+                                        value={data.signature}
+                                        restoreUrl={signatureUrl}
+                                        onChange={(file) => setData('signature', file)}
+                                    />
                                     <p className="mt-2 text-xs text-neutral-600">
                                         The form date will be {form.localDate} in {form.timezone}. You do not enter the date.
                                     </p>
@@ -604,7 +565,7 @@ export function StudentDocument({
                                                 disabled={processing}
                                                 onClick={onConfirm}
                                             >
-                                                Confirm and submit certification
+                                                Submit to employer
                                             </button>
                                         </div>
                                     </Plain>
@@ -617,7 +578,7 @@ export function StudentDocument({
                                             disabled={processing}
                                             onClick={onReview}
                                         >
-                                            Review and submit
+                                            Review information
                                         </button>
                                     </Plain>
                                 )}
@@ -635,102 +596,12 @@ export function StudentDocument({
                                 </ul>
                             </Plain>
                         )}
-                    </div>
-                )}
+                </div>
 
                 {current === 3 && (
                     <div>
-                        <SectionBar>Section 3: Employer information (Completed by employer)</SectionBar>
-                        <Plain>These fields are read-only. HR completes Section 3. A student cannot change them.</Plain>
-                        <div className="grid grid-cols-1 sm:grid-cols-3">
-                            <Cell label="Employer name" hint="Employer">
-                                <Read value={employer.legalName || data.employer_name} />
-                            </Cell>
-                            <Cell label="Street address" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.street} />
-                            </Cell>
-                            <Cell label="Suite" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.suite} />
-                            </Cell>
-                        </div>
-                        <Cell label="Employer website URL" hint="Employer">
-                            <Read value={employer.website} />
-                        </Cell>
-                        <div className="grid grid-cols-1 sm:grid-cols-3">
-                            <Cell label="City" hint="Employer">
-                                <Read value={employer.city} />
-                            </Cell>
-                            <Cell label="State" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.state} />
-                            </Cell>
-                            <Cell label="ZIP code" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.zip} />
-                            </Cell>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3">
-                            <Cell label="Employer ID number (EIN)" hint="Employer">
-                                <Read value={employer.ein} />
-                            </Cell>
-                            <Cell label="Number of full-time employees in the U.S." hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.employeeCount} />
-                            </Cell>
-                            <Cell
-                                label="North American Industry Classification System (NAICS) code"
-                                hint="Employer"
-                                className="sm:border-l sm:border-neutral-800"
-                            >
-                                <Read value={employer.naics} />
-                            </Cell>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2">
-                            <Cell label="OPT hours per week (must be at least 20 hours/week)" hint="Employer">
-                                <Read value={employer.optHours} />
-                            </Cell>
-                            <Cell
-                                label="Compensation — annual salary in U.S. dollars"
-                                hint="Employer"
-                                className="sm:border-l sm:border-neutral-800"
-                            >
-                                <Read value={salaryText(employer)} />
-                            </Cell>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2">
-                            <Cell label="Start date of employment" hint="Employer">
-                                <Read value={displayDate(employer.startDate)} />
-                            </Cell>
-                            <Cell label="Other compensation" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={employer.otherCompensation} />
-                            </Cell>
-                        </div>
-
-                        <SectionBar>Section 5: Training plan for STEM OPT students</SectionBar>
-                        <Cell label="Student name (surname/primary name, given name)" hint="From Section 1">
-                            <Read value={form.training.studentName} />
-                        </Cell>
-                        <Cell label="Employer name" hint="From Section 3">
-                            <Read value={data.employer_name} />
-                        </Cell>
-                        <div className="bg-neutral-200 px-3 py-1 text-center text-[11px] font-bold uppercase">Employer site information</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2">
-                            <Cell label="Site name" hint="Employer">
-                                <Read value={data.site_name} />
-                            </Cell>
-                            <Cell label="Site address (street, city, state, ZIP)" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={data.site_address} />
-                            </Cell>
-                            <Cell label="Name of official" hint="Employer">
-                                <Read value={data.official_name} />
-                            </Cell>
-                            <Cell label="Official's title" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={data.official_title} />
-                            </Cell>
-                            <Cell label="Official's email" hint="Employer">
-                                <Read value={data.official_email} />
-                            </Cell>
-                            <Cell label="Official's phone number" hint="Employer" className="sm:border-l sm:border-neutral-800">
-                                <Read value={data.official_phone} />
-                            </Cell>
-                        </div>
+                        <SectionBar>Your training responses</SectionBar>
+                        <Plain>Employer information, the training site, employer certification, and the employer signature stay with your employer. You complete Student Role and Goals only.</Plain>
                         <Cell
                             label="Student role"
                             hint={form.locked ? 'Locked after submission. Ask HR to request a correction.' : 'You and employer HR can complete this before you submit.'}
@@ -751,15 +622,6 @@ export function StudentDocument({
                                 <textarea className={area} rows={4} value={data.goals} onChange={(event) => setData('goals', event.target.value)} />
                             )}
                         </Cell>
-                        <Cell label="Employer oversight" hint="Employer">
-                            <textarea className={area} rows={4} readOnly value={data.oversight} />
-                        </Cell>
-                        <Cell label="Measures and assessments" hint="Employer">
-                            <textarea className={area} rows={4} readOnly value={data.measures} />
-                        </Cell>
-                        <Cell label="Additional remarks (optional)" hint="Employer">
-                            <textarea className={area} rows={3} readOnly value={data.remarks} />
-                        </Cell>
                         {(form.goalHistory ?? []).length > 0 && (
                             <Plain>
                                 <p className="font-semibold">Goals and objectives history</p>
@@ -779,65 +641,10 @@ export function StudentDocument({
                     </div>
                 )}
 
-                {current === 4 && (
-                    <div>
-                        <SectionBar>Section 4: Employer certification</SectionBar>
-                        <Plain>
-                            <p>
-                                I certify on behalf of the employer that this Training Plan for STEM OPT Students (&quot;Plan&quot;) is approved and
-                                that:
-                            </p>
-                            <ol className="mt-2 list-decimal space-y-2 pl-5">
-                                {employerCertificationPoints.map((point) => (
-                                    <li key={point}>{point}</li>
-                                ))}
-                            </ol>
-                            <p className="mt-3">
-                                Only a Head of Operations can apply the employer signature. This page does not accept a student signature.
-                            </p>
-                        </Plain>
-                        <SignatureLines
-                            signed={certification.signed}
-                            nameTitle={nameTitle}
-                            date={certification.certifiedOn}
-                            organization={employer.legalName}
-                            showOrganization
-                        />
-                        <SectionBar>Section 6: Employer official certification</SectionBar>
-                        <Plain>
-                            <p>Employer official with signatory authority — I certify that:</p>
-                            <ol className="mt-2 list-decimal space-y-2 pl-5">
-                                {sectionSixPoints.map((point) => (
-                                    <li key={point}>{point}</li>
-                                ))}
-                            </ol>
-                        </Plain>
-                        <SignatureLines
-                            signed={certification.signed}
-                            nameTitle={nameTitle}
-                            date={certification.certifiedOn}
-                            organization=""
-                            showOrganization={false}
-                        />
-                        <Plain>The Privacy Act and Paperwork Reduction Act statements remain on the official PDF. They are not editable here.</Plain>
-                    </div>
-                )}
-
-                {current === 5 && (
-                    <div>
-                        <EvaluationBlock title="Evaluation on student progress" evaluation={progressEvaluation} />
-                        <EvaluationBlock title="Final evaluation on student progress" evaluation={finalEvaluation} />
-                        <Plain>
-                            These sections stay blank until evaluation data is entered through the evaluation workflow. This page does not collect a
-                            signature.
-                        </Plain>
-                    </div>
-                )}
-
                 <footer className="flex items-center justify-between px-3 py-2 text-[11px] text-neutral-600">
                     <span>ICE Form I-983 (7/16)</span>
                     <span>
-                        Page {current} of 5 · {finalized ? 'Finalized' : form.locked ? 'Submitted' : 'Draft'}
+                        Step {current} of 3 · {finalized ? 'Final PDF generated' : form.locked ? 'Submitted to employer' : 'Draft'}
                     </span>
                 </footer>
             </article>
@@ -845,68 +652,3 @@ export function StudentDocument({
     );
 }
 
-function SignatureLines({
-    signed,
-    nameTitle,
-    date,
-    organization,
-    showOrganization,
-}: {
-    signed: boolean;
-    nameTitle: string;
-    date: string;
-    organization: string;
-    showOrganization: boolean;
-}) {
-    return (
-        <div>
-            <Cell label="Signature of employer official with signatory authority" hint="Employer">
-                <p className="min-h-11 border-b border-neutral-800 py-1 text-sm">
-                    {signed ? 'Signature on file with the employer certification' : '—'}
-                </p>
-            </Cell>
-            <Cell label="Printed name and title of employer official with signatory authority" hint="Employer">
-                <Read value={nameTitle} />
-            </Cell>
-            <div className={showOrganization ? 'grid grid-cols-1 sm:grid-cols-2' : ''}>
-                <Cell label="Date (mm-dd-yyyy)" hint="Employer">
-                    <Read value={date} />
-                </Cell>
-                {showOrganization && (
-                    <Cell label="Printed name of employing organization" hint="From Section 3" className="sm:border-l sm:border-neutral-800">
-                        <Read value={organization} />
-                    </Cell>
-                )}
-            </div>
-        </div>
-    );
-}
-
-function EvaluationBlock({ title, evaluation }: { title: string; evaluation?: EvaluationView }) {
-    return (
-        <div>
-            <SectionBar>{title}</SectionBar>
-            <Plain>
-                Provide a self-evaluation of your performance, using the measures previously identified in applying and acquiring new knowledge,
-                skills, and competencies identified in the Training Plan for STEM OPT Students.
-            </Plain>
-            <div className="grid grid-cols-1 sm:grid-cols-2">
-                <Cell label="Range of evaluation dates — from (mm-dd-yyyy)">
-                    <Read value={evaluation?.from ?? ''} />
-                </Cell>
-                <Cell label="To (mm-dd-yyyy)" className="sm:border-l sm:border-neutral-800">
-                    <Read value={evaluation?.to ?? ''} />
-                </Cell>
-            </div>
-            <Cell label="Evaluation">
-                <Read value={evaluation?.narrative ?? ''} />
-            </Cell>
-            <Cell label="Signature of student">
-                <Read value={evaluation?.studentSigned ? `Signed ${evaluation.studentSignedOn}` : ''} />
-            </Cell>
-            <Cell label="Signature of employer official with signatory authority">
-                <Read value={evaluation?.employerSigned ? `Signed ${evaluation.employerSignedOn}` : ''} />
-            </Cell>
-        </div>
-    );
-}

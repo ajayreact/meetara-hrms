@@ -40,7 +40,22 @@ interface CandidateFormSettings {
     notice: string;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; notice?: string | null; error?: string | null }) {
+interface I983EmployerProfile {
+    ready: boolean;
+    saved: boolean;
+    legalName: string;
+    website: string;
+    street: string;
+    suite: string;
+    city: string;
+    state: string;
+    zip: string;
+    ein: string;
+    employeeCount: string;
+    naics: string;
+}
+
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, i983Employer = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; i983Employer?: I983EmployerProfile | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -60,6 +75,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
                         {gpsCapture && <GpsCaptureForm settings={gpsCapture} />}
                         {candidateForm && <CandidateFormSettingsForm settings={candidateForm} />}
                     </div>
+                    {i983Employer && <I983EmployerForm profile={i983Employer} />}
                     {stationery && <LetterStationery stationery={stationery} />}
                 </>
             )}
@@ -180,6 +196,52 @@ function CandidateFormSettingsForm({ settings }: { settings: CandidateFormSettin
                 </label>
                 <InputError message={rotation.errors.confirm_rotate} />
                 <Button type="submit" variant="outline" disabled={rotation.processing || !settings.ready || !rotation.data.confirm_rotate}>{rotation.processing ? 'Working…' : 'Replace public link'}</Button>
+            </form>
+        </SectionCard>
+    );
+}
+
+function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
+    const form = useForm({
+        legal_name: profile.legalName,
+        website: profile.website,
+        street: profile.street,
+        suite: profile.suite,
+        city: profile.city,
+        state: profile.state,
+        zip: profile.zip,
+        ein: profile.ein,
+        employee_count: profile.employeeCount,
+        naics: profile.naics,
+    });
+    const fields: Array<[keyof typeof form.data, string, string]> = [
+        ['legal_name', 'Legal employer name', 'Veltrix Digital Solutions Inc'],
+        ['website', 'Website', 'https://veltrixds.com'],
+        ['street', 'Street address', '37068 Grand River Ave'],
+        ['suite', 'Suite', '1105'],
+        ['city', 'City', 'Farmington'],
+        ['state', 'State', 'MI'],
+        ['zip', 'ZIP', '48335'],
+        ['ein', 'EIN', '12-3456789'],
+        ['employee_count', 'Number of full-time U.S. employees', '12'],
+        ['naics', 'NAICS code', '541511'],
+    ];
+
+    return (
+        <SectionCard title="U.S. employer information" className="mt-4">
+            <p className="text-sm leading-6 text-slate-600">These details are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Pay, hours, and the training site stay on the individual case.</p>
+            {!profile.ready && <p className="mt-3 text-sm text-amber-800">Employer information storage is not ready on this database, so this record cannot be saved.</p>}
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.i983-employer')); }}>
+                {fields.map(([key, label, placeholder]) => (
+                    <label key={key} className="grid gap-1.5 text-sm">
+                        <Label htmlFor={`i983-${key}`}>{label}</Label>
+                        <Input id={`i983-${key}`} value={form.data[key]} placeholder={placeholder} maxLength={key === 'state' ? 2 : undefined} autoComplete={key === 'ein' ? 'off' : undefined} onChange={(event) => form.setData(key, key === 'state' ? event.target.value.toUpperCase() : event.target.value)} />
+                        <InputError message={form.errors[key]} />
+                    </label>
+                ))}
+                <div className="md:col-span-2">
+                    <Button type="submit" disabled={form.processing || !profile.ready}>{form.processing ? 'Working…' : 'Save employer information'}</Button>
+                </div>
             </form>
         </SectionCard>
     );
