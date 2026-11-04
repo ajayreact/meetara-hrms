@@ -105,6 +105,7 @@ class CompanyRole
                 'payrollImport' => true,
                 'offices' => true,
                 'exportAttendance' => true,
+                'i983Sign' => true,
             ]),
             'accounts' => array_merge($none, [
                 'payroll' => true,

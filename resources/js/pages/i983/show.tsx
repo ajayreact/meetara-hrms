@@ -118,7 +118,7 @@ interface StudentCertification {
     history: Array<{ version: number; printedName: string; certifiedOn: string; timezone: string }>;
 }
 
-export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, studentCertification = { latest: null, history: [] }, notice }: HrmsPageProps & {
+export default function I983Show({ workspace, case: record, student, employer, training, link, linkUrl, revisions = [], correction = null, documents = [], signatory = { name: '', title: '', hasImage: false }, canSign = false, canPreviewDraft = false, studentCertification = { latest: null, history: [] }, notice }: HrmsPageProps & {
     case: { id: number; reference: string; candidateName: string; candidateEmail: string; status: string; submittedAt: string };
     student: StudentInfo;
     employer: EmployerInfo;
@@ -130,6 +130,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
     documents?: DocumentVersion[];
     signatory?: Signatory;
     canSign?: boolean;
+    canPreviewDraft?: boolean;
     studentCertification?: StudentCertification;
     notice?: string;
 }) {
@@ -384,6 +385,12 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 <SectionCard title="Official form versions">
                     <p className="mb-3 text-sm text-slate-600">Each generation stores a new private copy for this company. Preview and download use the stored file. Nothing is emailed.</p>
                     <p className="mb-3 text-sm text-slate-600">{studentCertification.latest ? `Student Section 2 certification version ${studentCertification.latest.version}: ${studentCertification.latest.printedName}, ${studentCertification.latest.certifiedOn} (${studentCertification.latest.timezone}).${studentCertification.history.length > 1 ? ' Earlier certifications remain stored.' : ''}` : 'Section 2 stays blank until the student certifies it. HR cannot sign Section 2 for the student.'}</p>
+                    {canPreviewDraft && record.status !== 'finalized' && (
+                        <p className="mb-4 text-sm text-slate-600">
+                            <a className="text-blue-700" href={route('hrms.i983.draft', record.id)} target="_blank" rel="noreferrer">Preview draft</a>
+                            {' '}— DRAFT – NOT FOR SUBMISSION. This preview uses the information saved so far. It is not stored, it does not apply the employer signature, and it is not a completed official form. Section 2 is included only after the student certifies it.
+                        </p>
+                    )}
                     {record.status === 'finalized' ? <p className="mb-4 text-sm text-slate-600">This I-983 is finalized. Request a correction before changing it. The finalized PDF is not replaced.</p> : record.submittedAt ? (
                         <div className="mb-4 flex flex-wrap gap-3">
                             <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" disabled={studentPdf.processing} type="button" onClick={() => studentPdf.post(route('hrms.i983.documents.student', record.id))}>Generate student-submitted PDF</button>

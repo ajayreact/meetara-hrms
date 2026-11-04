@@ -25,7 +25,7 @@ class I983Pdf
      * @param  array{image: string, name_title: string, date: string, organization: string}|null  $signature
      * @param  array{image: string, printed_name: string, date: string}|null  $studentCertification
      */
-    public function render(array $values, ?array $signature = null, ?array $studentCertification = null): string
+    public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false): string
     {
         $source = storage_path('app/private/i983/official-i983.pdf');
         $pdf = new Fpdi('P', 'pt', [612, 792]);
@@ -64,6 +64,10 @@ class I983Pdf
             if ($signature !== null && ($page === 2 || $page === 4)) {
                 $this->drawEmployerSignature($pdf, $page, $signature);
             }
+
+            if ($draft) {
+                $this->drawDraftBanner($pdf);
+            }
         }
 
         return $pdf->Output('S');
@@ -83,7 +87,11 @@ class I983Pdf
         }
 
         $errors = [];
-        $required = $mode === 'working' ? self::WORKING_REQUIRED : self::STUDENT_REQUIRED;
+        $required = match ($mode) {
+            'working' => self::WORKING_REQUIRED,
+            'draft' => [],
+            default => self::STUDENT_REQUIRED,
+        };
         $measure = new \FPDF('P', 'pt', [612, 792]);
         $measure->SetFont('Helvetica', '', 8);
 
@@ -158,6 +166,18 @@ class I983Pdf
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
+    }
+
+    /**
+     * A draft banner sits in the bottom margin. It does not move any official field.
+     */
+    private function drawDraftBanner(Fpdi $pdf): void
+    {
+        $pdf->SetFont('Helvetica', 'B', 9);
+        $pdf->SetTextColor(153, 0, 0);
+        $pdf->Text(36, 784, 'DRAFT - NOT FOR SUBMISSION');
+        $pdf->SetFont('Helvetica', '', 8);
+        $pdf->SetTextColor(0, 0, 0);
     }
 
     /**

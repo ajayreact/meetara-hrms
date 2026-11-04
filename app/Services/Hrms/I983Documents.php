@@ -60,6 +60,20 @@ class I983Documents
             ->all();
     }
 
+    /**
+     * @return array{bytes: string, filename: string}
+     */
+    public function draft(object $case): array
+    {
+        $values = $this->values((int) $case->id);
+        $this->pdf->assertFits($values, 'draft');
+
+        return [
+            'bytes' => $this->pdf->render($values, null, $this->studentCertification($case), true),
+            'filename' => $this->downloadName($case, 'draft', 1),
+        ];
+    }
+
     public function studentSnapshot(int $caseId, ?int $actorId): void
     {
         $case = DB::table('i983_cases')->where('id', $caseId)->first();
@@ -341,6 +355,7 @@ class I983Documents
         $safe = trim((string) preg_replace('/[^A-Za-z0-9]+/', '_', $label), '_');
         $safe = $safe === '' ? 'Student' : $safe;
         $suffix = match ($kind) {
+            'draft' => 'Draft',
             self::HR_WORKING => 'HR_Working_v'.$version,
             self::EMPLOYER_SIGNED => 'Employer_Signed_v'.$version,
             self::FINAL_SIGNED => $version === 1 ? 'Final_Signed' : 'Final_Signed_v'.$version,

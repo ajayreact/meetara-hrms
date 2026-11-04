@@ -121,8 +121,9 @@ class I983SignatureTest extends TestCase
         $this->actingAs($other->hr)->get('/i983/'.$caseId.'/documents/'.$working->id.'/download')->assertNotFound();
         $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/999999/preview')->assertNotFound();
 
-        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertForbidden();
-        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/finalize', ['confirm' => '1'])->assertForbidden();
+        $this->actingAs($company->lead)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertForbidden();
+        $this->actingAs($company->employee)->post('/i983/'.$caseId.'/finalize', ['confirm' => '1'])->assertForbidden();
+        $this->actingAs($other->hr)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertNotFound();
         $this->actingAs($owner)->post('/i983/'.$caseId.'/signature', [])->assertSessionHasErrors('confirm');
         $this->assertSame(0, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'employer_signed')->count());
 
@@ -164,7 +165,7 @@ class I983SignatureTest extends TestCase
             ->where('documents', fn (mixed $documents): bool => collect($documents)->every(
                 fn (array $document): bool => ! array_key_exists('file_path', $document) && strlen((string) $document['sha256']) === 64
             ))
-            ->where('canSign', false)
+            ->where('canSign', true)
         );
         $this->actingAs($owner)->get('/i983/'.$caseId)->assertInertia(fn (Assert $page) => $page->where('canSign', true));
         $this->assertNotNull(DB::table('i983_events')->where('case_id', $caseId)->where('action', 'i983_finalized')->where('subject', $final->sha256)->first());
@@ -307,8 +308,11 @@ class I983SignatureTest extends TestCase
             $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $workingBytes);
             $this->assertStringContainsString('320.00 451.80 Td (Priya Shah, HR Manager)', $workingBytes);
 
-            $this->actingAs($company->hr)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertForbidden();
-            $this->actingAs($owner)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertRedirect();
+            $this->actingAs($company->lead)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertForbidden();
+            $this->actingAs($company->employee)->post('/i983/'.$caseId.'/finalize', ['confirm' => '1'])->assertForbidden();
+            $this->actingAs($company->hr)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertRedirect();
+            $this->actingAs($owner)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertSessionHasErrors('form');
+            $this->assertSame($company->hr->id, (int) DB::table('i983_events')->where('case_id', $caseId)->where('action', 'signature_applied')->value('actor_id'));
             $signed = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'employer_signed')->first();
             $signedBytes = Storage::disk('local')->get($signed->file_path);
             $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $signedBytes));

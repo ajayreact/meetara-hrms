@@ -115,6 +115,11 @@ class I983CaseController extends Controller
         return back()->with('status', 'A new HR working PDF version was stored. It was not downloaded or emailed.');
     }
 
+    public function draft(Request $request, int $case): HttpResponse
+    {
+        return $this->pdf($this->cases->draftFile($this->manager($request), $case), 'inline');
+    }
+
     public function preview(Request $request, int $case, int $document): HttpResponse
     {
         return $this->pdf($this->cases->documentFile($this->manager($request), $case, $document), 'inline');

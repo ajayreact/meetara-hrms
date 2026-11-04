@@ -168,6 +168,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/i983/{case}/correction', [I983CaseController::class, 'requestCorrection'])->whereNumber('case')->name('hrms.i983.correction');
     Route::post('/i983/signature', [I983CaseController::class, 'saveSignatory'])->name('hrms.i983.signature.save');
     Route::get('/i983/signature', [I983CaseController::class, 'showSignatory'])->name('hrms.i983.signature.show');
+    Route::get('/i983/{case}/draft', [I983CaseController::class, 'draft'])->whereNumber('case')->name('hrms.i983.draft');
     Route::post('/i983/{case}/documents/student', [I983CaseController::class, 'studentSnapshot'])->whereNumber('case')->name('hrms.i983.documents.student');
     Route::post('/i983/{case}/documents/working', [I983CaseController::class, 'workingCopy'])->whereNumber('case')->name('hrms.i983.documents.working');
     Route::get('/i983/{case}/documents/{document}/preview', [I983CaseController::class, 'preview'])->whereNumber(['case', 'document'])->name('hrms.i983.documents.preview');

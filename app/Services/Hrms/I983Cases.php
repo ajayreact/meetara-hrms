@@ -250,6 +250,7 @@ class I983Cases
             'documents' => $this->documents->list((int) $case->tenant_id, $caseId),
             'signatory' => $this->signatory->present((int) $case->tenant_id),
             'canSign' => $this->canSign($actor),
+            'canPreviewDraft' => $this->canPreviewDraft($actor),
             'studentCertification' => $this->studentCertifications->present($caseId),
         ];
     }
@@ -348,6 +349,17 @@ class I983Cases
         $this->event((int) $case->tenant_id, $caseId, (int) $actor->id, 'hr', 'link_revoked', 'student_link');
     }
 
+    /**
+     * @return array{bytes: string, filename: string}
+     */
+    public function draftFile(User $actor, int $caseId): array
+    {
+        $case = $this->caseFor($actor, $caseId);
+        abort_unless($this->canPreviewDraft($actor), 403);
+
+        return $this->documents->draft($case);
+    }
+
     public function generateStudentSnapshot(User $actor, int $caseId): void
     {
         $case = $this->caseFor($actor, $caseId);
@@ -424,6 +436,11 @@ class I983Cases
     public function canSign(User $actor): bool
     {
         return (bool) (CompanyRole::permissions($actor->applicationRole())['i983Sign'] ?? false);
+    }
+
+    public function canPreviewDraft(User $actor): bool
+    {
+        return $this->manages($actor);
     }
 
     public function reissue(User $actor, int $caseId): string
