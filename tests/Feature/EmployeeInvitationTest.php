@@ -295,7 +295,7 @@ class EmployeeInvitationTest extends TestCase
         $this->assertTrue(CompanyRole::permissions('hr')['payrollImport']);
         $this->assertTrue(CompanyRole::permissions('accounts')['payroll']);
         $this->assertFalse(CompanyRole::permissions('employee')['payroll']);
-        $this->assertFalse(CompanyRole::permissions('company_admin')['payrollImport']);
+        $this->assertTrue(CompanyRole::permissions('company_admin')['payrollImport']);
 
         $this->actingAs($company->hr)->get('/payroll')->assertOk();
         $this->actingAs($company->hr)->get('/payments')->assertForbidden();

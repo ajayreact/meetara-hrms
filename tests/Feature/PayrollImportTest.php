@@ -75,7 +75,7 @@ class PayrollImportTest extends TestCase
 
         $this->actingAs($company->lead)->post('/payroll/imports', $this->upload(11, $this->sheet('importco-REP', '35200.00')))->assertForbidden();
         $this->actingAs($company->employee)->post('/payroll/imports', $this->upload(11, $this->sheet('importco-REP', '35200.00')))->assertForbidden();
-        $this->actingAs($admin)->post('/payroll/imports', $this->upload(11, $this->sheet('importco-REP', '35200.00')))->assertForbidden();
+        $this->actingAs($admin)->post('/payroll/imports', $this->upload(11, $this->sheet('importco-REP', '35200.00')))->assertRedirect();
         $this->actingAs($accounts)->post('/payroll/imports', $this->upload(10, $this->sheet('importco-REP', '35200.00')))->assertSessionHas('error');
         $this->assertSame('draft', DB::table('payroll_runs')->where('tenant_id', $company->id)->where('month', 10)->value('status'));
 

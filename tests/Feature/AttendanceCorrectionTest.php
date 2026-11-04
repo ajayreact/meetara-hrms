@@ -223,6 +223,8 @@ class AttendanceCorrectionTest extends TestCase
             ->where('history.summary.absent', fn ($count) => $count >= 0));
 
         $export = $this->actingAs($company->hr)->get('/attendance/export?date=2026-11-02')->assertOk();
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $export->getContent());
+        $this->assertStringNotContainsString('—', $export->getContent());
         $this->assertStringContainsString('Holiday', $export->getContent());
         $this->actingAs($company->hr)->get('/attendance?date=2026-11-02')->assertInertia(fn (Assert $page) => $page
             ->where('roster.rows', function ($rows): bool {

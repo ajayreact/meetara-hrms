@@ -195,8 +195,8 @@ class AttendanceDirectory
                 $this->csv($row['office'] ?? ''),
                 $this->csv($row['clockIn'] ?? ''),
                 $this->csv($row['clockOut'] ?? ''),
-                $this->csv($row['breakLabel']),
-                $this->csv($row['workLabel']),
+                $this->csv($this->spreadsheetCell($row['breakLabel'])),
+                $this->csv($this->spreadsheetCell($row['workLabel'])),
                 $this->csv($row['status']),
             ]);
         }
@@ -205,7 +205,7 @@ class AttendanceDirectory
         $csv = stream_get_contents($handle);
         fclose($handle);
 
-        return $csv === false ? '' : $csv;
+        return $csv === false ? '' : "\xEF\xBB\xBF".$csv;
     }
 
     /**
@@ -539,6 +539,11 @@ class AttendanceDirectory
     private function duration(int $minutes): string
     {
         return sprintf('%02d H : %02d M', intdiv($minutes, 60), $minutes % 60);
+    }
+
+    private function spreadsheetCell(string $value): string
+    {
+        return $value === '—' ? '' : $value;
     }
 
     private function csv(string $value): string

@@ -35,6 +35,7 @@ class CompanyRoleTest extends TestCase
         $this->assertSame(CompanyRole::permissions('team_lead'), CompanyRole::permissions(CompanyRole::fromStored('Company Manager', false)['role']));
         $this->assertTrue(CompanyRole::permissions('company_admin')['employees']);
         $this->assertTrue(CompanyRole::permissions('company_admin')['payrollPay']);
+        $this->assertTrue(CompanyRole::permissions('company_admin')['payrollImport']);
         $this->assertTrue(CompanyRole::permissions('company_admin')['i983Sign']);
         $this->assertFalse(CompanyRole::permissions('hr')['payrollPay']);
         $this->assertFalse(CompanyRole::permissions('hr')['payrollApprove']);

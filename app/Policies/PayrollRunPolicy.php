@@ -22,7 +22,7 @@ class PayrollRunPolicy
 
     public function import(User $user, ?PayrollRun $run = null): bool
     {
-        return in_array($user->applicationRole(), ['accounts', 'hr'], true)
+        return in_array($user->applicationRole(), ['company_admin', 'accounts', 'hr'], true)
             && ($run === null || (int) $run->tenant_id === (int) $user->companyId());
     }
 

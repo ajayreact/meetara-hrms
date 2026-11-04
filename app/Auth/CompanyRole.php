@@ -90,6 +90,7 @@ class CompanyRole
                 'payrollView' => true,
                 'payrollApprove' => true,
                 'payrollPay' => true,
+                'payrollImport' => true,
                 'offices' => true,
                 'exportAttendance' => true,
                 'i983Sign' => true,
