@@ -1,5 +1,6 @@
 import type { Workspace } from '@/types/hrms';
 import {
+    Briefcase,
     Building2,
     CalendarCheck,
     CalendarDays,
@@ -9,12 +10,14 @@ import {
     Megaphone,
     LifeBuoy,
     Map,
+    Network,
     Receipt,
     ClipboardList,
     FileText,
     ScrollText,
     Wallet,
     Settings,
+    Shield,
     Timer,
     UserRound,
     Users,
@@ -110,7 +113,13 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     items.push({ label: 'Help Desk', href: '/help-desk', icon: LifeBuoy, section: 'Support' });
 
     if (workspace.permissions.offices) {
+        items.push({ label: 'Departments', href: '/departments', icon: Network, section: 'Support' });
+        items.push({ label: 'Designations', href: '/designations', icon: Briefcase, section: 'Support' });
         items.push({ label: 'Offices', href: '/offices', icon: Building2, section: 'Support' });
+    }
+
+    if (workspace.role === 'company_admin') {
+        items.push({ label: 'Access levels', href: '/access-levels', icon: Shield, section: 'Support' });
     }
 
     if (workspace.permissions.settings) {

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
-import { router, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import { Building2, Plus, UserCheck, Users } from 'lucide-react';
 import { useState } from 'react';
 
@@ -139,6 +139,13 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                 <MetricCard tone="green" icon={UserCheck} label="Active employees" value={String(activeCount)} hint="Currently active" />
                 <MetricCard tone="orange" icon={Building2} label="Departments" value={String(departments.length)} hint="Named on these records" />
             </div>
+            {canManage && (options.departments.length === 0 || options.designations.length === 0) && (
+                <p className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    Department and designation choices come from this company.
+                    {options.departments.length === 0 && <Link className="ml-2 text-blue-700 underline" href="/departments">Add a department</Link>}
+                    {options.designations.length === 0 && <Link className="ml-2 text-blue-700 underline" href="/designations">Add a designation</Link>}
+                </p>
+            )}
             {workspace.role === 'company_admin' && !options.roles.some((role) => role.value === 'Accounts') && (
                 <p className="mb-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
                     Accounts access is not enabled. Enabling it does not assign it to anyone.
@@ -341,6 +348,7 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                         </Field>
                         <Field label="Reporting manager" error={form.errors.manager_id}>
                             <Select value={form.data.manager_id} onChange={(value) => form.setData('manager_id', value)} options={options.managers} />
+                            <span className="text-xs text-slate-500">The first employee can be saved with no reporting manager. Saved employees can be chosen for the next person.</span>
                         </Field>
                         <Field label="Holiday region" error={form.errors.holiday_calendar}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.holiday_calendar} onChange={(event) => form.setData('holiday_calendar', event.target.value)}>

@@ -4,7 +4,10 @@ namespace App\Http\Requests\Hrms;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\Hrms\RoleAssignment;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -61,6 +64,10 @@ abstract class EmployeeRequest extends FormRequest
                 return;
             }
 
+            if (in_array($actor->applicationRole(), ['company_admin', 'hr'], true)) {
+                app(RoleAssignment::class)->ensureStandard($companyId);
+            }
+
             if ($this->boolean('create_login') && ! $this->filled('role')) {
                 $validator->errors()->add('role', 'Choose an access level when creating a login.');
             }
@@ -83,7 +90,33 @@ abstract class EmployeeRequest extends FormRequest
             if ($managerId && $employee instanceof Employee && (int) $managerId === (int) $employee->id) {
                 $validator->errors()->add('manager_id', 'An employee cannot report to themselves.');
             }
+
+            $this->rejectInactiveCatalog($validator, 'department_id', 'departments', $employee instanceof Employee ? $employee->department_id : null, $companyId, 'Choose an active department.');
+            $this->rejectInactiveCatalog($validator, 'designation_id', 'designations', $employee instanceof Employee ? $employee->designation_id : null, $companyId, 'Choose an active designation.');
         });
+    }
+
+    private function rejectInactiveCatalog(Validator $validator, string $field, string $table, mixed $currentId, int $companyId, string $message): void
+    {
+        if (! $this->filled($field) || ! Schema::hasColumn($table, 'is_active')) {
+            return;
+        }
+
+        $selected = (int) $this->input($field);
+
+        if ($currentId !== null && $selected === (int) $currentId) {
+            return;
+        }
+
+        $active = DB::table($table)
+            ->where('id', $selected)
+            ->where('tenant_id', $companyId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $active) {
+            $validator->errors()->add($field, $message);
+        }
     }
 
     protected function prepareForValidation(): void

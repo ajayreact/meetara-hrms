@@ -60,6 +60,11 @@ class I983SignatureTest extends TestCase
         ], true))->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training())->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
 
         $snapshot = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->first();
@@ -70,8 +75,10 @@ class I983SignatureTest extends TestCase
         $this->assertStringContainsString('144.00 173.90 Td (Quinn, Riley)', $snapshotBytes);
         $this->assertStringContainsString('491.00 173.90 Td ('.$studentDate.')', $snapshotBytes);
         $this->assertStringContainsString('144.00 173.90 Td (Quinn, Riley)', $workingBytes);
-        $this->assertStringNotContainsString('320.00 97.80 Td', $workingBytes);
-        $this->assertStringNotContainsString('320.00 451.80 Td', $workingBytes);
+        $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $workingBytes);
+        $this->assertStringContainsString('320.00 451.80 Td (Priya Shah, HR Manager)', $workingBytes);
+        $this->assertStringNotContainsString('320.00 97.80 Td', $snapshotBytes);
+        $this->assertStringNotContainsString('320.00 451.80 Td', $snapshotBytes);
         $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $snapshotBytes));
         $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $workingBytes));
         $this->assertSame(0, DB::table('i983_certifications')->where('case_id', $caseId)->count());
@@ -90,7 +97,7 @@ class I983SignatureTest extends TestCase
         $this->actingAs($company->hr)->post('/i983/signature', [
             'signatory_name' => 'Priya Shah',
             'signatory_title' => 'HR Manager',
-            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+            'signature' => UploadedFile::fake()->image('signature.jpg', 360, 80),
         ])->assertRedirect();
         $this->assertSame(0, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'employer_signed')->count());
         $image = $this->actingAs($company->hr)->get('/i983/signature')->assertOk();
@@ -297,8 +304,8 @@ class I983SignatureTest extends TestCase
             $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $workingBytes));
             $this->assertStringContainsString('144.00 173.90 Td (Quinn, Riley Morgan)', $workingBytes);
             $this->assertStringContainsString('491.00 173.90 Td (11-03-2026)', $workingBytes);
-            $this->assertStringNotContainsString('320.00 97.80 Td', $workingBytes);
-            $this->assertStringNotContainsString('320.00 451.80 Td', $workingBytes);
+            $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $workingBytes);
+            $this->assertStringContainsString('320.00 451.80 Td (Priya Shah, HR Manager)', $workingBytes);
 
             $this->actingAs($company->hr)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertForbidden();
             $this->actingAs($owner)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertRedirect();
@@ -434,7 +441,8 @@ class I983SignatureTest extends TestCase
             'student_name' => 'Quinn, Riley',
             'employer_name' => 'Acme People LLC',
             'site_name' => 'Acme Remote',
-            'site_address' => '100 Sample Street, Farmington, MI 48335',
+            'site_address' => '500 Training Plaza, Austin, TX 78701',
+            'work_arrangement' => 'remote',
             'official_name' => 'Priya Shah',
             'official_title' => 'HR Manager',
             'official_email' => 'priya@acme.test',

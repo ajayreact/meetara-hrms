@@ -25,6 +25,7 @@ export interface EmployerInfo {
     optHours: string;
     salary: string;
     salaryFrequency: string;
+    annualCompensation: string;
     otherCompensation: string;
     startDate: string;
 }
@@ -184,6 +185,7 @@ function employerOf(form: StudentFormView): EmployerInfo {
         optHours: source.optHours ?? '',
         salary: source.salary ?? '',
         salaryFrequency: source.salaryFrequency ?? '',
+        annualCompensation: source.annualCompensation ?? '',
         otherCompensation: source.otherCompensation ?? '',
         startDate: source.startDate ?? '',
     };
@@ -200,13 +202,9 @@ function displayDate(value: string): string {
 }
 
 function salaryText(employer: EmployerInfo): string {
-    if (employer.salary.trim() === '') {
-        return '—';
-    }
-    const frequencies: Record<string, string> = { year: 'per year', month: 'per month', hour: 'per hour' };
-    const frequency = frequencies[employer.salaryFrequency] ?? employer.salaryFrequency;
+    const annual = employer.annualCompensation.trim();
 
-    return frequency === '' ? employer.salary : `${employer.salary} ${frequency}`;
+    return annual === '' ? '—' : annual;
 }
 
 function Cell({
@@ -689,7 +687,7 @@ export function StudentDocument({
                                 <Read value={employer.optHours} />
                             </Cell>
                             <Cell
-                                label="Compensation — annual salary amount and frequency"
+                                label="Compensation — annual salary in U.S. dollars"
                                 hint="Employer"
                                 className="sm:border-l sm:border-neutral-800"
                             >
@@ -735,7 +733,7 @@ export function StudentDocument({
                         </div>
                         <Cell
                             label="Student role"
-                            hint={form.locked ? 'Locked after submission' : 'Student, until you submit'}
+                            hint={form.locked ? 'Locked after submission. Ask HR to request a correction.' : 'You and employer HR can complete this before you submit.'}
                             error={error('student_role')}
                         >
                             <textarea

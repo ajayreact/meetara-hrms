@@ -141,7 +141,7 @@ class UsaOfferController extends Controller
         return $this->showStationery($request, 'signature');
     }
 
-    public function saveDesignation(Request $request, int $designation): RedirectResponse
+    public function saveDesignation(Request $request, int $usaDesignation): RedirectResponse
     {
         $actor = $this->manager($request);
         $data = $request->validate([
@@ -150,7 +150,7 @@ class UsaOfferController extends Controller
         ]);
         $this->catalog->save(
             (int) $actor->companyId(),
-            $designation,
+            $usaDesignation,
             preg_split('/\r\n|\r|\n/', $data['responsibilities']) ?: [],
             (bool) $data['active'],
         );
@@ -176,10 +176,10 @@ class UsaOfferController extends Controller
         return redirect()->route('hrms.usa-offers.settings')->with('status', 'Designation added.');
     }
 
-    public function restoreDesignation(Request $request, int $designation): RedirectResponse
+    public function restoreDesignation(Request $request, int $usaDesignation): RedirectResponse
     {
         $actor = $this->manager($request);
-        $this->catalog->restore((int) $actor->companyId(), $designation);
+        $this->catalog->restore((int) $actor->companyId(), $usaDesignation);
 
         return redirect()->route('hrms.usa-offers.settings')->with('status', 'Default responsibilities restored. Existing offers were not changed.');
     }

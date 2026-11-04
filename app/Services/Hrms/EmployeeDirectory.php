@@ -7,6 +7,7 @@ use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\Office;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -93,16 +94,21 @@ class EmployeeDirectory
             ];
         }
 
+        app(RoleAssignment::class)->ensureStandard($companyId);
+
         $managers = Employee::query()
             ->inCompany($companyId)
             ->when($exceptEmployeeId, fn ($query) => $query->whereKeyNot($exceptEmployeeId))
             ->orderBy('first_name')
             ->limit(200)
             ->get();
+        $current = $exceptEmployeeId === null
+            ? null
+            : Employee::query()->inCompany($companyId)->whereKey($exceptEmployeeId)->first(['department_id', 'designation_id']);
 
         return [
-            'departments' => $this->named(Department::query()->inCompany($companyId)->orderBy('name')->get()),
-            'designations' => $this->named(Designation::query()->inCompany($companyId)->orderBy('name')->get()),
+            'departments' => $this->named($this->activeCatalog(Department::query()->inCompany($companyId), $current?->department_id)->orderBy('name')->get()),
+            'designations' => $this->named($this->activeCatalog(Designation::query()->inCompany($companyId), $current?->designation_id)->orderBy('name')->get()),
             'offices' => $this->named(Office::query()->inCompany($companyId)->orderBy('name')->get()),
             'managers' => $managers->map(fn (Employee $employee) => [
                 'id' => (int) $employee->id,
@@ -322,15 +328,38 @@ class EmployeeDirectory
     }
 
     /**
+     * @param  Builder<Department>|Builder<Designation>  $query
+     * @return Builder<Department>|Builder<Designation>
+     */
+    private function activeCatalog(Builder $query, mixed $keepId): Builder
+    {
+        if (! Schema::hasColumn($query->getModel()->getTable(), 'is_active')) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $inner) use ($keepId): void {
+            $inner->where('is_active', true);
+
+            if ($keepId) {
+                $inner->orWhere($inner->getModel()->getTable().'.id', $keepId);
+            }
+        });
+    }
+
+    /**
      * @param  Collection<int, Department|Designation|Office>  $rows
      * @return list<array{id: int, name: string}>
      */
     private function named(Collection $rows): array
     {
-        return $rows->map(fn ($row) => [
-            'id' => (int) $row->id,
-            'name' => (string) $row->name,
-        ])->values()->all();
+        return $rows->map(function ($row) {
+            $inactive = Schema::hasColumn($row->getTable(), 'is_active') && ! $row->is_active;
+
+            return [
+                'id' => (int) $row->id,
+                'name' => (string) $row->name.($inactive ? ' (inactive)' : ''),
+            ];
+        })->values()->all();
     }
 
     /**

@@ -37,6 +37,7 @@ class CompanyOnboarding
                     'address' => $this->nullableText($data['address'] ?? null),
                 ]);
                 $company->save();
+                app(RoleAssignment::class)->ensureStandard((int) $company->id);
                 $this->provisionAdmin($actor, (int) $company->id, $data);
                 $this->record($actor, (int) $company->id, 'created');
 

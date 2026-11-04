@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Services\Hrms\I983Pdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -88,6 +89,11 @@ class I983PdfTest extends TestCase
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training($goals))->assertRedirect();
         $this->assertSame($bytes, Storage::disk('local')->get($snapshot->file_path));
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
         $working = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->orderBy('id')->first();
@@ -96,7 +102,12 @@ class I983PdfTest extends TestCase
         $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $workingBytes));
         $this->assertStringContainsString('0.000 g', $workingBytes);
         $this->assertStringContainsString('118.00 706.68 Td (Acme People LLC)', $workingBytes);
-        $this->assertStringContainsString('300.00 652.00 Td (100 Sample Street, Farmington, MI 48335)', $workingBytes);
+        $this->assertStringContainsString('300.00 652.00 Td (500 Training Plaza, Austin, TX 78701)', $workingBytes);
+        $this->assertStringContainsString('346.00 625.70 Td (72000.00)', $workingBytes);
+        $this->assertStringNotContainsString('per hour', $workingBytes);
+        $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $workingBytes);
+        $this->assertStringContainsString('372.00 73.80 Td (Acme People LLC)', $workingBytes);
+        $this->assertStringContainsString('320.00 451.80 Td (Priya Shah, HR Manager)', $workingBytes);
         $this->assertStringNotContainsString('PHASE2 EVALUATION', $workingBytes);
         $this->assertSame($bytes, Storage::disk('local')->get($snapshot->file_path));
 
@@ -105,7 +116,7 @@ class I983PdfTest extends TestCase
         $this->assertSame('Michigan', DB::table('i983_training_plans')->where('case_id', $caseId)->value('site_address'));
         $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->count());
 
-        DB::table('i983_training_plans')->where('case_id', $caseId)->update(['site_address' => '100 Sample Street, Farmington, MI 48335']);
+        DB::table('i983_training_plans')->where('case_id', $caseId)->update(['site_address' => '500 Training Plaza, Austin, TX 78701']);
         $overflow = trim(str_repeat('The student will practice a reviewed workflow. ', 30));
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training($overflow))->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertSessionHasErrors('goals');
@@ -327,7 +338,8 @@ class I983PdfTest extends TestCase
             'student_name' => 'Quinn, Riley',
             'employer_name' => 'Acme People LLC',
             'site_name' => 'Acme Remote',
-            'site_address' => '100 Sample Street, Farmington, MI 48335',
+            'site_address' => '500 Training Plaza, Austin, TX 78701',
+            'work_arrangement' => 'remote',
             'official_name' => 'Priya Shah',
             'official_title' => 'HR Manager',
             'official_email' => 'priya@acme.test',

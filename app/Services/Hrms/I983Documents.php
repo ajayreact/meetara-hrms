@@ -229,8 +229,14 @@ class I983Documents
     {
         $values = $this->values((int) $case->id);
         $studentCertification = $this->studentCertification($case);
+        $signature = $mode === 'working' ? $this->employerSignature($case) : null;
         $this->pdf->assertFits($values, $mode);
-        $this->persist($case, $kind, $this->pdf->render($values, null, $studentCertification), $actorId, null, 'pdf_generated');
+
+        if ($signature !== null) {
+            $this->pdf->assertSignatureFits($signature);
+        }
+
+        $this->persist($case, $kind, $this->pdf->render($values, $signature, $studentCertification), $actorId, null, 'pdf_generated');
     }
 
     /**
@@ -384,7 +390,7 @@ class I983Documents
             'employee_count' => $employer === null || $employer->employee_count === null ? '' : (string) $employer->employee_count,
             'naics' => trim((string) ($employer->naics ?? '')),
             'opt_hours' => $employer === null || $employer->opt_hours === null ? '' : (string) $employer->opt_hours,
-            'salary' => $employer === null || $employer->salary === null ? '' : number_format((float) $employer->salary, 2, '.', ''),
+            'salary' => $employer === null ? '' : $this->annualSalary($employer),
             'start_date' => $this->printedDate($employer->start_date ?? null),
             'other_compensation' => trim((string) ($employer->other_compensation ?? '')),
             'site_name' => trim((string) ($training->site_name ?? '')),
@@ -399,6 +405,58 @@ class I983Documents
             'measures' => trim((string) ($training->measures ?? '')),
             'remarks' => trim((string) ($training->remarks ?? '')),
         ];
+    }
+
+    /**
+     * @return array{image: string, name_title: string, date: string, organization: string}
+     */
+    private function employerSignature(object $case): array
+    {
+        try {
+            $profile = app(I983Signatory::class)->ready((int) $case->tenant_id);
+        } catch (ValidationException) {
+            throw ValidationException::withMessages([
+                'signature' => 'Save the employer official\'s signature, printed name, and title in I-983 settings before generating the official form.',
+            ]);
+        }
+
+        $organization = trim((string) DB::table('i983_employers')->where('case_id', $case->id)->value('legal_name'));
+
+        if ($organization === '') {
+            throw ValidationException::withMessages([
+                'employer_name' => 'Enter the printed name of the employing organization before generating the official form.',
+            ]);
+        }
+
+        $arrangement = trim((string) DB::table('i983_training_plans')->where('case_id', $case->id)->value('work_arrangement'));
+
+        if (! in_array($arrangement, ['remote', 'on_site', 'hybrid'], true)) {
+            throw ValidationException::withMessages([
+                'work_arrangement' => 'Select whether the training site is remote, on-site, or hybrid before generating the official form.',
+            ]);
+        }
+
+        return [
+            'image' => $profile['path'],
+            'name_title' => $profile['name'].', '.$profile['title'],
+            'date' => now()->format('m-d-Y'),
+            'organization' => $organization,
+        ];
+    }
+
+    private function annualSalary(object $employer): string
+    {
+        $stored = property_exists($employer, 'annual_compensation') ? $employer->annual_compensation : null;
+        $frequency = (string) ($employer->salary_frequency ?? '');
+        $amount = $stored !== null
+            ? $stored
+            : (in_array($frequency, ['hour', 'month'], true) ? null : $employer->salary);
+
+        if ($amount === null || $amount === '' || (float) $amount <= 0) {
+            return '';
+        }
+
+        return number_format((float) $amount, 2, '.', '');
     }
 
     private function printedDate(mixed $value): string

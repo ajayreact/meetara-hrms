@@ -6,6 +6,8 @@ use App\Contracts\CaptchaVerifier;
 use App\Contracts\MalwareScanner;
 use App\Mail\PasswordResetMail;
 use App\Models\AttendanceLog;
+use App\Models\Department;
+use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeavePolicy;
@@ -21,6 +23,7 @@ use App\Policies\EmployeePolicy;
 use App\Policies\HolidayPolicy;
 use App\Policies\LeaveRequestPolicy;
 use App\Policies\OfficePolicy;
+use App\Policies\OrganizationPolicy;
 use App\Policies\PayrollPaymentPolicy;
 use App\Policies\PayrollRunPolicy;
 use App\Policies\PayslipPolicy;
@@ -70,6 +73,8 @@ class AppServiceProvider extends ServiceProvider
         $this->applyTrustedProxies();
 
         Gate::policy(Employee::class, EmployeePolicy::class);
+        Gate::policy(Department::class, OrganizationPolicy::class);
+        Gate::policy(Designation::class, OrganizationPolicy::class);
         Gate::policy(Office::class, OfficePolicy::class);
         Gate::policy(AttendanceLog::class, AttendancePolicy::class);
         Gate::policy(LeaveRequest::class, LeaveRequestPolicy::class);
@@ -93,6 +98,14 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $employee;
+        });
+
+        Route::bind('department', function (string $value) {
+            return $this->companyRecord(Department::class, $value);
+        });
+
+        Route::bind('designation', function (string $value) {
+            return $this->companyRecord(Designation::class, $value);
         });
 
         Route::bind('office', function (string $value) {
@@ -223,6 +236,30 @@ class AppServiceProvider extends ServiceProvider
      * while the HTTP kernel is constructed is too early: the environment file
      * is not loaded yet, and a cached configuration would ignore it.
      */
+    /**
+     * @param  class-string<Department|Designation>  $model
+     */
+    private function companyRecord(string $model, string $value): Department|Designation
+    {
+        $user = auth()->user();
+
+        if (! $user instanceof User || ! ctype_digit($value) || $user->companyId() === null) {
+            abort(404);
+        }
+
+        $record = $model::query()->inCompany($user->companyId())->whereKey($value)->first();
+
+        if (! ($record instanceof Department) && ! ($record instanceof Designation)) {
+            abort(404);
+        }
+
+        if ($user->cannot('update', $record)) {
+            abort(404);
+        }
+
+        return $record;
+    }
+
     private function applyTrustedProxies(): void
     {
         $configured = config('attendance.trusted_proxies', []);

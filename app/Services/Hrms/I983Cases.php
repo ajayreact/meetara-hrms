@@ -22,12 +22,12 @@ class I983Cases
     ) {}
 
     public const TRAINING_FIELDS = [
-        'student_name', 'employer_name', 'site_name', 'site_address', 'official_name', 'official_title',
+        'student_name', 'employer_name', 'site_name', 'site_address', 'work_arrangement', 'official_name', 'official_title',
         'official_email', 'official_phone', 'student_role', 'goals', 'oversight', 'measures', 'remarks',
     ];
 
     public const EMPLOYER_TRAINING_FIELDS = [
-        'site_name', 'site_address', 'official_name', 'official_title', 'official_email', 'official_phone',
+        'site_name', 'site_address', 'work_arrangement', 'official_name', 'official_title', 'official_email', 'official_phone',
         'oversight', 'measures', 'remarks',
     ];
 
@@ -191,8 +191,10 @@ class I983Cases
             'employee_count' => $values['employee_count'],
             'naics' => $values['naics'],
             'opt_hours' => $values['opt_hours'],
+            'hourly_rate' => $values['hourly_rate'],
             'salary' => $values['salary'],
             'salary_frequency' => $values['salary_frequency'],
+            'annual_compensation' => $values['annual_compensation'],
             'other_compensation' => $values['other_compensation'],
             'start_date' => $values['start_date'],
             'finalized_at' => $finalize ? now() : null,
@@ -211,7 +213,7 @@ class I983Cases
         $case = $this->caseFor($actor, $caseId);
         $this->assertEditable($case);
         $this->protectTraining('hr', $case, $input);
-        $this->writeTraining((int) $case->tenant_id, $caseId, $input, 'hr', (int) $actor->id, [...self::EMPLOYER_TRAINING_FIELDS, 'goals']);
+        $this->writeTraining((int) $case->tenant_id, $caseId, $input, 'hr', (int) $actor->id, [...self::EMPLOYER_TRAINING_FIELDS, 'student_role', 'goals']);
         $this->event((int) $case->tenant_id, $caseId, (int) $actor->id, 'hr', 'training_saved', 'training');
     }
 
@@ -615,7 +617,18 @@ class I983Cases
     {
         $hours = $this->blank($input['opt_hours'] ?? null);
         $count = $this->blank($input['employee_count'] ?? null);
-        $salary = $this->blank($input['salary'] ?? null);
+        $frequency = $this->choice($input['salary_frequency'] ?? null, ['year', 'month', 'hour'], 'salary_frequency');
+        $hourly = $this->money($input['hourly_rate'] ?? null, 'hourly_rate');
+        $annual = $this->money($input['annual_compensation'] ?? null, 'annual_compensation');
+        $legacy = $this->money($input['salary'] ?? null, 'salary');
+
+        if ($annual === null && $legacy !== null && in_array($frequency, [null, 'year'], true)) {
+            $annual = $legacy;
+        }
+
+        if ($hourly === null && $legacy !== null && $frequency === 'hour') {
+            $hourly = $legacy;
+        }
 
         if ($hours !== null && ((int) $hours < 20 || (int) $hours > 80)) {
             throw ValidationException::withMessages(['opt_hours' => 'OPT hours per week must be at least 20.']);
@@ -633,8 +646,10 @@ class I983Cases
             'employee_count' => $count === null ? null : (int) $count,
             'naics' => $this->limit($input['naics'] ?? null, 10),
             'opt_hours' => $hours === null ? null : (int) $hours,
-            'salary' => $salary === null ? null : number_format((float) $salary, 2, '.', ''),
-            'salary_frequency' => $this->choice($input['salary_frequency'] ?? null, ['year', 'month', 'hour'], 'salary_frequency'),
+            'hourly_rate' => $hourly,
+            'salary' => $annual ?? ($frequency === 'hour' ? null : $legacy),
+            'salary_frequency' => $frequency,
+            'annual_compensation' => $annual,
             'other_compensation' => $this->limit($input['other_compensation'] ?? null, 1000),
             'start_date' => $this->date($input['start_date'] ?? null),
         ];
@@ -663,6 +678,12 @@ class I983Cases
             if ($field === 'site_address' && $next !== $previous) {
                 $this->assertSiteAddressComplete($next);
                 $this->assertSiteAddressFits($next);
+            }
+
+            if ($field === 'work_arrangement' && $next !== null && ! in_array($next, ['remote', 'on_site', 'hybrid'], true)) {
+                throw ValidationException::withMessages([
+                    'work_arrangement' => 'Select remote, on-site, or hybrid for the training site.',
+                ]);
             }
 
             if ($field === 'official_email' && $next !== null && ! filter_var($next, FILTER_VALIDATE_EMAIL)) {
@@ -758,8 +779,10 @@ class I983Cases
             'employeeCount' => $row->employee_count === null ? '' : (string) $row->employee_count,
             'naics' => (string) ($row->naics ?? ''),
             'optHours' => $row->opt_hours === null ? '' : (string) $row->opt_hours,
+            'hourlyRate' => $this->printedMoney($this->hourlyAmount($row)),
             'salary' => $row->salary === null ? '' : number_format((float) $row->salary, 2, '.', ''),
             'salaryFrequency' => (string) ($row->salary_frequency ?? ''),
+            'annualCompensation' => $this->printedMoney($this->annualAmount($row)),
             'otherCompensation' => (string) ($row->other_compensation ?? ''),
             'startDate' => (string) ($row->start_date ?? ''),
             'finalizedAt' => $row->finalized_at === null ? '' : substr((string) $row->finalized_at, 0, 16),
@@ -848,7 +871,6 @@ class I983Cases
         $errors = [];
 
         if ($actor === 'hr') {
-            $this->collectChange($errors, $input, 'student_role', $this->blank($training->student_role ?? null), 5000, 'Student Role belongs to the student. Request a correction so the student can change it.');
             $this->collectDerived($errors, $input, 'student_name', $printedStudent, $this->blank($training->student_name ?? null), 'Student Name comes from Section 1. Request a correction so the student can change it.');
         } else {
             if ($this->sectionLocked($case)) {
@@ -1173,7 +1195,7 @@ class I983Cases
         }
 
         throw ValidationException::withMessages([
-            'site_address' => 'Enter the street, city, state, and ZIP. Example: 100 Sample Street, Farmington, MI 48335.',
+            'site_address' => 'Enter the training site as street, city, state, and ZIP. This address can differ from the employer\'s registered address.',
         ]);
     }
 
@@ -1229,6 +1251,56 @@ class I983Cases
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function money(mixed $value, string $field): ?string
+    {
+        $text = str_replace(',', '', (string) $this->blank($value));
+
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d+(\.\d{1,2})?$/', $text) !== 1 || (float) $text <= 0) {
+            throw ValidationException::withMessages([
+                $field => 'Enter a U.S. dollar amount greater than zero.',
+            ]);
+        }
+
+        return number_format((float) $text, 2, '.', '');
+    }
+
+    private function hourlyAmount(object $row): mixed
+    {
+        $stored = property_exists($row, 'hourly_rate') ? $row->hourly_rate : null;
+
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        return (string) ($row->salary_frequency ?? '') === 'hour' ? $row->salary : null;
+    }
+
+    private function annualAmount(object $row): mixed
+    {
+        $stored = property_exists($row, 'annual_compensation') ? $row->annual_compensation : null;
+
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        $frequency = (string) ($row->salary_frequency ?? '');
+
+        return in_array($frequency, ['hour', 'month'], true) ? null : $row->salary;
+    }
+
+    private function printedMoney(mixed $value): string
+    {
+        if ($value === null || $value === '' || (float) $value <= 0) {
+            return '';
+        }
+
+        return number_format((float) $value, 2, '.', '');
     }
 
     private function limit(mixed $value, int $max): ?string

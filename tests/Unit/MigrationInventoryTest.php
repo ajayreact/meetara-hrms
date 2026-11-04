@@ -16,6 +16,8 @@ class MigrationInventoryTest extends TestCase
         $this->assertSame(MigrationInventory::MISSING_HISTORICAL, $inventory->missingFiles());
         $this->assertSame([
             '2026_11_03_220000_add_company_legal_name',
+            '2026_11_04_030000_add_organization_catalog_status',
+            '2026_11_04_040000_add_i983_compensation_and_site_arrangement',
         ], $inventory->filesAfterDump());
     }
 
@@ -69,6 +71,8 @@ class MigrationInventoryTest extends TestCase
             '2026_11_03_120000_add_offer_candidate_address_and_usa_employment_type',
             '2026_11_03_160000_add_i983_student_certifications',
             '2026_11_03_220000_add_company_legal_name',
+            '2026_11_04_030000_add_organization_catalog_status',
+            '2026_11_04_040000_add_i983_compensation_and_site_arrangement',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());

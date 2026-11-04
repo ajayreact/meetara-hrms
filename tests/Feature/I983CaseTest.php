@@ -221,11 +221,19 @@ class I983CaseTest extends TestCase
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
             'student_name' => 'Someone Else',
-            'student_role' => 'Changed by HR',
             'goals' => 'Learn the review process.',
-        ])->assertSessionHasErrors(['student_name', 'student_role']);
+        ])->assertSessionHasErrors(['student_name']);
         $this->assertSame('Quinn, Riley', DB::table('i983_training_plans')->where('case_id', $caseId)->value('student_name'));
         $this->assertSame('Data analyst trainee', DB::table('i983_training_plans')->where('case_id', $caseId)->value('student_role'));
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
+            'student_role' => 'Changed by HR',
+        ])->assertRedirect();
+        $this->assertSame('Changed by HR', DB::table('i983_training_plans')->where('case_id', $caseId)->value('student_role'));
+        $roleRevision = DB::table('i983_field_revisions')->where('case_id', $caseId)->where('field_name', 'student_role')->orderByDesc('id')->first();
+        $this->assertSame('Data analyst trainee', $roleRevision->previous_value);
+        $this->assertSame('Changed by HR', $roleRevision->new_value);
+        $this->assertSame('hr', $roleRevision->actor_type);
+        $this->assertSame($company->hr->id, (int) $roleRevision->actor_id);
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
             'site_address' => 'Michigan',
@@ -237,7 +245,8 @@ class I983CaseTest extends TestCase
             'measures' => 'A completed practice task.',
             'site_name' => 'Acme Remote',
             'official_name' => 'Priya Shah',
-            'site_address' => '100 Sample Street, Farmington, MI 48335',
+            'site_address' => '500 Training Plaza, Austin, TX 78701',
+            'work_arrangement' => 'remote',
         ])->assertRedirect();
 
         $this->post($link, $this->student([
@@ -259,12 +268,12 @@ class I983CaseTest extends TestCase
         $this->assertSame('hr', $goalRevisions->last()->actor_type);
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
-            'site_address' => '100 Sample Street',
+            'site_address' => '500 Training Plaza',
         ])->assertSessionHasErrors('site_address');
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
-            'site_address' => str_repeat('100 Very Long Sample Street, ', 12).'Farmington, MI 48335',
+            'site_address' => str_repeat('500 Very Long Training Plaza, ', 12).'Austin, TX 78701',
         ])->assertSessionHasErrors('site_address');
-        $this->assertSame('100 Sample Street, Farmington, MI 48335', DB::table('i983_training_plans')->where('case_id', $caseId)->value('site_address'));
+        $this->assertSame('500 Training Plaza, Austin, TX 78701', DB::table('i983_training_plans')->where('case_id', $caseId)->value('site_address'));
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/correction', [
             'reason' => 'The given name on Section 1 should be checked by the student.',

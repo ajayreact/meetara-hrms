@@ -3,35 +3,62 @@
 namespace App\Services\Hrms;
 
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class RoleAssignment
 {
+    /**
+     * Standard company roles. Owner is Company Admin and is never assigned here.
+     * Manager is shown as Team Lead. Accounts stays optional.
+     *
+     * @var list<string>
+     */
+    public const STANDARD = ['Owner', 'Employee', 'Manager', 'HR'];
+
+    public function ensureStandard(int $companyId): void
+    {
+        foreach (self::STANDARD as $name) {
+            $this->define($companyId, $name);
+        }
+    }
+
     public function defineAccounts(User $actor): void
     {
         $companyId = $actor->companyId();
         abort_if($companyId === null || $actor->applicationRole() !== 'company_admin', 403);
 
+        if ($this->define($companyId, 'Accounts')) {
+            $this->event($actor, null, 'Accounts', 'defined');
+        }
+    }
+
+    private function define(int $companyId, string $name): bool
+    {
         $exists = DB::table('roles')
             ->where('tenant_id', $companyId)
-            ->where('name', 'Accounts')
+            ->where('name', $name)
             ->where('guard_name', 'web')
             ->exists();
 
         if ($exists) {
-            return;
+            return false;
         }
 
-        DB::table('roles')->insert([
-            'tenant_id' => $companyId,
-            'name' => 'Accounts',
-            'guard_name' => 'web',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        try {
+            DB::table('roles')->insert([
+                'tenant_id' => $companyId,
+                'name' => $name,
+                'guard_name' => 'web',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (QueryException) {
+            return false;
+        }
 
-        $this->event($actor, null, 'Accounts', 'defined');
+        return true;
     }
 
     public function assign(User $actor, User $user, int $companyId, string $roleName): void

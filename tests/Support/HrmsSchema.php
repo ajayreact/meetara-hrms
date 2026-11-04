@@ -66,6 +66,37 @@ class HrmsSchema
             }
         }
 
+        if (Schema::hasTable('departments') && ! Schema::hasColumn('departments', 'code')) {
+            Schema::table('departments', function (Blueprint $table) {
+                $table->string('code')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('departments') && ! Schema::hasColumn('departments', 'is_active')) {
+            Schema::table('departments', function (Blueprint $table) {
+                $table->boolean('is_active')->default(true);
+            });
+        }
+
+        if (Schema::hasTable('designations') && ! Schema::hasColumn('designations', 'is_active')) {
+            Schema::table('designations', function (Blueprint $table) {
+                $table->boolean('is_active')->default(true);
+            });
+        }
+
+        if (Schema::hasTable('i983_employers') && ! Schema::hasColumn('i983_employers', 'hourly_rate')) {
+            Schema::table('i983_employers', function (Blueprint $table) {
+                $table->decimal('hourly_rate', 12, 2)->nullable();
+                $table->decimal('annual_compensation', 12, 2)->nullable();
+            });
+        }
+
+        if (Schema::hasTable('i983_training_plans') && ! Schema::hasColumn('i983_training_plans', 'work_arrangement')) {
+            Schema::table('i983_training_plans', function (Blueprint $table) {
+                $table->string('work_arrangement', 20)->nullable();
+            });
+        }
+
         if (Schema::hasTable('locations') && ! Schema::hasColumn('locations', 'latitude')) {
             Schema::table('locations', function (Blueprint $table) {
                 $table->decimal('latitude', 10, 7)->nullable();
@@ -1446,8 +1477,10 @@ class HrmsSchema
                 $table->unsignedInteger('employee_count')->nullable();
                 $table->string('naics', 10)->nullable();
                 $table->unsignedTinyInteger('opt_hours')->nullable();
+                $table->decimal('hourly_rate', 12, 2)->nullable();
                 $table->decimal('salary', 12, 2)->nullable();
                 $table->string('salary_frequency', 40)->nullable();
+                $table->decimal('annual_compensation', 12, 2)->nullable();
                 $table->text('other_compensation')->nullable();
                 $table->date('start_date')->nullable();
                 $table->timestamp('finalized_at')->nullable();
@@ -1465,6 +1498,7 @@ class HrmsSchema
                 $table->string('employer_name', 191)->nullable();
                 $table->string('site_name', 191)->nullable();
                 $table->string('site_address', 300)->nullable();
+                $table->string('work_arrangement', 20)->nullable();
                 $table->string('official_name', 120)->nullable();
                 $table->string('official_title', 120)->nullable();
                 $table->string('official_email', 191)->nullable();

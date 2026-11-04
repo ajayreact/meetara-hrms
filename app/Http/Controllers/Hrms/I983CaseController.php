@@ -75,7 +75,7 @@ class I983CaseController extends Controller
     {
         $this->cases->requestCorrection($this->manager($request), $case, $request->all());
 
-        return back()->with('status', 'Correction requested. The student can update Section 1 and Student Role. Employer fields were not changed.');
+        return back()->with('status', 'Correction requested. The student can update Section 1 and Student Role. Employer HR can also update Student Role. Employer fields were not changed.');
     }
 
     public function revoke(Request $request, int $case): RedirectResponse

@@ -274,6 +274,133 @@ class UsaOfferDesignationTest extends TestCase
         $pdf->render($offer, ['company_name' => 'Meetara', 'address_line' => '', 'federal_id' => '']);
     }
 
+    public function test_offer_details_preview_and_pdf_require_an_authorized_existing_offer(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix-offer-access');
+        $other = CompanyFixture::make('Other Company', 'other-offer-access');
+        $this->actingAs($company->hr)->get('/usa-offers/settings')->assertOk();
+        $this->actingAs($company->hr)->post('/usa-offers/settings', $this->profile())->assertRedirect();
+        $this->actingAs($company->hr)->post('/usa-offers/settings/letterhead', [
+            'letterhead' => UploadedFile::fake()->image('letterhead.png', 900, 200),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/usa-offers/settings/signature', [
+            'signature' => UploadedFile::fake()->image('signature.jpg', 320, 80),
+        ])->assertRedirect();
+        $designationId = (int) DB::table('usa_offer_designations')->where('tenant_id', $company->id)->where('name', 'Software Engineer')->value('id');
+        $this->actingAs($company->hr)->post('/usa-offers', $this->offer($designationId, [
+            'Design, develop, test and maintain scalable software applications.',
+        ]))->assertRedirect();
+        $offerId = (int) DB::table('usa_offers')->where('tenant_id', $company->id)->value('id');
+
+        $this->actingAs($company->hr)->get('/usa-offers/'.$offerId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('usa-offers/form')
+            ->where('offer.candidateName', 'Sample Candidate')
+            ->where('offer.designationName', 'Software Engineer')
+            ->where('offer.payAmount', fn ($amount) => number_format((float) $amount, 2, '.', '') === '20.00')
+            ->where('offer.workingHours', '20 hours per week')
+            ->where('offer.status', 'draft')
+            ->where('offer.locked', false)
+        );
+
+        $preview = $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview');
+        $preview->assertOk();
+        $preview->assertHeader('Content-Type', 'application/pdf');
+        $preview->assertHeader('Cache-Control', 'no-store, private');
+        $this->assertStringStartsWith('%PDF', $preview->getContent());
+        Storage::disk('local')->assertMissing('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
+
+        $this->actingAs($company->hr)->post('/usa-offers/'.$offerId.'/generate')->assertRedirect();
+        $stored = (string) Storage::disk('local')->get('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
+        $this->assertStringStartsWith('%PDF', $stored);
+        $this->assertSame('generated', DB::table('usa_offers')->where('id', $offerId)->value('status'));
+        $this->assertStringStartsWith('usa-offers/'.$company->id.'/', (string) DB::table('usa_offers')->where('id', $offerId)->value('file_path'));
+        $this->assertSame($stored, $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview')->getContent());
+        $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/download')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="usa-offer.pdf"');
+
+        foreach ([$company->employee, $company->lead, $this->accounts($company)] as $user) {
+            $this->actingAs($user)->get('/usa-offers/'.$offerId)->assertForbidden();
+            $this->actingAs($user)->get('/usa-offers/'.$offerId.'/preview')->assertForbidden();
+            $this->actingAs($user)->post('/usa-offers/'.$offerId.'/generate')->assertForbidden();
+            $this->actingAs($user)->get('/usa-offers/'.$offerId.'/download')->assertForbidden();
+        }
+
+        $this->actingAs($other->hr)->get('/usa-offers/'.$offerId)->assertNotFound();
+        $this->actingAs($other->hr)->get('/usa-offers/'.$offerId.'/preview')->assertNotFound();
+        $this->actingAs($other->hr)->post('/usa-offers/'.$offerId.'/generate')->assertNotFound();
+        $this->actingAs($company->hr)->get('/usa-offers/999999')->assertNotFound();
+        $this->actingAs($company->hr)->get('/usa-offers/999999/preview')->assertNotFound();
+        $this->actingAs($company->hr)->post('/usa-offers/999999/generate')->assertNotFound();
+        $this->actingAs($company->hr)->get('/usa-offers/999999/download')->assertNotFound();
+        $this->actingAs($company->hr)->get('/usa-offers/not-an-offer')->assertNotFound();
+        auth()->logout();
+        $this->get('/usa-offers/'.$offerId)->assertRedirect('/login');
+        $this->get('/usa-offers/'.$offerId.'/preview')->assertRedirect('/login');
+        $this->post('/usa-offers/'.$offerId.'/generate')->assertRedirect('/login');
+
+        $this->assertLetterMarginsClear((new UsaOfferPdf)->render([
+            'designation_name' => 'Software Engineer',
+            'responsibilities' => array_map(
+                fn (int $index): string => 'Responsibility '.$index.' covers delivery, review, and documentation for the assigned work.',
+                range(1, 12),
+            ),
+            'candidate_name' => 'Alexandra Montgomery-Alexander',
+            'candidate_email' => 'alexandra.montgomery.alexander@example.test',
+            'candidate_phone' => '+1 555 0100',
+            'candidate_address' => '1337 Jensen Court, Delafield, Wisconsin 53018, United States of America',
+            'employment_type' => 'Contract',
+            'pay_type' => 'hourly',
+            'pay_amount' => '20.00',
+            'working_hours' => '20 hours per week',
+            'work_arrangement' => 'completely remote position',
+            'university' => 'Concordia University',
+            'start_date' => '2026-11-06',
+            'issue_date' => '2026-11-04',
+        ], $this->profile()));
+        $this->assertFileExists(resource_path('fonts/LiberationSans-Regular.ttf'));
+        $this->assertFileExists(resource_path('fonts/LiberationSans-Bold.ttf'));
+        $this->assertStringNotContainsString('C:/Windows/Fonts', (string) file_get_contents(app_path('Services/Hrms/UsaOfferPdf.php')));
+    }
+
+    private function assertLetterMarginsClear(string $pdf): void
+    {
+        $this->assertGreaterThanOrEqual(2, (new UsaOfferPdf)->pages($pdf));
+        $offset = 0;
+        $page = 0;
+
+        while (($start = strpos($pdf, "\xFF\xD8\xFF", $offset)) !== false) {
+            $end = strpos($pdf, "\xFF\xD9", $start);
+            $this->assertNotFalse($end);
+            $page++;
+            $image = imagecreatefromstring(substr($pdf, $start, $end - $start + 2));
+            $this->assertNotFalse($image);
+            $width = imagesx($image);
+            $right = (int) round(566 * 2);
+            $top = (int) round(80 * 2);
+            $bodyBottom = (int) round(746 * 2);
+            $footerCheck = (int) round(756 * 2);
+
+            for ($y = $top; $y < $bodyBottom; $y += 2) {
+                for ($x = $right; $x < $width; $x += 2) {
+                    $this->assertGreaterThan(235, (imagecolorat($image, $x, $y) >> 16) & 255);
+                }
+            }
+
+            for ($y = $bodyBottom; $y < min(imagesy($image), $footerCheck); $y += 2) {
+                for ($x = (int) round(48 * 2); $x < $width - 80; $x += 6) {
+                    $red = (imagecolorat($image, $x, $y) >> 16) & 255;
+                    $this->assertGreaterThan(235, $red, 'Page '.$page.' pixel '.$x.','.$y.' red '.$red);
+                }
+            }
+
+            imagedestroy($image);
+            $offset = $end + 2;
+        }
+
+        $this->assertGreaterThan(0, $page);
+    }
+
     /**
      * @param  list<string>  $responsibilities
      * @return array<string, mixed>

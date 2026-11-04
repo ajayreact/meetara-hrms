@@ -139,6 +139,11 @@ class I983StudentFinalTest extends TestCase
         $this->post($link, $this->student('Riley', 'Quinn', 'riley.open@example.test', true))->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training('Quinn, Riley'))->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
         $working = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->first();
         Auth::logout();
@@ -168,12 +173,12 @@ class I983StudentFinalTest extends TestCase
         $this->post($link, $this->student($given, $surname, $email, true))->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training($surname.', '.$given))->assertRedirect();
-        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
         $this->actingAs($company->hr)->post('/i983/signature', [
             'signatory_name' => 'Priya Shah',
             'signatory_title' => 'HR Manager',
             'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
         ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
         $this->actingAs($owner)->post('/i983/'.$caseId.'/signature', ['confirm' => '1'])->assertRedirect();
         $this->actingAs($owner)->post('/i983/'.$caseId.'/finalize', ['confirm' => '1'])->assertRedirect();
         $final = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'final_signed')->first();
@@ -272,7 +277,8 @@ class I983StudentFinalTest extends TestCase
             'student_name' => $studentName,
             'employer_name' => 'Acme People LLC',
             'site_name' => 'Acme Remote',
-            'site_address' => '100 Sample Street, Farmington, MI 48335',
+            'site_address' => '500 Training Plaza, Austin, TX 78701',
+            'work_arrangement' => 'remote',
             'official_name' => 'Priya Shah',
             'official_title' => 'HR Manager',
             'official_email' => 'priya@acme.test',

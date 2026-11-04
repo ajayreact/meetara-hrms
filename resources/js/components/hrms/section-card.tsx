@@ -41,6 +41,7 @@ const tones: Record<string, string> = {
     'Weekly Off': 'bg-slate-100 text-slate-600',
     Missing: 'bg-rose-50 text-rose-700',
     Inactive: 'bg-slate-100 text-slate-500',
+    Protected: 'bg-slate-100 text-slate-700',
     Recovered: 'bg-slate-100 text-slate-600',
     Invited: 'bg-amber-50 text-amber-700',
     'Invitation Pending': 'bg-amber-50 text-amber-700',

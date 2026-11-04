@@ -12,6 +12,20 @@ class UsaOfferPdf
 
     private const SCALE = 2.0;
 
+    private const MARGIN_X = 54.0;
+
+    private const CONTENT_WIDTH = 504.0;
+
+    private const BODY_TOP = 108.0;
+
+    private const BODY_BOTTOM = 742.0;
+
+    private const BODY = 11.0;
+
+    private const LEADING = 14.0;
+
+    private const HEADING = 13.0;
+
     private ?string $letterhead = null;
 
     private ?string $signature = null;
@@ -65,57 +79,103 @@ class UsaOfferPdf
     private function compose(array $offer): \Generator
     {
         $image = $this->chrome();
-        $y = $this->px(104);
+        $y = $this->px(self::BODY_TOP);
         $this->date($image, $this->text($offer['issue_date'] ?? ''));
-        $y = $this->block($image, $y, $this->fromLines(), true, 14.4);
+        $y = $this->sender($image, $y);
         $y += $this->px(8);
-        $name = $this->text($offer['candidate_name'] ?? '');
-        $printedName = $name === '' ? '' : mb_strtoupper($name).(str_ends_with($name, ',') ? '' : ',');
-        $to = array_filter([
-            'To,',
-            $printedName,
-            $this->text($offer['candidate_address'] ?? '') !== '' ? mb_strtoupper($this->text($offer['candidate_address'] ?? '')) : '',
-            $this->text($offer['candidate_email'] ?? ''),
-            $this->text($offer['candidate_phone'] ?? ''),
-        ]);
-        $y = $this->block($image, $y, array_values($to), true, 14.4);
+        $y = $this->recipient($image, $y, $offer);
         $y += $this->px(10);
-        $this->draw($image, 'Dear ', $this->px(54), $y, 12, false, [0, 0, 0]);
-        $this->draw($image, $name.',', $this->px(54) + $this->width('Dear ', 12, false), $y, 12, true, [0, 0, 0]);
-        $y += $this->px(20);
-        $y = $this->rich($image, $this->offerRuns($offer), $this->px(54), $y, $this->px(504), 12, 15);
-        $y += $this->px(12);
-        $this->draw($image, 'Responsibilities:', $this->px(54), $y, 12, true, [0, 0, 0]);
-        $y += $this->px(16);
+        $name = $this->text($offer['candidate_name'] ?? '');
+
+        foreach ($this->wrappedRuns([
+            ['Dear ', false, [0, 0, 0], false],
+            [$name, true, [0, 0, 0], false],
+            [',', false, [0, 0, 0], false],
+        ], self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
+            $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+        }
+
+        $y += $this->px(4);
+
+        foreach ($this->wrappedRuns($this->offerRuns($offer), self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
+            if ($y + $this->px(self::LEADING) > $this->px(self::BODY_BOTTOM)) {
+                yield $image;
+                $image = $this->chrome();
+                $y = $this->px(self::BODY_TOP);
+            }
+
+            $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+        }
+
+        $y += $this->px(8);
         $responsibilities = is_array($offer['responsibilities'] ?? null) ? $offer['responsibilities'] : [];
-        $limit = $this->px(744);
+        $items = [];
 
         foreach ($responsibilities as $item) {
             $line = $this->text($item);
 
-            if ($line === '') {
-                continue;
+            if ($line !== '') {
+                $items[] = $line;
             }
+        }
 
-            $height = $this->bulletHeight($line);
-
-            if ($y + $height > $limit) {
+        if ($items !== []) {
+            if ($y + $this->px(self::HEADING + self::LEADING) > $this->px(self::BODY_BOTTOM)) {
                 yield $image;
                 $image = $this->chrome();
-                $y = $this->px(108);
+                $y = $this->px(self::BODY_TOP);
             }
 
-            $y = $this->bullet($image, $line, $y);
+            $this->draw($image, 'Responsibilities', $this->px(self::MARGIN_X), $y, self::HEADING, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING + 2);
+
+            foreach ($items as $item) {
+                $height = $this->bulletHeight($item);
+
+                if ($y + $height > $this->px(self::BODY_BOTTOM)) {
+                    yield $image;
+                    $image = $this->chrome();
+                    $y = $this->px(self::BODY_TOP);
+                }
+
+                $y = $this->bullet($image, $item, $y);
+            }
         }
 
-        if ($y + $this->closingHeight(false) > $limit) {
+        $y += $this->px(8);
+        $report = $this->wrappedRuns($this->reportRuns(), self::BODY, $this->px(self::CONTENT_WIDTH));
+        $reportHeight = count($report) * $this->px(self::LEADING);
+
+        if ($y + $reportHeight > $this->px(self::BODY_BOTTOM)) {
             yield $image;
             $image = $this->chrome();
-            $y = $this->px(140);
-            $this->drawClosing($image, $y, true);
-        } else {
-            $this->drawClosing($image, $y + $this->px(8), false);
+            $y = $this->px(self::BODY_TOP);
         }
+
+        foreach ($report as $line) {
+            $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+        }
+
+        $y += $this->px(8);
+        $signatoryHeight = $this->px(14 + 36) + (5 * $this->px(self::LEADING));
+
+        if ($y + $signatoryHeight > $this->px(self::BODY_BOTTOM)) {
+            yield $image;
+            $image = $this->chrome();
+            $y = $this->px(self::BODY_TOP);
+        }
+
+        $y = $this->signatory($image, $y);
+        $acceptance = $this->wrappedRuns([['I have read this offer and accept the terms of appointment described herein.', false, [0, 0, 0], false]], self::BODY, $this->px(self::CONTENT_WIDTH));
+        $acceptanceHeight = (count($acceptance) * $this->px(self::LEADING)) + $this->px(12 + 24 + 6);
+
+        if ($y + $acceptanceHeight > $this->px(self::BODY_BOTTOM)) {
+            yield $image;
+            $image = $this->chrome();
+            $y = $this->px(self::BODY_TOP);
+        }
+
+        $this->acceptance($image, $y, $acceptance);
 
         yield $image;
     }
@@ -138,63 +198,132 @@ class UsaOfferPdf
         return $pdf->Output('S');
     }
 
-    private function closingHeight(bool $roomy): int
+    private function sender(\GdImage $image, int $y): int
     {
-        $report = $this->reportSentence();
-        $lines = max(1, $this->lineCount($report, 12, false, $this->px(504)));
-        $afterReport = $roomy ? 28 : 14;
-        $afterSincerely = $roomy ? 20 : 16;
-        $afterSignature = $roomy ? 14 : 10;
-        $line = 16;
-        $beforeAcceptance = $roomy ? 28 : 14;
-        $beforeLabels = $roomy ? 22 : 16;
+        $this->draw($image, 'From', $this->px(self::MARGIN_X), $y, self::BODY, true, [0, 0, 0]);
+        $y += $this->px(self::LEADING);
 
-        return ($lines * $this->px(16))
-            + $this->px($afterReport + $afterSincerely + 39 + $afterSignature + ($line * 3) + $beforeAcceptance + $line + $beforeLabels + $line + 8);
+        foreach ($this->wrapPlain($this->field('company_name'), self::BODY, true, $this->px(self::CONTENT_WIDTH)) as $line) {
+            $this->draw($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        foreach ($this->postalLines() as $line) {
+            $this->draw($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, false, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        if ($this->field('e_verify') !== '') {
+            $label = 'E-Verify No: ';
+            $this->draw($image, $label, $this->px(self::MARGIN_X), $y, self::BODY, false, [0, 0, 0]);
+            $this->draw($image, $this->field('e_verify'), $this->px(self::MARGIN_X) + $this->width($label, self::BODY, false), $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        $label = 'Federal ID (EIN): ';
+        $this->draw($image, $label, $this->px(self::MARGIN_X), $y, self::BODY, false, [0, 0, 0]);
+        $this->draw($image, $this->field('federal_id'), $this->px(self::MARGIN_X) + $this->width($label, self::BODY, false), $y, self::BODY, true, [0, 0, 0]);
+
+        return $y + $this->px(self::LEADING);
     }
 
-    private function drawClosing(\GdImage $image, int $y, bool $roomy): void
+    /**
+     * @param  array<string, mixed>  $offer
+     */
+    private function recipient(\GdImage $image, int $y, array $offer): int
     {
-        $y = $this->rich($image, $this->reportRuns(), $this->px(54), $y, $this->px(504), 12, 16);
-        $y += $this->px($roomy ? 28 : 14);
-        $this->draw($image, 'Sincerely,', $this->px(54), $y, 12, false, [0, 0, 0]);
-        $y += $this->px($roomy ? 20 : 16);
-        $this->paintSignature($image, $this->px(54), $y);
-        $y += $this->px(39 + ($roomy ? 14 : 10));
-        $this->draw($image, $this->signatoryLine(), $this->px(54), $y, 12, false, [0, 0, 0]);
-        $y += $this->px(16);
-        $this->draw($image, 'Phone No: ', $this->px(54), $y, 12, false, [0, 0, 0]);
-        $this->draw($image, $this->field('hr_phone').'.', $this->px(54) + $this->width('Phone No: ', 12, false), $y, 12, true, [0, 0, 0]);
-        $y += $this->px(16);
-        $this->draw($image, mb_strtoupper($this->field('company_name')), $this->px(54), $y, 12, true, [0, 0, 0]);
-        $y += $this->px($roomy ? 28 : 14);
-        $this->draw($image, 'I have read this offer and accept the terms of appointment described herein.', $this->px(54), $y, 12, false, [0, 0, 0]);
-        $y += $this->px($roomy ? 22 : 16);
-        $this->draw($image, 'Employee Signature:', $this->px(54), $y, 12, true, [0, 0, 0]);
-        $this->draw($image, 'Date:', $this->px(470), $y, 12, true, [0, 0, 0]);
+        $this->draw($image, 'To', $this->px(self::MARGIN_X), $y, self::BODY, true, [0, 0, 0]);
+        $y += $this->px(self::LEADING);
+        $name = $this->text($offer['candidate_name'] ?? '');
+
+        foreach ($this->wrapPlain($name === '' ? '' : mb_strtoupper($name), self::BODY, true, $this->px(self::CONTENT_WIDTH)) as $line) {
+            $this->draw($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        foreach ([$this->text($offer['candidate_address'] ?? ''), $this->text($offer['candidate_email'] ?? ''), $this->text($offer['candidate_phone'] ?? '')] as $part) {
+            foreach ($this->wrapPlain($part, self::BODY, false, $this->px(self::CONTENT_WIDTH)) as $line) {
+                $this->draw($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, false, [0, 0, 0]);
+                $y += $this->px(self::LEADING);
+            }
+        }
+
+        return $y;
     }
 
-    private function lineCount(string $text, float $size, bool $bold, int $width): int
+    private function signatory(\GdImage $image, int $y): int
     {
-        $lines = 1;
-        $used = 0.0;
+        $x = $this->px(self::MARGIN_X);
+        $this->draw($image, 'Sincerely,', $x, $y, self::BODY, false, [0, 0, 0]);
+        $y += $this->px(14);
+        $this->paintSignature($image, $x, $y);
+        $y += $this->px(36);
 
-        foreach (preg_split('/\s+/', trim($text)) ?: [] as $word) {
-            if ($word === '') {
-                continue;
+        if ($this->field('hr_name') !== '') {
+            $this->draw($image, $this->field('hr_name'), $x, $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        if ($this->field('hr_title') !== '') {
+            $this->draw($image, $this->field('hr_title'), $x, $y, self::BODY, false, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        if ($this->field('hr_phone') !== '') {
+            $label = 'Phone: ';
+            $this->draw($image, $label, $x, $y, self::BODY, false, [0, 0, 0]);
+            $this->draw($image, $this->field('hr_phone'), $x + $this->width($label, self::BODY, false), $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        foreach ($this->wrapPlain(mb_strtoupper($this->field('company_name')), self::BODY, true, $this->px(self::CONTENT_WIDTH)) as $line) {
+            $this->draw($image, $line, $x, $y, self::BODY, true, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        return $y + $this->px(10);
+    }
+
+    /**
+     * @param  list<list<array{0: string, 1: bool, 2: array{0: int, 1: int, 2: int}, 3: bool}>>  $lines
+     */
+    private function acceptance(\GdImage $image, int $y, array $lines): void
+    {
+        foreach ($lines as $line) {
+            $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+        }
+
+        $y += $this->px(12);
+        $left = $this->px(self::MARGIN_X);
+        $dateLabel = $this->px(390);
+        $this->draw($image, 'Employee Signature', $left, $y, self::BODY, true, [0, 0, 0]);
+        $this->draw($image, 'Date', $dateLabel, $y, self::BODY, true, [0, 0, 0]);
+        $lineY = $y + $this->px(24);
+        $ink = imagecolorallocate($image, 30, 30, 30);
+        imageline($image, $left, $lineY, $this->px(300), $lineY, $ink);
+        imageline($image, $dateLabel, $lineY, $this->px(530), $lineY, $ink);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function postalLines(): array
+    {
+        $street = $this->field('address_line');
+        $locality = $this->field('city_line');
+        $country = $this->field('country_line');
+
+        if (preg_match('/^(suite|ste\.?|unit|apt\.?|apartment)\s+[A-Za-z0-9-]+/i', $locality, $match) === 1) {
+            $street = trim($street.($street !== '' ? ', ' : '').$match[0]);
+            $locality = ltrim(trim(substr($locality, strlen($match[0]))), ", \t");
+        }
+
+        $lines = [];
+
+        foreach ([$street, $locality, $country] as $part) {
+            foreach ($this->wrapPlain($part, self::BODY, false, $this->px(self::CONTENT_WIDTH)) as $line) {
+                $lines[] = $line;
             }
-
-            $piece = $used === 0.0 ? $word : ' '.$word;
-            $pieceWidth = $this->width($piece, $size, $bold);
-
-            if ($used > 0 && $used + $pieceWidth > $width) {
-                $lines++;
-                $used = $this->width($word, $size, $bold);
-
-                continue;
-            }
-
-            $used += $pieceWidth;
         }
 
         return $lines;
@@ -212,17 +341,26 @@ class UsaOfferPdf
             return $image;
         }
 
-        $footer = array_values(array_filter([
+        $contact = array_values(array_filter([
             $this->field('website'),
             $this->field('email'),
             $this->field('phone'),
-            trim($this->field('address_line').' '.$this->field('city_line')),
         ], fn (string $line): bool => $line !== ''));
-        $y = $this->px(752);
+        $footer = array_values(array_filter([
+            implode('   |   ', $contact),
+            implode(', ', $this->postalLines()),
+        ], fn (string $line): bool => $line !== ''));
+        $y = $this->px(768);
 
         foreach ($footer as $line) {
-            $this->draw($image, $line, $this->px(54), $y, 8, false, [40, 40, 40]);
-            $y += $this->px(11);
+            foreach ($this->wrapPlain($line, 8, false, $this->px(self::CONTENT_WIDTH)) as $wrapped) {
+                if ($y > $this->px(784)) {
+                    break 2;
+                }
+
+                $this->draw($image, $wrapped, $this->px(self::MARGIN_X), $y, 8, false, [40, 40, 40]);
+                $y += $this->px(10);
+            }
         }
 
         return $image;
@@ -237,27 +375,14 @@ class UsaOfferPdf
         $suffix = $this->ordinal((int) $day);
         $lead = trim($month.' '.$day);
         $tail = ', '.$year;
-        $width = $this->width($lead, 12, true) + $this->width($suffix, 8, true) + $this->width($tail, 12, true);
-        $x = $this->px(558) - $width;
-        $y = $this->px(90.5);
-        $this->draw($image, $lead, $x, $y, 12, true, [0, 0, 0]);
-        $x += $this->width($lead, 12, true);
-        $this->draw($image, $suffix, $x, $y - $this->px(5), 8, true, [0, 0, 0]);
+        $width = $this->width($lead, self::BODY, true) + $this->width($suffix, 8, true) + $this->width($tail, self::BODY, true);
+        $x = $this->px(self::MARGIN_X + self::CONTENT_WIDTH) - $width;
+        $y = $this->px(92);
+        $this->draw($image, $lead, $x, $y, self::BODY, true, [0, 0, 0]);
+        $x += $this->width($lead, self::BODY, true);
+        $this->draw($image, $suffix, $x, $y - $this->px(4), 8, true, [0, 0, 0]);
         $x += $this->width($suffix, 8, true);
-        $this->draw($image, $tail, $x, $y, 12, true, [0, 0, 0]);
-    }
-
-    /**
-     * @param  list<string>  $lines
-     */
-    private function block(\GdImage $image, int $y, array $lines, bool $bold, float $leading = 16): int
-    {
-        foreach ($lines as $line) {
-            $this->draw($image, $line, $this->px(54), $y, 12, $bold, [0, 0, 0]);
-            $y += $this->px($leading);
-        }
-
-        return $y;
+        $this->draw($image, $tail, $x, $y, self::BODY, true, [0, 0, 0]);
     }
 
     /**
@@ -273,13 +398,19 @@ class UsaOfferPdf
         $start = $this->usDate($this->text($offer['start_date'] ?? ''));
 
         $runs = [
-            ['This letter is to confirm that '.$this->field('company_name').', with Federal Employer Identification Number (EIN) '.$this->field('federal_id').', is delighted to offer you the position of ', false, [0, 0, 0], false],
+            ['This letter is to confirm that ', false, [0, 0, 0], false],
+            [$this->field('company_name'), true, [0, 0, 0], false],
+            [', with Federal Employer Identification Number (EIN) ', false, [0, 0, 0], false],
+            [$this->field('federal_id'), true, [0, 0, 0], false],
+            [', is delighted to offer you the position of ', false, [0, 0, 0], false],
             [$this->text($offer['designation_name'] ?? ''), true, [0, 0, 0], false],
             [' '.$pay, false, [0, 0, 0], false],
             [$amount, true, [0, 0, 0], false],
             ['. You will be working ', false, [0, 0, 0], false],
             [$this->text($offer['working_hours'] ?? ''), true, [0, 0, 0], false],
-            [' in a '.$this->text($offer['work_arrangement'] ?? '').', with a start date of ', false, [0, 0, 0], false],
+            [' in a ', false, [0, 0, 0], false],
+            [$this->text($offer['work_arrangement'] ?? ''), true, [0, 0, 0], false],
+            [', with a start date of ', false, [0, 0, 0], false],
             [$start, true, [0, 0, 0], false],
             ['. This employment will be associated with your employment authorization status under your academic program at ', false, [0, 0, 0], false],
             [$this->text($offer['university'] ?? ''), true, [0, 0, 0], false],
@@ -288,48 +419,12 @@ class UsaOfferPdf
         $employment = $this->text($offer['employment_type'] ?? '');
 
         if ($employment !== '') {
-            $runs[] = [' Employment type: '.$employment.'.', false, [0, 0, 0], false];
+            $runs[] = [' Employment type: ', false, [0, 0, 0], false];
+            $runs[] = [$employment, true, [0, 0, 0], false];
+            $runs[] = ['.', false, [0, 0, 0], false];
         }
 
         return $runs;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function fromLines(): array
-    {
-        return array_values(array_filter([
-            'From,',
-            $this->field('company_name').',',
-            $this->field('address_line') !== '' ? $this->field('address_line').',' : '',
-            $this->field('city_line') !== '' ? $this->field('city_line').',' : '',
-            $this->field('country_line'),
-            $this->field('e_verify') !== '' ? 'E-Verify No: '.$this->field('e_verify') : '',
-            'Federal ID (EIN): '.$this->field('federal_id'),
-        ], fn (string $line): bool => $line !== ''));
-    }
-
-    private function reportSentence(): string
-    {
-        $who = trim($this->field('manager_name').($this->field('manager_title') !== '' ? ', '.$this->field('manager_title') : ''));
-        $sentence = 'You will report your day-to-day activities directly to '.$who.'.';
-        $email = $this->field('manager_email');
-        $phone = $this->field('manager_phone');
-
-        if ($email !== '' && $phone !== '') {
-            return $sentence.' The manager can be reached by email at '.$email.' or by phone at '.$phone.'.';
-        }
-
-        if ($email !== '') {
-            return $sentence.' The manager can be reached by email at '.$email.'.';
-        }
-
-        if ($phone !== '') {
-            return $sentence.' The manager can be reached by phone at '.$phone.'.';
-        }
-
-        return $sentence;
     }
 
     /**
@@ -363,18 +458,6 @@ class UsaOfferPdf
         return $runs;
     }
 
-    private function signatoryLine(): string
-    {
-        $title = $this->field('hr_title');
-        $name = $this->field('hr_name');
-
-        if ($title !== '' && $name !== '') {
-            return $title.' – '.$name;
-        }
-
-        return $title !== '' ? $title : $name;
-    }
-
     private function field(string $key): string
     {
         return trim((string) ($this->profile[$key] ?? ''));
@@ -387,44 +470,6 @@ class UsaOfferPdf
                 'profile' => 'Save this company\'s name, address, and federal ID on the USA offer profile before generating the letter.',
             ]);
         }
-    }
-
-    /**
-     * @param  list<array{0: string, 1: bool, 2: array{0: int, 1: int, 2: int}, 3: bool}>  $runs
-     */
-    private function rich(\GdImage $image, array $runs, int $x, int $y, int $width, float $size, float $leading = 17): int
-    {
-        $words = $this->tokens($runs);
-
-        $line = [];
-        $lineWidth = 0;
-
-        foreach ($words as $word) {
-            $piece = ($line === [] || $this->attached($word[0]) ? '' : ' ').$word[0];
-            $pieceWidth = $this->width($piece, $size, $word[1]);
-
-            if ($line !== [] && $lineWidth + $pieceWidth > $width) {
-                $y = $this->paint($image, $line, $x, $y, $size, $leading);
-                $line = [$word];
-                $lineWidth = $this->width($word[0], $size, $word[1]);
-
-                continue;
-            }
-
-            if ($line === []) {
-                $line[] = $word;
-                $lineWidth = $pieceWidth;
-            } else {
-                $line[] = [$piece, $word[1], $word[2], $word[3]];
-                $lineWidth += $pieceWidth;
-            }
-        }
-
-        if ($line !== []) {
-            $y = $this->paint($image, $line, $x, $y, $size, $leading);
-        }
-
-        return $y;
     }
 
     /**
@@ -481,17 +526,99 @@ class UsaOfferPdf
     private function bullet(\GdImage $image, string $text, int $y): int
     {
         $color = imagecolorallocate($image, 40, 40, 40);
-        imagefilledellipse($image, $this->px(64), $y - $this->px(4), $this->px(3.5), $this->px(3.5), $color);
+        $width = $this->px(self::CONTENT_WIDTH - 22);
+        $lines = $this->wrapPlain($text, self::BODY, false, $width);
+        $first = true;
 
-        return $this->rich($image, [[$text, false, [0, 0, 0], false]], $this->px(76), $y, $this->px(482), 12, 14.4);
+        foreach ($lines as $line) {
+            if ($first) {
+                imagefilledellipse($image, $this->px(self::MARGIN_X + 8), $y - $this->px(3.5), $this->px(3.2), $this->px(3.2), $color);
+                $first = false;
+            }
+
+            $this->draw($image, $line, $this->px(self::MARGIN_X + 20), $y, self::BODY, false, [0, 0, 0]);
+            $y += $this->px(self::LEADING);
+        }
+
+        return $y + $this->px(1);
     }
 
     private function bulletHeight(string $text): int
     {
-        $width = $this->width($text, 12, false);
-        $lines = max(1, (int) ceil($width / max(1, $this->px(470))));
+        $lines = max(1, count($this->wrapPlain($text, self::BODY, false, $this->px(self::CONTENT_WIDTH - 22))));
 
-        return $lines * $this->px(14.4);
+        return ($lines * $this->px(self::LEADING)) + $this->px(1);
+    }
+
+    /**
+     * @param  list<array{0: string, 1: bool, 2: array{0: int, 1: int, 2: int}, 3: bool}>  $runs
+     * @return list<list<array{0: string, 1: bool, 2: array{0: int, 1: int, 2: int}, 3: bool}>>
+     */
+    private function wrappedRuns(array $runs, float $size, int $width): array
+    {
+        $words = $this->tokens($runs);
+        $lines = [];
+        $line = [];
+        $lineWidth = 0.0;
+
+        foreach ($words as $word) {
+            $piece = ($line === [] || $this->attached($word[0]) ? '' : ' ').$word[0];
+            $pieceWidth = $this->width($piece, $size, $word[1]);
+
+            if ($line !== [] && $lineWidth + $pieceWidth > $width) {
+                $lines[] = $line;
+                $line = [$word];
+                $lineWidth = $this->width($word[0], $size, $word[1]);
+
+                continue;
+            }
+
+            if ($line === []) {
+                $line[] = $word;
+                $lineWidth = $pieceWidth;
+            } else {
+                $line[] = [$piece, $word[1], $word[2], $word[3]];
+                $lineWidth += $pieceWidth;
+            }
+        }
+
+        if ($line !== []) {
+            $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrapPlain(string $text, float $size, bool $bold, int $width): array
+    {
+        $lines = [];
+        $current = '';
+
+        foreach (preg_split('/\s+/', trim($text)) ?: [] as $word) {
+            if ($word === '') {
+                continue;
+            }
+
+            $candidate = $current === '' ? $word : $current.' '.$word;
+
+            if ($current !== '' && $this->width($candidate, $size, $bold) > $width) {
+                $lines[] = $current;
+                $current = $word;
+
+                continue;
+            }
+
+            $current = $candidate;
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines;
     }
 
     /**
@@ -504,12 +631,12 @@ class UsaOfferPdf
         }
 
         $color = imagecolorallocate($image, $rgb[0], $rgb[1], $rgb[2]);
-        imagettftext($image, $size * self::SCALE * 0.92, 0, $x, $y, $color, $this->font($bold), $text);
+        imagettftext($image, $size * self::SCALE, 0, $x, $y, $color, $this->font($bold), $text);
     }
 
     private function width(string $text, float $size, bool $bold): float
     {
-        $box = imagettfbbox($size * self::SCALE * 0.92, 0, $this->font($bold), $text);
+        $box = imagettfbbox($size * self::SCALE, 0, $this->font($bold), $text);
 
         return abs($box[2] - $box[0]);
     }
@@ -593,13 +720,29 @@ class UsaOfferPdf
 
     private function font(bool $bold): string
     {
-        $windows = $bold ? 'C:/Windows/Fonts/calibrib.ttf' : 'C:/Windows/Fonts/calibri.ttf';
-
-        if (is_file($windows)) {
-            return $windows;
+        if (! function_exists('imagettftext') || ! function_exists('imagettfbbox')) {
+            throw new \RuntimeException('USA offer PDFs require the PHP GD extension with FreeType.');
         }
 
-        return $bold ? 'C:/Windows/Fonts/arialbd.ttf' : 'C:/Windows/Fonts/arial.ttf';
+        $candidates = $bold
+            ? [
+                resource_path('fonts/LiberationSans-Bold.ttf'),
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            ]
+            : [
+                resource_path('fonts/LiberationSans-Regular.ttf'),
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            ];
+
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        throw new \RuntimeException('The USA offer font file is missing.');
     }
 
     private function px(float $points): int

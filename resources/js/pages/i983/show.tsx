@@ -37,8 +37,10 @@ interface EmployerInfo {
     employeeCount: string;
     naics: string;
     optHours: string;
+    hourlyRate: string;
     salary: string;
     salaryFrequency: string;
+    annualCompensation: string;
     otherCompensation: string;
     startDate: string;
     finalizedAt: string;
@@ -49,6 +51,7 @@ interface TrainingInfo {
     employerName: string;
     siteName: string;
     siteAddress: string;
+    workArrangement: string;
     officialName: string;
     officialTitle: string;
     officialEmail: string;
@@ -142,8 +145,9 @@ export default function I983Show({ workspace, case: record, student, employer, t
         employee_count: employer.employeeCount,
         naics: employer.naics,
         opt_hours: employer.optHours,
-        salary: employer.salary,
+        hourly_rate: employer.hourlyRate,
         salary_frequency: employer.salaryFrequency || 'year',
+        annual_compensation: employer.annualCompensation,
         other_compensation: employer.otherCompensation,
         start_date: employer.startDate,
     });
@@ -152,6 +156,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
         employer_name: training.employerName,
         site_name: training.siteName,
         site_address: training.siteAddress,
+        work_arrangement: training.workArrangement,
         official_name: training.officialName,
         official_title: training.officialTitle,
         official_email: training.officialEmail,
@@ -273,7 +278,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             <label className="text-sm text-slate-700">Full-time employees in the U.S.<input className={control} value={employerForm.data.employee_count} onChange={(event) => employerForm.setData('employee_count', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">NAICS code<input className={control} value={employerForm.data.naics} onChange={(event) => employerForm.setData('naics', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">OPT hours per week<input className={control} value={employerForm.data.opt_hours} onChange={(event) => employerForm.setData('opt_hours', event.target.value)} /></label>
-                            <label className="text-sm text-slate-700">Annual compensation amount<input className={control} value={employerForm.data.salary} onChange={(event) => employerForm.setData('salary', event.target.value)} /></label>
+                            <label className="text-sm text-slate-700">Hourly rate in U.S. dollars<input className={control} value={employerForm.data.hourly_rate} onChange={(event) => employerForm.setData('hourly_rate', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Pay frequency
                                 <select className={control} value={employerForm.data.salary_frequency} onChange={(event) => employerForm.setData('salary_frequency', event.target.value)}>
                                     <option value="year">Per year</option>
@@ -281,11 +286,15 @@ export default function I983Show({ workspace, case: record, student, employer, t
                                     <option value="hour">Per hour</option>
                                 </select>
                             </label>
+                            <label className="text-sm text-slate-700">Annual salary in U.S. dollars<input className={control} value={employerForm.data.annual_compensation} onChange={(event) => employerForm.setData('annual_compensation', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">This is the amount printed in Section 3. An hourly rate is stored separately and is not converted into an annual salary.</span></label>
                             <label className="text-sm text-slate-700">Employment start date<input className={control} type="date" value={employerForm.data.start_date} onChange={(event) => employerForm.setData('start_date', event.target.value)} /></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Other compensation<textarea className={control} rows={2} value={employerForm.data.other_compensation} onChange={(event) => employerForm.setData('other_compensation', event.target.value)} /></label>
                         </div>
                         {employerForm.errors.employer && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.employer}</p>}
                         {employerForm.errors.opt_hours && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.opt_hours}</p>}
+                        {employerForm.errors.hourly_rate && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.hourly_rate}</p>}
+                        {employerForm.errors.annual_compensation && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.annual_compensation}</p>}
+                        {employerForm.errors.salary && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.salary}</p>}
                         {employerForm.errors.state && <p className="mt-2 text-sm text-rose-700">{employerForm.errors.state}</p>}
                         <div className="mt-3 flex flex-wrap gap-3">
                             <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit" disabled={employerForm.processing}>Save employer information</button>
@@ -295,17 +304,25 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 </form>
                 <form onSubmit={saveTraining}>
                     <SectionCard title="Section 5 training plan">
-                        <p className="mb-3 text-sm text-slate-600">Student Name comes from Section 1. Employer Name comes from Section 3. Student Role is student-owned and read-only here. Goals and Objectives are shared. Site, official, oversight, measures, and remarks are employer-owned.</p>
+                        <p className="mb-3 text-sm text-slate-600">Student Name comes from Section 1. Employer Name comes from Section 3. Employer HR and the student can both complete Student Role. Goals and Objectives are shared. The training site is saved separately from the employer&apos;s registered address. Site, official, oversight, measures, and remarks are employer-owned.</p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Student name · student-owned, from Section 1<input className={lockedControl} readOnly value={trainingForm.data.student_name} /></label>
                             <label className="text-sm text-slate-700">Employer name · from Section 3<input className={lockedControl} readOnly value={training.employerName} /></label>
                             <label className="text-sm text-slate-700">Employer site name · employer-owned<input className={control} value={trainingForm.data.site_name} onChange={(event) => trainingForm.setData('site_name', event.target.value)} /></label>
-                            <label className="text-sm text-slate-700">Site address · street, city, state, ZIP<input className={control} value={trainingForm.data.site_address} onChange={(event) => trainingForm.setData('site_address', event.target.value)} placeholder="100 Sample Street, Farmington, MI 48335" /><span className="mt-1 block text-xs text-slate-500">Include the street, city, state, and ZIP.</span></label>
+                            <label className="text-sm text-slate-700">Site address · street, city, state, ZIP<input className={control} value={trainingForm.data.site_address} onChange={(event) => trainingForm.setData('site_address', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">Street, city, state, and ZIP of the training site. Do not copy the registered company address unless the student trains there.</span></label>
+                            <label className="text-sm text-slate-700">Work arrangement
+                                <select className={control} value={trainingForm.data.work_arrangement} onChange={(event) => trainingForm.setData('work_arrangement', event.target.value)}>
+                                    <option value="">Select remote, on-site, or hybrid</option>
+                                    <option value="remote">Remote</option>
+                                    <option value="on_site">On-site</option>
+                                    <option value="hybrid">Hybrid</option>
+                                </select>
+                            </label>
                             <label className="text-sm text-slate-700">Official name · employer-owned<input className={control} value={trainingForm.data.official_name} onChange={(event) => trainingForm.setData('official_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official title · employer-owned<input className={control} value={trainingForm.data.official_title} onChange={(event) => trainingForm.setData('official_title', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official email · employer-owned<input className={control} value={trainingForm.data.official_email} onChange={(event) => trainingForm.setData('official_email', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official phone · employer-owned<input className={control} value={trainingForm.data.official_phone} onChange={(event) => trainingForm.setData('official_phone', event.target.value)} /></label>
-                            <label className="text-sm text-slate-700 md:col-span-2">Student role · student-owned<textarea className={lockedControl} rows={3} readOnly value={trainingForm.data.student_role} /></label>
+                            <label className="text-sm text-slate-700 md:col-span-2">Student role<textarea className={control} rows={5} value={trainingForm.data.student_role} onChange={(event) => trainingForm.setData('student_role', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">Describe the student&apos;s position and responsibilities, how the position relates to the qualifying STEM degree, and the technical knowledge and skills the student will apply and develop. Changes are kept in the training-plan history.</span></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Goals and objectives · shared<textarea className={control} rows={3} value={trainingForm.data.goals} onChange={(event) => trainingForm.setData('goals', event.target.value)} /></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Employer oversight · employer-owned<textarea className={control} rows={3} value={trainingForm.data.oversight} onChange={(event) => trainingForm.setData('oversight', event.target.value)} /></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Measures and assessments · employer-owned<textarea className={control} rows={3} value={trainingForm.data.measures} onChange={(event) => trainingForm.setData('measures', event.target.value)} /></label>
@@ -315,6 +332,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         {trainingForm.errors.student_role && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.student_role}</p>}
                         {trainingForm.errors.student_name && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.student_name}</p>}
                         {trainingForm.errors.site_address && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.site_address}</p>}
+                        {trainingForm.errors.work_arrangement && <p className="mt-2 text-sm text-rose-700">{trainingForm.errors.work_arrangement}</p>}
                         <button className="mt-3 rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="submit" disabled={trainingForm.processing}>Save training plan</button>
                     </SectionCard>
                 </form>
@@ -394,7 +412,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 {record.submittedAt && (
                     <form onSubmit={requestCorrection}>
                         <SectionCard title="Request a student correction">
-                            <p className="mb-3 text-sm text-slate-600">This unlocks Section 1 and Student Role for the student. It does not change employer fields, rewrite earlier answers, or replace a finalized PDF.</p>
+                            <p className="mb-3 text-sm text-slate-600">This unlocks Section 1 and Student Role for the student. Employer HR can also update Student Role. It does not rewrite earlier answers or replace a finalized PDF.</p>
                             {correction && <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Open request from {correction.requestedAt}: {correction.reason}</p>}
                             <label className="text-sm text-slate-700">Reason<textarea className={control} rows={3} value={correctionForm.data.reason} onChange={(event) => correctionForm.setData('reason', event.target.value)} /></label>
                             {correctionForm.errors.reason && <p className="mt-2 text-sm text-rose-700">{correctionForm.errors.reason}</p>}

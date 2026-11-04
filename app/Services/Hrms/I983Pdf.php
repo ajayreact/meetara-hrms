@@ -109,7 +109,7 @@ class I983Pdf
             }
 
             if ($box['key'] === 'site_address' && $mode === 'working' && preg_match('/^(.+),\s*([^,]+),\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/', $text) !== 1) {
-                $errors['site_address'] = 'Enter the street, city, state, and ZIP. Example: 100 Sample Street, Farmington, MI 48335.';
+                $errors['site_address'] = 'Enter the training site as street, city, state, and ZIP. This address can differ from the employer\'s registered address.';
 
                 continue;
             }
