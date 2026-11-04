@@ -19,6 +19,7 @@ class I983Cases
         private readonly I983Documents $documents,
         private readonly I983Signatory $signatory,
         private readonly I983StudentCertifications $studentCertifications,
+        private readonly StoredFileQuarantine $quarantine,
     ) {}
 
     public const TRAINING_FIELDS = [
@@ -63,6 +64,95 @@ class I983Cases
                 'createdAt' => substr((string) $row->created_at, 0, 10),
             ])
             ->all();
+    }
+
+    public function remove(User $actor, int $caseId): void
+    {
+        abort_unless($actor->applicationRole() === 'company_admin', 403);
+        $companyId = (int) $actor->companyId();
+        $case = DB::table('i983_cases')->where('tenant_id', $companyId)->where('id', $caseId)->first();
+        abort_if($case === null, 404);
+
+        $directory = 'i983/'.$companyId.'/'.$caseId;
+
+        try {
+            $paths = $this->caseFiles($companyId, $caseId, $directory);
+            $this->quarantine->commit($paths, function () use ($actor, $companyId, $caseId, $case): void {
+                foreach ([
+                    'i983_student_certifications',
+                    'i983_documents',
+                    'i983_certifications',
+                    'i983_corrections',
+                    'i983_evaluations',
+                    'i983_field_revisions',
+                    'i983_employers',
+                    'i983_students',
+                    'i983_training_plans',
+                    'i983_links',
+                    'i983_events',
+                ] as $table) {
+                    if (Schema::hasTable($table)) {
+                        DB::table($table)->where('tenant_id', $companyId)->where('case_id', $caseId)->delete();
+                    }
+                }
+
+                $deleted = DB::table('i983_cases')->where('tenant_id', $companyId)->where('id', $caseId)->delete();
+                abort_if($deleted !== 1, 404);
+                $this->event($companyId, null, (int) $actor->id, 'hr', 'case_deleted', (string) $case->reference);
+            });
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                throw $exception;
+            }
+
+            throw ValidationException::withMessages([
+                'delete' => 'The I-983 case was not deleted. Its stored files are unchanged.',
+            ]);
+        }
+
+        $this->removeEmptyCaseDirectory($directory);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function caseFiles(int $companyId, int $caseId, string $directory): array
+    {
+        if ($companyId < 1 || $caseId < 1 || preg_match('#^i983/[1-9][0-9]*/[1-9][0-9]*$#', $directory) !== 1) {
+            throw new \RuntimeException('The I-983 directory is not limited to one case.');
+        }
+
+        $full = Storage::disk('local')->path($directory);
+
+        if (! is_dir($full)) {
+            return [];
+        }
+
+        $files = Storage::disk('local')->allFiles($directory);
+
+        foreach ($files as $file) {
+            if (! str_starts_with($file, $directory.'/') || str_contains($file, '..')) {
+                throw new \RuntimeException('The I-983 directory is not limited to one case.');
+            }
+        }
+
+        return $files;
+    }
+
+    private function removeEmptyCaseDirectory(string $directory): void
+    {
+        if (preg_match('#^i983/[1-9][0-9]*/[1-9][0-9]*$#', $directory) !== 1) {
+            return;
+        }
+
+        $disk = Storage::disk('local');
+        $full = $disk->path($directory);
+
+        if (! is_dir($full) || $disk->allFiles($directory) !== []) {
+            return;
+        }
+
+        $disk->deleteDirectory($directory);
     }
 
     /**

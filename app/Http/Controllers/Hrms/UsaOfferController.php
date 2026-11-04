@@ -95,6 +95,13 @@ class UsaOfferController extends Controller
         return redirect()->route('hrms.usa-offers.show', $offer)->with('status', 'USA offer draft updated.');
     }
 
+    public function destroy(Request $request, int $offer): RedirectResponse
+    {
+        $this->offers->remove($this->manager($request), $offer);
+
+        return redirect()->route('hrms.usa-offers')->with('status', 'USA offer deleted.');
+    }
+
     public function saveProfile(Request $request): RedirectResponse
     {
         $actor = $this->manager($request);

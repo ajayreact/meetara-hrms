@@ -25,6 +25,13 @@ class I983CaseController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, int $case): RedirectResponse
+    {
+        $this->cases->remove($this->manager($request), $case);
+
+        return redirect()->route('hrms.i983')->with('status', 'I-983 case deleted.');
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $actor = $this->manager($request);

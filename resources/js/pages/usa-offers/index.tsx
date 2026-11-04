@@ -1,7 +1,7 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 
 interface OfferRow {
     id: number;
@@ -26,6 +26,7 @@ interface StationeryState {
 }
 
 const action = 'rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700';
+const danger = 'rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-medium text-rose-700';
 
 function statusLabel(status: string): string {
     return status === 'generated' ? 'Generated' : 'Draft';
@@ -49,6 +50,7 @@ export default function UsaOffers({ workspace, offers = [], designationCount = 0
             <PageIntro title="USA offers" subtitle="Save a draft, review it, then generate the PDF. Generated letters stay unchanged if settings are edited later." />
             {notice && <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
             {errors.stationery && <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{errors.stationery}</p>}
+            {errors.delete && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{errors.delete}</p>}
             {!ready && <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Upload a company letterhead and an HR signature in USA offer settings before previewing or generating a PDF.</p>}
             <div className="mb-4 flex flex-wrap gap-3">
                 <Link className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white" href={route('hrms.usa-offers.create')}>New USA offer</Link>
@@ -97,6 +99,13 @@ export default function UsaOffers({ workspace, offers = [], designationCount = 0
                                                     <a className={action} href={route('hrms.usa-offers.preview', offer.id)} target="_blank" rel="noreferrer">{offer.status === 'generated' ? 'Preview PDF' : 'Preview'}</a>
                                                     {offer.status !== 'generated' && <Link className={action} href={route('hrms.usa-offers.generate', offer.id)} method="post" as="button">Generate PDF</Link>}
                                                     {offer.status === 'generated' && <a className={action} href={route('hrms.usa-offers.download', offer.id)}>Download PDF</a>}
+                                                    {workspace.role === 'company_admin' && (
+                                                        <button className={danger} type="button" onClick={() => {
+                                                            if (window.confirm(`Delete the ${statusLabel(offer.status).toLowerCase()} USA offer for ${offer.candidate}, ${offer.designation}, issued ${offer.issueDate}? The letter and its PDF will be removed. This cannot be undone.`)) {
+                                                                router.delete(route('hrms.usa-offers.destroy', offer.id));
+                                                            }
+                                                        }}>Delete</button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

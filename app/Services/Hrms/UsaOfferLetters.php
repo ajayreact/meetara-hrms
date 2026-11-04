@@ -14,6 +14,7 @@ class UsaOfferLetters
     public function __construct(
         private readonly UsaDesignationCatalog $catalog,
         private readonly UsaOfferPdf $pdf,
+        private readonly StoredFileQuarantine $quarantine,
     ) {}
 
     /**
@@ -174,9 +175,32 @@ class UsaOfferLetters
             ->all();
     }
 
-    /**
-     * @param  array<string, mixed>  $input
-     */
+    public function remove(User $actor, int $offerId): void
+    {
+        abort_unless($actor->applicationRole() === 'company_admin', 403);
+        $companyId = (int) $actor->companyId();
+        $offer = DB::table('usa_offers')->where('tenant_id', $companyId)->where('id', $offerId)->first();
+        abort_if($offer === null, 404);
+
+        $path = 'usa-offers/'.$companyId.'/'.$offerId.'.pdf';
+        $paths = (string) ($offer->file_path ?? '') === $path ? [$path] : [];
+
+        try {
+            $this->quarantine->commit($paths, function () use ($companyId, $offerId): void {
+                $deleted = DB::table('usa_offers')->where('tenant_id', $companyId)->where('id', $offerId)->delete();
+                abort_if($deleted !== 1, 404);
+            });
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                throw $exception;
+            }
+
+            throw ValidationException::withMessages([
+                'delete' => 'The USA offer was not deleted. Its PDF is unchanged.',
+            ]);
+        }
+    }
+
     public function create(User $actor, array $input): int
     {
         $companyId = (int) $actor->companyId();

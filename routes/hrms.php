@@ -158,6 +158,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/usa-offers/{offer}/preview', [UsaOfferController::class, 'preview'])->whereNumber('offer')->name('hrms.usa-offers.preview');
     Route::post('/usa-offers/{offer}/generate', [UsaOfferController::class, 'generate'])->whereNumber('offer')->name('hrms.usa-offers.generate');
     Route::get('/usa-offers/{offer}/download', [UsaOfferController::class, 'download'])->whereNumber('offer')->name('hrms.usa-offers.download');
+    Route::delete('/usa-offers/{offer}', [UsaOfferController::class, 'destroy'])->whereNumber('offer')->name('hrms.usa-offers.destroy');
     Route::get('/i983', [I983CaseController::class, 'index'])->name('hrms.i983');
     Route::post('/i983', [I983CaseController::class, 'store'])->middleware('throttle:20,1')->name('hrms.i983.store');
     Route::get('/i983/{case}', [I983CaseController::class, 'show'])->whereNumber('case')->name('hrms.i983.show');
@@ -175,6 +176,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/i983/{case}/finalize', [I983CaseController::class, 'finalizeDocument'])->whereNumber('case')->name('hrms.i983.finalize');
     Route::post('/i983/{case}/link/revoke', [I983CaseController::class, 'revoke'])->whereNumber('case')->name('hrms.i983.link.revoke');
     Route::post('/i983/{case}/link', [I983CaseController::class, 'reissue'])->whereNumber('case')->name('hrms.i983.link.reissue');
+    Route::delete('/i983/{case}', [I983CaseController::class, 'destroy'])->whereNumber('case')->name('hrms.i983.destroy');
     Route::get('/attendance', [AttendanceController::class, 'manage'])->name('hrms.attendance');
     Route::get('/attendance/export', [AttendanceController::class, 'export'])->name('hrms.attendance.export');
     Route::get('/my-attendance', [AttendanceController::class, 'mine'])->name('hrms.my-attendance');

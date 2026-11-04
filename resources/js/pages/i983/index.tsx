@@ -1,7 +1,7 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
-import { Link, useForm } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { FormEvent } from 'react';
 
 interface CaseRow {
@@ -31,6 +31,7 @@ function label(status: string): string {
 
 export default function I983Index({ workspace, cases = [], notice }: HrmsPageProps & { cases?: CaseRow[]; notice?: string }) {
     const form = useForm({ candidate_name: '', candidate_email: '' });
+    const errors = usePage().props.errors as Record<string, string>;
 
     function submit(event: FormEvent) {
         event.preventDefault();
@@ -41,6 +42,7 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
         <HrmsLayout workspace={workspace}>
             <PageIntro title="STEM OPT I-983" subtitle="Create a case, share a private student link, then review Section 1, employer information, and the training plan. This does not file the form or create an employee." />
             {notice && <p className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
+            {errors.delete && <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{errors.delete}</p>}
             <form className="mb-4" onSubmit={submit}>
                 <SectionCard title="New case">
                     <div className="grid gap-3 md:grid-cols-2">
@@ -73,7 +75,18 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
                                         <td className="py-2 pr-3">{item.email}</td>
                                         <td className="py-2 pr-3">{label(item.status)}</td>
                                         <td className="py-2 pr-3">{item.createdAt}</td>
-                                        <td className="py-2"><Link className="font-medium text-blue-700" href={route('hrms.i983.show', item.id)}>Review</Link></td>
+                                        <td className="py-2">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <Link className="font-medium text-blue-700" href={route('hrms.i983.show', item.id)}>Review</Link>
+                                                {workspace.role === 'company_admin' && (
+                                                    <button className="font-medium text-rose-700" type="button" onClick={() => {
+                                                        if (window.confirm(`Delete ${item.reference} (${label(item.status)}) for ${item.candidate}? The case, student link, and stored PDFs will be removed. This cannot be undone.`)) {
+                                                            router.delete(route('hrms.i983.destroy', item.id));
+                                                        }
+                                                    }}>Delete</button>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

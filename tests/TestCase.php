@@ -19,6 +19,14 @@ abstract class TestCase extends BaseTestCase
 
         config(['filesystems.disks.local.root' => $root]);
         Storage::purge('local');
+
+        $disk = Storage::disk('local');
+        foreach ($disk->directories() as $directory) {
+            $disk->deleteDirectory($directory);
+        }
+        foreach ($disk->files() as $file) {
+            $disk->delete($file);
+        }
     }
 
     public function createApplication(): Application
