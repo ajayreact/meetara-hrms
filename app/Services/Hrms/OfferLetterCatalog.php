@@ -108,7 +108,7 @@ class OfferLetterCatalog
         $legal = $this->legal($companyId, 'india');
         $pendingLegal = null;
 
-        if (is_array($legal) && ($legal['statusKey'] ?? '') === 'pending_verification') {
+        if (is_array($legal) && ($legal['statusKey'] ?? '') === 'pending_verification' && ! ($legal['savedByHead'] ?? false)) {
             $pendingLegal = [
                 'legalName' => (string) $legal['legalName'],
                 'legalAddress' => (string) $legal['legalAddress'],
@@ -124,7 +124,7 @@ class OfferLetterCatalog
         $templates = [];
 
         foreach ($this->templates($companyId, 'india') as $template) {
-            if (($template['status'] ?? '') !== 'submitted') {
+            if (($template['status'] ?? '') !== 'submitted' || ($template['submittedByHead'] ?? false)) {
                 continue;
             }
 
@@ -150,6 +150,7 @@ class OfferLetterCatalog
         $country = $this->normalizeCountry($input['country'] ?? 'india');
         $current = $this->profileQuery($companyId, $country)->first();
         $previous = $current === null ? null : $this->legalSnapshot($current);
+        $activate = $country === 'india' && $this->headOfOperations($actor);
         $values = [
             'legal_name' => trim((string) $input['legal_name']),
             'legal_address' => trim((string) $input['legal_address']),
@@ -157,10 +158,10 @@ class OfferLetterCatalog
             'signatory_name' => trim((string) $input['signatory_name']),
             'signatory_designation' => trim((string) $input['signatory_designation']),
             'hr_email' => trim((string) $input['hr_email']),
-            'status' => 'draft',
+            'status' => $activate ? 'verified' : 'draft',
             'updated_by' => $actor->id,
-            'verified_by' => null,
-            'verified_at' => null,
+            'verified_by' => $activate ? $actor->id : null,
+            'verified_at' => $activate ? now() : null,
             'updated_at' => now(),
             ...$this->clearedLetterheadConfirmation(),
         ];
@@ -189,8 +190,12 @@ class OfferLetterCatalog
             throw ValidationException::withMessages(['legal' => 'Save the legal details before they can be verified.']);
         }
 
-        if ((int) $profile->updated_by === (int) $actor->id) {
-            throw ValidationException::withMessages(['legal' => 'The person who saved these legal details cannot verify them.']);
+        if (! $this->headOfOperations($actor)) {
+            throw ValidationException::withMessages(['legal' => 'Only Head of Operations can approve company legal details.']);
+        }
+
+        if ((string) $profile->status === 'verified' && $profile->verified_by !== null && $profile->verified_at !== null) {
+            return;
         }
 
         foreach (['legal_name', 'legal_address', 'signatory_name', 'signatory_designation', 'hr_email'] as $field) {
@@ -404,8 +409,13 @@ class OfferLetterCatalog
                         'updated_at' => now(),
                     ]);
                     DB::table('offer_letter_templates')->where('id', $template->id)->update(['name' => $name, 'status' => 'draft', 'updated_at' => now()]);
+                    $templateId = (int) $template->id;
 
-                    return (int) $template->id;
+                    if ($this->publishesImmediately($actor, $country, $input)) {
+                        $this->publishHeadTemplate($actor, $templateId);
+                    }
+
+                    return $templateId;
                 }
 
                 $version = ((int) ($latest->version ?? 0)) + 1;
@@ -430,6 +440,10 @@ class OfferLetterCatalog
                 'updated_at' => now(),
             ]);
 
+            if ($this->publishesImmediately($actor, $country, $input)) {
+                $this->publishHeadTemplate($actor, $templateId);
+            }
+
             return $templateId;
         });
     }
@@ -440,6 +454,12 @@ class OfferLetterCatalog
 
         if ($version->status !== 'draft') {
             throw ValidationException::withMessages(['template' => 'Only a draft version can be submitted for review.']);
+        }
+
+        if ($this->headOfOperations($actor) && (string) $version->country === 'india') {
+            $this->publishHeadTemplate($actor, $templateId);
+
+            return;
         }
 
         DB::table('offer_letter_template_versions')->where('id', $version->id)->update([
@@ -454,6 +474,10 @@ class OfferLetterCatalog
     public function approveTemplate(User $actor, int $templateId): void
     {
         $version = $this->latestVersion($actor, $templateId);
+
+        if (! $this->headOfOperations($actor)) {
+            throw ValidationException::withMessages(['template' => 'Only Head of Operations can approve this appointment letter.']);
+        }
 
         if ($version->status !== 'submitted' || $version->submitted_by === null) {
             throw ValidationException::withMessages(['template' => 'Submit the template for review before it can be approved.']);
@@ -658,6 +682,7 @@ class OfferLetterCatalog
             'country' => (string) $template->country,
             'name' => mb_substr($name, 0, 191),
             'body' => (string) $version->body,
+            'publish' => false,
         ]);
     }
 
@@ -1644,6 +1669,7 @@ class OfferLetterCatalog
             'signatureImageWidth' => $pixels['width'],
             'signatureImageHeight' => $pixels['height'],
             'updatedBy' => isset($row->updated_by) ? (int) $row->updated_by : null,
+            'savedByHead' => (string) ($row->country ?? 'india') === 'india' && $this->savedByHeadOfOperations((int) ($row->updated_by ?? 0)),
             'updatedAt' => isset($row->updated_at) ? (string) $row->updated_at : null,
         ];
     }
@@ -1811,6 +1837,8 @@ class OfferLetterCatalog
                 'approvedAt' => $version->approved_at ?? null,
                 'createdBy' => $version?->created_by === null ? null : (int) $version->created_by,
                 'submittedBy' => $version?->submitted_by === null ? null : (int) $version->submitted_by,
+                'submittedByHead' => $this->savedByHeadOfOperations((int) ($version->submitted_by ?? 0))
+                    || ($version?->submitted_by === null && $this->savedByHeadOfOperations((int) ($version->created_by ?? 0)) && (string) ($version->status ?? '') === 'submitted'),
                 'updatedAt' => isset($version->updated_at) ? (string) $version->updated_at : null,
             ];
         })->all();
@@ -1884,7 +1912,74 @@ class OfferLetterCatalog
             }
         }
 
+        if ((string) ($row->country ?? 'india') === 'india' && $this->savedByHeadOfOperations((int) ($row->updated_by ?? 0))) {
+            return 'verified';
+        }
+
         return 'pending_verification';
+    }
+
+    private function headOfOperations(User $actor): bool
+    {
+        return $actor->applicationRole() === 'company_admin';
+    }
+
+    private function savedByHeadOfOperations(int $userId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+
+        $user = User::query()->find($userId);
+
+        return $user instanceof User && $user->applicationRole() === 'company_admin';
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function publishesImmediately(User $actor, string $country, array $input): bool
+    {
+        return $country === 'india'
+            && $this->headOfOperations($actor)
+            && ($input['publish'] ?? true) !== false;
+    }
+
+    private function publishHeadTemplate(User $actor, int $templateId): void
+    {
+        $version = DB::table('offer_letter_template_versions')->where('template_id', $templateId)->orderByDesc('version')->first();
+
+        if ($version === null || (string) $version->country !== 'india') {
+            return;
+        }
+
+        DB::transaction(function () use ($actor, $version, $templateId): void {
+            DB::table('offer_letter_template_versions')
+                ->where('tenant_id', $actor->companyId())
+                ->where('country', 'india')
+                ->where('status', 'active')
+                ->where('id', '!=', $version->id)
+                ->update(['status' => 'approved', 'updated_at' => now()]);
+            DB::table('offer_letter_templates')
+                ->where('tenant_id', $actor->companyId())
+                ->where('country', 'india')
+                ->where('status', 'active')
+                ->where('id', '!=', $templateId)
+                ->update(['status' => 'approved', 'updated_at' => now()]);
+            DB::table('offer_letter_template_versions')->where('id', $version->id)->update([
+                'status' => 'active',
+                'approved_by' => $version->approved_by ?? $actor->id,
+                'approved_at' => $version->approved_at ?? now(),
+                'submitted_by' => null,
+                'submitted_at' => null,
+                'letterhead_id' => $version->letterhead_id ?: $this->activeLetterheadId((int) $actor->companyId(), 'india'),
+                'updated_at' => now(),
+            ]);
+            DB::table('offer_letter_templates')->where('id', $templateId)->update([
+                'status' => 'active',
+                'updated_at' => now(),
+            ]);
+        });
     }
 
     private function legalStatusLabel(string $key): string

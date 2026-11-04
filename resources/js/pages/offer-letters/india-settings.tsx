@@ -130,9 +130,11 @@ function CompanyForm({ legal, verified }: { legal: Legal | null; verified: boole
     const statusKey = legal?.statusKey ?? (legal?.status === 'verified' ? 'verified' : 'draft');
     const statusLabel = legal?.statusLabel ?? (statusKey === 'verified' ? 'Verified' : statusKey === 'pending_verification' ? 'Pending Verification' : 'Draft');
     const statusCopy = statusKey === 'verified'
-        ? 'These legal details were verified by someone other than the person who saved them.'
+        ? (legal?.savedByHead
+            ? 'Saved and active. Head of Operations does not need a separate approval.'
+            : 'Approved by Head of Operations.')
         : statusKey === 'pending_verification'
-            ? 'Saved and waiting for a different authorized person. Saving does not verify them.'
+            ? 'Saved by HR & Assistant Operations. Head of Operations approves these details before they are used.'
             : 'Required legal details are still incomplete.';
 
     return (
@@ -180,9 +182,9 @@ function CompanyForm({ legal, verified }: { legal: Legal | null; verified: boole
                 <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
                     <button className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60" type="submit" disabled={form.processing}>Save Changes</button>
                     {verified && statusKey === 'pending_verification' && (
-                        <button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700" type="button" onClick={() => router.post(route('hrms.offer-letters.legal.verify'), { confirm: 'VERIFY', country: 'india' })}>Verify legal details</button>
+                        <button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700" type="button" onClick={() => router.post(route('hrms.offer-letters.legal.verify'), { confirm: 'VERIFY', country: 'india' })}>Approve legal details</button>
                     )}
-                    {!verified && statusKey === 'pending_verification' && <p className="text-sm text-slate-500">Another authorized person verifies these details.</p>}
+                    {!verified && statusKey === 'pending_verification' && <p className="text-sm text-slate-500">Head of Operations approves these details.</p>}
                 </div>
             </form>
         </Card>
@@ -551,7 +553,7 @@ function LetterSection({ template, history, approvalRequired, canConfigure, acto
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h2 className="text-base font-semibold text-slate-950">India Appointment Letter</h2>
-                        <p className="mt-1 max-w-2xl text-sm text-slate-500">Named India templates stay available after approval. One active template is the default for new offers. The person who prepared a version cannot approve it.</p>
+                        <p className="mt-1 max-w-2xl text-sm text-slate-500">Head of Operations changes are saved and activated immediately. HR &amp; Assistant Operations submits changes, and Head of Operations approves them before activation.</p>
                     </div>
                     <Badge tone={status.tone}>{status.label}</Badge>
                 </div>
@@ -562,11 +564,12 @@ function LetterSection({ template, history, approvalRequired, canConfigure, acto
                 <div className="mt-4 flex flex-wrap gap-2">
                     <a className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm" href={route('hrms.offer-letters.india-preview')} target="_blank" rel="noreferrer"><Eye className="size-3.5" /> Preview Template</a>
                     <Link className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white" href={route('hrms.offer-letters.templates', { country: 'india', editor: 1 })}><PenLine className="size-3.5" /> Edit Appointment Letter</Link>
-                    {template?.status === 'draft' && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.submit', template.id))}>Submit for approval</button>}
+                    {template?.status === 'draft' && !canConfigure && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.submit', template.id))}>Submit for approval</button>}
+                    {template?.status === 'draft' && canConfigure && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.submit', template.id))}>Activate</button>}
                     {canApprove && template && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.approve', template.id), { confirm: 'APPROVE' })}>Approve</button>}
                     {canActivate && template && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.activate', template.id), { confirm: 'ACTIVATE' })}>Activate</button>}
                 </div>
-                {template?.status === 'submitted' && !canApprove && <p className="mt-3 text-sm text-slate-500">You prepared this version, so another authorized person has to approve it.</p>}
+                {template?.status === 'submitted' && !canApprove && <p className="mt-3 text-sm text-slate-500">{canConfigure ? 'Save this letter again to activate it. A separate approval is not required.' : 'Submitted for approval. Head of Operations approves it before activation.'}</p>}
             </Card>
             <details className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-slate-800">Advanced history</summary>

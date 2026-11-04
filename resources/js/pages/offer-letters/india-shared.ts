@@ -22,6 +22,7 @@ export interface Legal {
     signatureImageWidth?: number | null;
     signatureImageHeight?: number | null;
     updatedBy?: number | null;
+    savedByHead?: boolean;
     updatedAt?: string | null;
 }
 
@@ -107,16 +108,16 @@ export function templateStatus(status: string): { label: string; tone: 'green' |
     }
 
     if (status === 'approved') {
-        return { label: 'Approved', tone: 'blue', detail: 'Approved, and waiting for an authorized user to activate it. The letter already in use stays available until then.' };
+        return { label: 'Approved', tone: 'blue', detail: 'Approved by Head of Operations, and waiting to be activated. The letter already in use stays available until then.' };
     }
 
     if (status === 'submitted') {
-        return { label: 'Review required', tone: 'amber', detail: 'Submitted for review. Another authorized person approves it, then an authorized user activates it.' };
+        return { label: 'Pending Approval', tone: 'amber', detail: 'Submitted by HR & Assistant Operations. Head of Operations approves it before activation.' };
     }
 
     if (status === 'archived') {
         return { label: 'Historical', tone: 'slate', detail: 'Kept for audit. It is not offered for new India letters.' };
     }
 
-    return { label: 'Draft', tone: 'slate', detail: 'Working draft. Saving does not approve or activate it.' };
+    return { label: 'Draft', tone: 'slate', detail: 'Working draft. HR & Assistant Operations submits it for approval. Head of Operations saves it active.' };
 }

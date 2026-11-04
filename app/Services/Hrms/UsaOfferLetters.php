@@ -308,6 +308,36 @@ class UsaOfferLetters
         }
     }
 
+    public function downloadFilename(int $companyId, int $offerId): string
+    {
+        $offer = $this->offer($companyId, $offerId);
+        $company = '';
+        $snapshot = $offer->profile_snapshot ?? null;
+
+        if (is_string($snapshot) && $snapshot !== '') {
+            $decoded = json_decode($snapshot, true);
+            $company = is_array($decoded) ? trim((string) ($decoded['company_name'] ?? '')) : '';
+        }
+
+        if ($company === '') {
+            $company = trim((string) ($this->profile($companyId)['company_name'] ?? ''));
+        }
+
+        return self::offerFilename((string) $offer->candidate_name, $company);
+    }
+
+    public static function offerFilename(string $candidate, string $company): string
+    {
+        return self::filenameToken($candidate, 'Candidate').'-offerletter-'.self::filenameToken($company, 'Company').'.pdf';
+    }
+
+    private static function filenameToken(string $value, string $fallback): string
+    {
+        $clean = trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', $value), '-');
+
+        return $clean !== '' ? $clean : $fallback;
+    }
+
     public function download(int $companyId, int $offerId): string
     {
         $offer = $this->offer($companyId, $offerId);

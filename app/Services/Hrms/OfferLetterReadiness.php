@@ -2,6 +2,7 @@
 
 namespace App\Services\Hrms;
 
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -106,15 +107,55 @@ class OfferLetterReadiness
             return $blocked;
         }
 
-        $verified = DB::table('company_legal_profiles')
+        $profiles = DB::table('company_legal_profiles')
             ->where('tenant_id', $companyId)
             ->when($country !== null && Schema::hasColumn('company_legal_profiles', 'country'), fn ($query) => $query->where('country', $country))
-            ->where('status', 'verified')
-            ->whereNotNull('verified_by')
-            ->whereNotNull('verified_at')
-            ->whereColumn('verified_by', '!=', 'updated_by')
-            ->exists();
+            ->get();
 
-        return $verified ? null : $blocked;
+        foreach ($profiles as $profile) {
+            if ($this->legalProfileReady($profile)) {
+                return null;
+            }
+        }
+
+        return $blocked;
+    }
+
+    private function legalProfileReady(object $profile): bool
+    {
+        foreach (['legal_name', 'legal_address', 'signatory_name', 'signatory_designation', 'hr_email'] as $field) {
+            if (trim((string) ($profile->{$field} ?? '')) === '') {
+                return false;
+            }
+        }
+
+        $verified = (string) $profile->status === 'verified' && $profile->verified_by !== null && $profile->verified_at !== null;
+
+        if ($verified && (int) $profile->verified_by !== (int) $profile->updated_by) {
+            return true;
+        }
+
+        $india = (string) ($profile->country ?? 'india') === 'india';
+
+        if (! $india) {
+            return false;
+        }
+
+        if ($verified && $this->headOfOperations((int) $profile->verified_by)) {
+            return true;
+        }
+
+        return $this->headOfOperations((int) ($profile->updated_by ?? 0));
+    }
+
+    private function headOfOperations(int $userId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+
+        $user = User::query()->find($userId);
+
+        return $user instanceof User && $user->applicationRole() === 'company_admin';
     }
 }

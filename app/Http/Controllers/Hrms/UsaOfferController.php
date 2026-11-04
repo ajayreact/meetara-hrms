@@ -196,7 +196,7 @@ class UsaOfferController extends Controller
         $actor = $this->manager($request);
 
         try {
-            return $this->pdf($this->offers->preview((int) $actor->companyId(), $offer), 'inline');
+            return $this->pdf($this->offers->preview((int) $actor->companyId(), $offer), 'inline', $this->offers->downloadFilename((int) $actor->companyId(), $offer));
         } catch (ValidationException $exception) {
             return redirect()->route('hrms.usa-offers.show', $offer)->withErrors($exception->errors());
         }
@@ -214,7 +214,7 @@ class UsaOfferController extends Controller
     {
         $actor = $this->manager($request);
 
-        return $this->pdf($this->offers->download((int) $actor->companyId(), $offer), 'attachment');
+        return $this->pdf($this->offers->download((int) $actor->companyId(), $offer), 'attachment', $this->offers->downloadFilename((int) $actor->companyId(), $offer));
     }
 
     /**
@@ -265,11 +265,11 @@ class UsaOfferController extends Controller
         ]) + ['company_id' => $companyId];
     }
 
-    private function pdf(string $bytes, string $disposition): HttpResponse
+    private function pdf(string $bytes, string $disposition, string $filename): HttpResponse
     {
         return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => $disposition.'; filename="usa-offer.pdf"',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, no-store',
         ]);

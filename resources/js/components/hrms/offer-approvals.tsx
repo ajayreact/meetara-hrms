@@ -20,7 +20,7 @@ export function OfferApprovals({ approvals }: { approvals: OfferApprovalState })
     return (
         <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-base font-semibold text-slate-950">Pending Approvals</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Head of Operations and HR review India legal details and the Appointment Letter here. People → Offer templates. The person who saved or submitted an item cannot approve it.</p>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Head of Operations approves India legal details and the Appointment Letter submitted by HR &amp; Assistant Operations. People → Offer templates. Head of Operations changes are saved and activated immediately.</p>
             {!waiting && <p className="mt-3 text-sm text-slate-500">No India legal details or appointment letters are waiting.</p>}
             {approvals.legal && (
                 <article className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -33,9 +33,9 @@ export function OfferApprovals({ approvals }: { approvals: OfferApprovalState })
                             <p className="text-sm text-slate-600">{approvals.legal.hrEmail}{approvals.legal.registrationDetails ? ` · ${approvals.legal.registrationDetails}` : ''}</p>
                         </div>
                         {approvals.legal.own ? (
-                            <p className="max-w-xs text-sm text-slate-600">You saved these details. Another Head of Operations or HR user verifies them.</p>
+                            <p className="max-w-xs text-sm text-slate-600">Waiting for Head of Operations to approve.</p>
                         ) : (
-                            <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white" type="button" onClick={() => router.post(route('hrms.offer-letters.legal.verify'), { confirm: 'VERIFY', country: 'india' })}>Verify legal details</button>
+                            <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white" type="button" onClick={() => router.post(route('hrms.offer-letters.legal.verify'), { confirm: 'VERIFY', country: 'india' })}>Approve legal details</button>
                         )}
                     </div>
                 </article>
@@ -48,7 +48,7 @@ export function OfferApprovals({ approvals }: { approvals: OfferApprovalState })
                             <p className="mt-1 text-sm text-slate-700">{template.name}</p>
                         </div>
                         {template.own ? (
-                            <p className="max-w-xs text-sm text-slate-600">You prepared this letter. Another Head of Operations or HR user approves it.</p>
+                            <p className="max-w-xs text-sm text-slate-600">Waiting for Head of Operations to approve.</p>
                         ) : (
                             <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.approve', template.id), { confirm: 'APPROVE' })}>Approve</button>
                         )}

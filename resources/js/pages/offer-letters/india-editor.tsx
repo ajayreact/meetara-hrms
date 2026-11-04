@@ -33,7 +33,7 @@ export default function IndiaEditor({
     const current = templates.find((item) => item.id === form.data.template_id) ?? null;
     const status = templateStatus(current?.status ?? 'draft');
     const canSubmit = current?.status === 'draft';
-    const canApprove = current?.status === 'submitted' && current.createdBy !== actorId && current.submittedBy !== actorId;
+    const canApprove = canConfigure && current?.status === 'submitted' && current.createdBy !== actorId && current.submittedBy !== actorId;
     const canActivate = canConfigure && current?.status === 'approved';
 
     async function openPreview() {
@@ -86,15 +86,16 @@ export default function IndiaEditor({
                     <p className="mt-1 text-sm text-slate-500">{status.detail} Last updated {stamp(current?.updatedAt)}.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60" type="button" disabled={form.processing} onClick={() => form.post(route('hrms.offer-letters.templates.save'))}>Save draft</button>
+                    <button className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60" type="button" disabled={form.processing} onClick={() => form.post(route('hrms.offer-letters.templates.save'))}>{canConfigure ? 'Save and activate' : 'Save draft'}</button>
                     <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="button" onClick={openPreview}>Preview</button>
-                    {canSubmit && current && <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.submit', current.id))}>Submit for approval</button>}
+                    {canSubmit && !canConfigure && current && <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.submit', current.id))}>Submit for approval</button>}
                     {canApprove && current && <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.approve', current.id), { confirm: 'APPROVE' })}>Approve</button>}
                     {canActivate && current && <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.templates.activate', current.id), { confirm: 'ACTIVATE' })}>Activate</button>}
                 </div>
             </div>
             {notice && <p className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{notice}</p>}
-            {current?.status === 'submitted' && !canApprove && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">This version is already submitted. Saving a change returns it to a draft. Another authorized person approves it, and it is not activated automatically.</p>}
+            {current?.status === 'submitted' && !canApprove && !canConfigure && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">This version is submitted. Head of Operations approves it before activation.</p>}
+            {canConfigure && <p className="mb-4 text-sm text-slate-600">Saving activates this appointment letter immediately.</p>}
             {previewError && <p className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{previewError}</p>}
             {form.errors.body && <p className="mb-4 text-sm text-rose-700">{form.errors.body}</p>}
             <label className="mb-4 block text-sm text-slate-700">Template name

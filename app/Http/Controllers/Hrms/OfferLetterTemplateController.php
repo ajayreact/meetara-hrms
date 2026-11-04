@@ -47,9 +47,13 @@ class OfferLetterTemplateController extends Controller
             'verified' => ['prohibited'],
             'verified_by' => ['prohibited'],
         ]);
-        $this->catalog->saveLegal($this->actor($request), $data);
+        $actor = $this->actor($request);
+        $this->catalog->saveLegal($actor, $data);
+        $country = (string) ($data['country'] ?? 'india');
 
-        return back()->with('status', 'Legal details saved. They stay unverified until a different authorized user verifies them.');
+        return back()->with('status', $actor->applicationRole() === 'company_admin' && $country === 'india'
+            ? 'Legal details saved and activated.'
+            : 'Legal details saved. Head of Operations approves them before they are used.');
     }
 
     public function verifyLegal(Request $request): RedirectResponse
@@ -150,9 +154,13 @@ class OfferLetterTemplateController extends Controller
             'approved_by' => ['prohibited'],
             'status' => ['prohibited'],
         ]);
-        $this->catalog->saveTemplate($this->actor($request), $data);
+        $actor = $this->actor($request);
+        $this->catalog->saveTemplate($actor, $data);
+        $activated = $actor->applicationRole() === 'company_admin' && $data['country'] === 'india';
 
-        return back()->with('status', 'Template draft saved. It cannot be used for issuance until another person approves it and it is activated.');
+        return back()->with('status', $activated
+            ? 'Appointment letter saved and activated.'
+            : 'Template draft saved. Head of Operations approves it before it can be activated.');
     }
 
     public function duplicateTemplate(Request $request, int $template): RedirectResponse
@@ -164,9 +172,12 @@ class OfferLetterTemplateController extends Controller
 
     public function submitTemplate(Request $request, int $template): RedirectResponse
     {
-        $this->catalog->submitTemplate($this->actor($request), $template);
+        $actor = $this->actor($request);
+        $this->catalog->submitTemplate($actor, $template);
 
-        return back()->with('status', 'Template submitted for review.');
+        return back()->with('status', $actor->applicationRole() === 'company_admin'
+            ? 'Appointment letter saved and activated.'
+            : 'Template submitted for approval. Head of Operations approves it before it can be activated.');
     }
 
     public function approveTemplate(Request $request, int $template): RedirectResponse
@@ -203,9 +214,12 @@ class OfferLetterTemplateController extends Controller
 
     public function loadIndiaSource(Request $request): RedirectResponse
     {
-        $this->catalog->loadIndiaSource($this->actor($request));
+        $actor = $this->actor($request);
+        $this->catalog->loadIndiaSource($actor);
 
-        return back()->with('status', 'India appointment letter saved as a draft. It is not approved or active.');
+        return back()->with('status', $actor->applicationRole() === 'company_admin'
+            ? 'India appointment letter saved and activated.'
+            : 'India appointment letter saved as a draft. Head of Operations approves it before it can be activated.');
     }
 
     public function storeSignature(Request $request): RedirectResponse
@@ -279,8 +293,10 @@ class OfferLetterTemplateController extends Controller
             'canConfigure' => $actor->applicationRole() === 'company_admin',
             'identity' => $this->catalog->letterheadIdentity($actor, (string) $page['country']),
             'actorId' => (int) $actor->id,
-            'canVerifyLegal' => is_array($legal)
+            'canVerifyLegal' => $actor->applicationRole() === 'company_admin'
+                && is_array($legal)
                 && ($legal['statusKey'] ?? '') === 'pending_verification'
+                && ($legal['savedByHead'] ?? false) !== true
                 && ($legal['updatedBy'] ?? null) !== (int) $actor->id
                 && trim((string) ($legal['legalName'] ?? '')) !== '',
         ];

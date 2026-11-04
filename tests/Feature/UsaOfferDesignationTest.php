@@ -125,6 +125,7 @@ class UsaOfferDesignationTest extends TestCase
 
         $preview = $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview');
         $preview->assertOk();
+        $preview->assertHeader('Content-Disposition', 'inline; filename="Sample-Candidate-offerletter-Veltrix-Digital-Solutions-Inc.pdf"');
         $this->assertStringStartsWith('%PDF', $preview->getContent());
         $this->assertSame(2, (new UsaOfferPdf)->pages($preview->getContent()));
         Storage::disk('local')->assertMissing('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
@@ -317,7 +318,7 @@ class UsaOfferDesignationTest extends TestCase
         $this->assertSame('generated', DB::table('usa_offers')->where('id', $offerId)->value('status'));
         $this->assertStringStartsWith('usa-offers/'.$company->id.'/', (string) DB::table('usa_offers')->where('id', $offerId)->value('file_path'));
         $this->assertSame($stored, $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview')->getContent());
-        $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/download')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="usa-offer.pdf"');
+        $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/download')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="Sample-Candidate-offerletter-Veltrix-Digital-Solutions-Inc.pdf"');
 
         foreach ([$company->employee, $company->lead, $this->accounts($company)] as $user) {
             $this->actingAs($user)->get('/usa-offers/'.$offerId)->assertForbidden();

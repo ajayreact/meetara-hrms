@@ -12,19 +12,25 @@ class UsaOfferPdf
 
     private const SCALE = 2.0;
 
-    private const MARGIN_X = 54.0;
+    private const MARGIN_X = 48.0;
 
-    private const CONTENT_WIDTH = 504.0;
+    private const CONTENT_WIDTH = 514.0;
 
-    private const BODY_TOP = 108.0;
+    private const BODY_TOP = 104.0;
 
     private const BODY_BOTTOM = 742.0;
 
     private const BODY = 11.04;
 
-    private const LEADING = 16.3;
+    private const LEADING = 17.5;
 
     private const HEADING = 11.04;
+
+    private const SIGNATURE_MAX_WIDTH = 132.0;
+
+    private const SIGNATURE_MAX_HEIGHT = 28.0;
+
+    private const SIGNATURE_CLEARANCE = 26.0;
 
     private ?string $letterhead = null;
 
@@ -82,9 +88,9 @@ class UsaOfferPdf
         $y = $this->px(self::BODY_TOP);
         $this->date($image, $this->text($offer['issue_date'] ?? ''));
         $y = $this->sender($image, $y);
-        $y += $this->px(8);
+        $y += $this->px(14);
         $y = $this->recipient($image, $y, $offer);
-        $y += $this->px(10);
+        $y += $this->px(16);
         $name = $this->text($offer['candidate_name'] ?? '');
 
         foreach ($this->wrappedRuns([
@@ -95,7 +101,7 @@ class UsaOfferPdf
             $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
         }
 
-        $y += $this->px(4);
+        $y += $this->px(10);
 
         foreach ($this->wrappedRuns($this->offerRuns($offer), self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
             if ($y + $this->px(self::LEADING) > $this->px(self::BODY_BOTTOM)) {
@@ -107,7 +113,7 @@ class UsaOfferPdf
             $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
         }
 
-        $y += $this->px(8);
+        $y += $this->px(12);
         $responsibilities = is_array($offer['responsibilities'] ?? null) ? $offer['responsibilities'] : [];
         $items = [];
 
@@ -127,7 +133,7 @@ class UsaOfferPdf
             }
 
             $this->draw($image, 'Responsibilities', $this->px(self::MARGIN_X), $y, self::HEADING, true, [0, 0, 0]);
-            $y += $this->px(self::LEADING + 2);
+            $y += $this->px(self::LEADING + 4);
 
             foreach ($items as $item) {
                 $height = $this->bulletHeight($item);
@@ -142,7 +148,7 @@ class UsaOfferPdf
             }
         }
 
-        $y += $this->px(8);
+        $y += $this->px(12);
         $report = $this->wrappedRuns($this->reportRuns(), self::BODY, $this->px(self::CONTENT_WIDTH));
         $reportHeight = count($report) * $this->px(self::LEADING);
 
@@ -156,8 +162,8 @@ class UsaOfferPdf
             $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
         }
 
-        $y += $this->px(8);
-        $signatoryHeight = $this->px(14 + 36) + (5 * $this->px(self::LEADING));
+        $y += $this->px(16);
+        $signatoryHeight = $this->closingHeight();
 
         if ($y + $signatoryHeight > $this->px(self::BODY_BOTTOM)) {
             yield $image;
@@ -167,7 +173,7 @@ class UsaOfferPdf
 
         $y = $this->signatory($image, $y);
         $acceptance = $this->wrappedRuns([['I have read this offer and accept the terms of appointment described herein.', false, [0, 0, 0], false]], self::BODY, $this->px(self::CONTENT_WIDTH));
-        $acceptanceHeight = (count($acceptance) * $this->px(self::LEADING)) + $this->px(12 + 24 + 6);
+        $acceptanceHeight = (count($acceptance) * $this->px(self::LEADING)) + $this->px(self::LEADING + 22 + 10);
 
         if ($y + $acceptanceHeight > $this->px(self::BODY_BOTTOM)) {
             yield $image;
@@ -255,9 +261,9 @@ class UsaOfferPdf
     {
         $x = $this->px(self::MARGIN_X);
         $this->draw($image, 'Sincerely,', $x, $y, self::BODY, false, [0, 0, 0]);
-        $y += $this->px(14);
-        $this->paintSignature($image, $x, $y);
-        $y += $this->px(36);
+        $y += $this->px(8);
+        $y += $this->paintSignature($image, $x, $y);
+        $y += $this->px(self::SIGNATURE_CLEARANCE);
 
         if ($this->field('hr_name') !== '') {
             $this->draw($image, $this->field('hr_name'), $x, $y, self::BODY, true, [0, 0, 0]);
@@ -281,7 +287,12 @@ class UsaOfferPdf
             $y += $this->px(self::LEADING);
         }
 
-        return $y + $this->px(10);
+        return $y + $this->px(self::LEADING * 3);
+    }
+
+    private function closingHeight(): int
+    {
+        return $this->px(8 + self::SIGNATURE_MAX_HEIGHT + self::SIGNATURE_CLEARANCE + (self::LEADING * 8));
     }
 
     /**
@@ -293,15 +304,18 @@ class UsaOfferPdf
             $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
         }
 
-        $y += $this->px(12);
+        $y += $this->px(self::LEADING);
         $left = $this->px(self::MARGIN_X);
-        $dateLabel = $this->px(390);
+        $right = $this->px(self::MARGIN_X + self::CONTENT_WIDTH);
+        $dateWidth = $this->px(128);
+        $dateX = $right - $dateWidth;
+        $employeeEnd = $dateX - $this->px(36);
         $this->draw($image, 'Employee Signature', $left, $y, self::BODY, true, [0, 0, 0]);
-        $this->draw($image, 'Date', $dateLabel, $y, self::BODY, true, [0, 0, 0]);
-        $lineY = $y + $this->px(24);
+        $this->draw($image, 'Date', $dateX, $y, self::BODY, true, [0, 0, 0]);
+        $lineY = $y + $this->px(22);
         $ink = imagecolorallocate($image, 30, 30, 30);
-        imageline($image, $left, $lineY, $this->px(300), $lineY, $ink);
-        imageline($image, $dateLabel, $lineY, $this->px(530), $lineY, $ink);
+        imageline($image, $left, $lineY, $employeeEnd, $lineY, $ink);
+        imageline($image, $dateX, $lineY, $right, $lineY, $ink);
     }
 
     /**
@@ -377,7 +391,7 @@ class UsaOfferPdf
         $tail = ', '.$year;
         $width = $this->width($lead, self::BODY, true) + $this->width($suffix, 8, true) + $this->width($tail, self::BODY, true);
         $x = $this->px(self::MARGIN_X + self::CONTENT_WIDTH) - $width;
-        $y = $this->px(92);
+        $y = $this->px(self::BODY_TOP);
         $this->draw($image, $lead, $x, $y, self::BODY, true, [0, 0, 0]);
         $x += $this->width($lead, self::BODY, true);
         $this->draw($image, $suffix, $x, $y - $this->px(4), 8, true, [0, 0, 0]);
@@ -540,14 +554,14 @@ class UsaOfferPdf
             $y += $this->px(self::LEADING);
         }
 
-        return $y + $this->px(1);
+        return $y + $this->px(4);
     }
 
     private function bulletHeight(string $text): int
     {
         $lines = max(1, count($this->wrapPlain($text, self::BODY, false, $this->px(self::CONTENT_WIDTH - 22))));
 
-        return ($lines * $this->px(self::LEADING)) + $this->px(1);
+        return ($lines * $this->px(self::LEADING)) + $this->px(4);
     }
 
     /**
@@ -675,31 +689,81 @@ class UsaOfferPdf
         imagedestroy($source);
     }
 
-    private function paintSignature(\GdImage $canvas, int $x, int $y): void
+    private function paintSignature(\GdImage $canvas, int $x, int $y): int
     {
-        if ($this->signature === null) {
-            return;
+        $maxWidth = $this->px(self::SIGNATURE_MAX_WIDTH);
+        $maxHeight = $this->px(self::SIGNATURE_MAX_HEIGHT);
+
+        if ($this->signature !== null) {
+            $source = $this->trimmedRaster($this->signature);
+            $sourceWidth = imagesx($source);
+            $sourceHeight = imagesy($source);
+            $scale = min($maxWidth / max(1, $sourceWidth), $maxHeight / max(1, $sourceHeight));
+            $width = max(1, (int) round($sourceWidth * $scale));
+            $height = max(1, (int) round($sourceHeight * $scale));
+            imagecopyresampled($canvas, $source, $x, $y + $maxHeight - $height, 0, 0, $width, $height, $sourceWidth, $sourceHeight);
+            imagedestroy($source);
         }
 
-        $source = $this->raster($this->signature);
-        $sourceWidth = imagesx($source);
-        $sourceHeight = imagesy($source);
-        $boxWidth = $this->px(150);
-        $boxHeight = $this->px(39);
-        $scale = min($boxWidth / max(1, $sourceWidth), $boxHeight / max(1, $sourceHeight));
-        imagecopyresampled(
-            $canvas,
-            $source,
-            $x,
-            $y,
-            0,
-            0,
-            max(1, (int) round($sourceWidth * $scale)),
-            max(1, (int) round($sourceHeight * $scale)),
-            $sourceWidth,
-            $sourceHeight,
-        );
+        return $maxHeight;
+    }
+
+    private function trimmedRaster(string $path): \GdImage
+    {
+        $source = $this->raster($path);
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $top = $height;
+        $left = $width;
+        $bottom = -1;
+        $right = -1;
+
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                if (! $this->signatureInk(imagecolorat($source, $x, $y))) {
+                    continue;
+                }
+
+                $top = min($top, $y);
+                $left = min($left, $x);
+                $bottom = max($bottom, $y);
+                $right = max($right, $x);
+            }
+        }
+
+        if ($bottom < $top || $right < $left) {
+            return $source;
+        }
+
+        $pad = 2;
+        $cropLeft = max(0, $left - $pad);
+        $cropTop = max(0, $top - $pad);
+        $cropRight = min($width - 1, $right + $pad);
+        $cropBottom = min($height - 1, $bottom + $pad);
+        $cropWidth = $cropRight - $cropLeft + 1;
+        $cropHeight = $cropBottom - $cropTop + 1;
+        $trimmed = imagecreatetruecolor($cropWidth, $cropHeight);
+        imagealphablending($trimmed, false);
+        imagesavealpha($trimmed, true);
+        imagefilledrectangle($trimmed, 0, 0, $cropWidth, $cropHeight, imagecolorallocatealpha($trimmed, 255, 255, 255, 127));
+        imagealphablending($trimmed, true);
+        imagecopy($trimmed, $source, 0, 0, $cropLeft, $cropTop, $cropWidth, $cropHeight);
         imagedestroy($source);
+
+        return $trimmed;
+    }
+
+    private function signatureInk(int $color): bool
+    {
+        if ((($color >> 24) & 127) > 110) {
+            return false;
+        }
+
+        $red = ($color >> 16) & 255;
+        $green = ($color >> 8) & 255;
+        $blue = $color & 255;
+
+        return $red < 245 || $green < 245 || $blue < 245;
     }
 
     private function raster(string $path): \GdImage
