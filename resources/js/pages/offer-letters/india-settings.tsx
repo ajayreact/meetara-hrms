@@ -1,3 +1,4 @@
+import { OfferApprovals, type OfferApprovalState } from '@/components/hrms/offer-approvals';
 import { HrmsLayout } from '@/components/hrms/hrms-layout';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm } from '@inertiajs/react';
@@ -20,6 +21,7 @@ export default function IndiaSettings({
     canConfigure = false,
     canVerifyLegal = false,
     actorId = 0,
+    offerApprovals = { legal: null, templates: [] },
     notice,
 }: HrmsPageProps & {
     legal?: Legal | null;
@@ -31,6 +33,7 @@ export default function IndiaSettings({
     canConfigure?: boolean;
     canVerifyLegal?: boolean;
     actorId?: number;
+    offerApprovals?: OfferApprovalState;
     notice?: string;
 }) {
     const [section, setSection] = useState<Section>('company');
@@ -63,6 +66,7 @@ export default function IndiaSettings({
                 </div>
             </div>
             {notice && <p className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{notice}</p>}
+            <OfferApprovals approvals={offerApprovals} />
             <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
                 <Tab icon={<Building2 className="size-4" />} active={section === 'company'} onClick={() => setSection('company')}>Company Details</Tab>
                 <Tab icon={<ImageIcon className="size-4" />} active={section === 'letterhead'} onClick={() => setSection('letterhead')}>Letterhead</Tab>

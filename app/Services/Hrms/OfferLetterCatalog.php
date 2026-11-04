@@ -86,7 +86,58 @@ class OfferLetterCatalog
             'indiaHtml' => $selected === 'india' ? IndiaAppointment::html() : null,
             'templateHistory' => $this->templateHistory($companyId, $selected),
             'mailNote' => 'Email delivery is not used for offer letters. Download the PDF and send it from the company email account.',
+            'offerApprovals' => $this->pendingApprovals($actor),
         ];
+    }
+
+    /**
+     * India legal details and appointment letters waiting for a different authorized person.
+     * Verified legal records and approved templates are left out.
+     *
+     * @return array{legal: ?array<string, mixed>, templates: list<array<string, mixed>>}
+     */
+    public function pendingApprovals(User $actor): array
+    {
+        $empty = ['legal' => null, 'templates' => []];
+
+        if ($actor->companyId() === null || ! in_array($actor->applicationRole(), ['company_admin', 'hr'], true)) {
+            return $empty;
+        }
+
+        $companyId = (int) $actor->companyId();
+        $legal = $this->legal($companyId, 'india');
+        $pendingLegal = null;
+
+        if (is_array($legal) && ($legal['statusKey'] ?? '') === 'pending_verification') {
+            $pendingLegal = [
+                'legalName' => (string) $legal['legalName'],
+                'legalAddress' => (string) $legal['legalAddress'],
+                'registrationDetails' => (string) $legal['registrationDetails'],
+                'signatoryName' => (string) $legal['signatoryName'],
+                'signatoryDesignation' => (string) $legal['signatoryDesignation'],
+                'hrEmail' => (string) $legal['hrEmail'],
+                'updatedAt' => $legal['updatedAt'],
+                'own' => (int) ($legal['updatedBy'] ?? 0) === (int) $actor->id,
+            ];
+        }
+
+        $templates = [];
+
+        foreach ($this->templates($companyId, 'india') as $template) {
+            if (($template['status'] ?? '') !== 'submitted') {
+                continue;
+            }
+
+            $templates[] = [
+                'id' => (int) $template['id'],
+                'name' => (string) $template['name'],
+                'updatedAt' => $template['updatedAt'] ?? null,
+                'own' => (int) ($template['createdBy'] ?? 0) === (int) $actor->id
+                    || (int) ($template['submittedBy'] ?? 0) === (int) $actor->id,
+            ];
+        }
+
+        return ['legal' => $pendingLegal, 'templates' => $templates];
     }
 
     /**

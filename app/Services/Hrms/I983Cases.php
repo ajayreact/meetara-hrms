@@ -185,9 +185,10 @@ class I983Cases
         $suggestion = $profile ?? $this->companySuggestion($companyId);
         $signatory = $this->signatory->present($companyId);
         $trainingDefaults = $this->employerProfiles->trainingDefaults($companyId);
+        $compensation = $this->employerProfiles->compensationDefaults($companyId);
         $caseId = 0;
 
-        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $signatory, $trainingDefaults, &$caseId): void {
+        DB::transaction(function () use ($actor, $companyId, $name, $email, $token, $now, $suggestion, $signatory, $trainingDefaults, $compensation, &$caseId): void {
             $caseId = DB::table('i983_cases')->insertGetId([
                 'tenant_id' => $companyId,
                 'reference' => $this->reference($companyId),
@@ -219,6 +220,11 @@ class I983Cases
                 'ein_ciphertext' => $this->seal($suggestion['ein']),
                 'employee_count' => $suggestion['employee_count'] ?? null,
                 'naics' => $suggestion['naics'] ?? null,
+                'opt_hours' => $compensation['opt_hours'],
+                'hourly_rate' => $compensation['hourly_rate'],
+                'salary' => $compensation['annual_compensation'],
+                'salary_frequency' => $compensation['salary_frequency'],
+                'annual_compensation' => $compensation['annual_compensation'],
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -229,6 +235,13 @@ class I983Cases
                 'employer_name' => $suggestion['legal_name'],
                 'official_name' => $signatory['name'] !== '' ? mb_substr($signatory['name'], 0, 120) : null,
                 'official_title' => $signatory['title'] !== '' ? mb_substr($signatory['title'], 0, 120) : null,
+                'official_email' => $trainingDefaults['official_email'] !== '' ? $trainingDefaults['official_email'] : null,
+                'official_phone' => $trainingDefaults['official_phone'] !== '' ? mb_substr($trainingDefaults['official_phone'], 0, 40) : null,
+                'site_name' => $trainingDefaults['site_name'] !== '' ? mb_substr($trainingDefaults['site_name'], 0, 191) : null,
+                'site_address' => $trainingDefaults['site_address'] !== '' ? mb_substr($trainingDefaults['site_address'], 0, 300) : null,
+                'work_arrangement' => $trainingDefaults['work_arrangement'] !== '' ? $trainingDefaults['work_arrangement'] : null,
+                'student_role' => $trainingDefaults['student_role'] !== '' ? $trainingDefaults['student_role'] : null,
+                'goals' => $trainingDefaults['goals'] !== '' ? $trainingDefaults['goals'] : null,
                 'oversight' => $trainingDefaults['oversight'] !== '' ? $trainingDefaults['oversight'] : null,
                 'measures' => $trainingDefaults['measures'] !== '' ? $trainingDefaults['measures'] : null,
                 'created_at' => $now,
@@ -293,6 +306,17 @@ class I983Cases
     {
         $case = $this->caseFor($actor, $caseId);
         $this->assertEditable($case);
+        $postedCompensation = array_key_exists('opt_hours', $input) || array_key_exists('hourly_rate', $input);
+        $existing = DB::table('i983_employers')->where('case_id', $caseId)->first();
+
+        if ($existing !== null) {
+            foreach (['opt_hours', 'hourly_rate', 'annual_compensation', 'salary_frequency', 'other_compensation', 'start_date', 'salary'] as $field) {
+                if (! array_key_exists($field, $input)) {
+                    $input[$field] = $existing->{$field};
+                }
+            }
+        }
+
         $input = [...$input, ...$this->employerProfiles->splitAddress(
             (string) ($input['street'] ?? ''),
             (string) ($input['suite'] ?? ''),
@@ -338,7 +362,7 @@ class I983Cases
             'updated_at' => now(),
         ]);
         $this->syncDerivedName((int) $case->tenant_id, $caseId, 'employer_name', (string) ($values['legal_name'] ?? ''), 'hr', (int) $actor->id);
-        $this->rememberCompanyProfile($actor, $values);
+        $this->rememberCompanyProfile($actor, $values, $postedCompensation);
         $this->event((int) $case->tenant_id, $caseId, (int) $actor->id, 'hr', $finalize ? 'employer_finalized' : 'employer_saved', 'employer');
     }
 
@@ -347,7 +371,7 @@ class I983Cases
      *
      * @param  array<string, mixed>  $values
      */
-    private function rememberCompanyProfile(User $actor, array $values): void
+    private function rememberCompanyProfile(User $actor, array $values, bool $includeCompensation): void
     {
         foreach (['legal_name', 'street', 'city', 'state', 'zip', 'ein', 'employee_count', 'naics'] as $field) {
             if ($values[$field] === null || $values[$field] === '') {
@@ -361,6 +385,12 @@ class I983Cases
             || preg_match('/^\d{2,6}$/', (string) $values['naics']) !== 1
             || (int) $values['employee_count'] < 1) {
             return;
+        }
+
+        unset($values['start_date'], $values['other_compensation'], $values['salary']);
+
+        if (! $includeCompensation || $values['opt_hours'] === null || $values['hourly_rate'] === null) {
+            unset($values['opt_hours'], $values['hourly_rate'], $values['salary_frequency'], $values['annual_compensation']);
         }
 
         try {
@@ -876,8 +906,8 @@ class I983Cases
             'dso_email' => $this->email($input['dso_email'] ?? null, 'dso_email'),
             'dso_phone' => $this->limit($input['dso_phone'] ?? null, 40),
             'sevis_id' => $this->limit($input['sevis_id'] ?? null, 20),
-            'opt_start' => $this->date($input['opt_start'] ?? null),
-            'opt_end' => $this->date($input['opt_end'] ?? null),
+            'opt_start' => $start = $this->date($input['opt_start'] ?? null),
+            'opt_end' => $this->date($input['opt_end'] ?? null) ?? $this->stemOptEnd($start),
             'major_cip' => $this->limit($input['major_cip'] ?? null, 160),
             'degree_level' => $this->choice($input['degree_level'] ?? null, ['Bachelor', 'Master', 'Doctorate'], 'degree_level'),
             'degree_awarded_on' => $this->date($input['degree_awarded_on'] ?? null),
@@ -926,6 +956,11 @@ class I983Cases
 
         if ($hourly === null && $legacy !== null && $frequency === 'hour') {
             $hourly = $legacy;
+        }
+
+        if ($hours !== null && $hourly !== null) {
+            $annual = I983EmployerProfile::annualFromHourly($hourly, (int) $hours);
+            $frequency = $frequency ?? 'year';
         }
 
         if ($hours !== null && ((int) $hours < 20 || (int) $hours > 80)) {
@@ -1084,14 +1119,46 @@ class I983Cases
             'ein' => $this->reveal($row->ein_ciphertext ?? null),
             'employeeCount' => $row->employee_count === null ? '' : (string) $row->employee_count,
             'naics' => (string) ($row->naics ?? ''),
-            'optHours' => $row->opt_hours === null ? '' : (string) $row->opt_hours,
-            'hourlyRate' => $this->printedMoney($this->hourlyAmount($row)),
-            'salary' => $row->salary === null ? '' : number_format((float) $row->salary, 2, '.', ''),
-            'salaryFrequency' => (string) ($row->salary_frequency ?? ''),
-            'annualCompensation' => $this->printedMoney($this->annualAmount($row)),
+            ...$this->displayedCompensation($row),
             'otherCompensation' => (string) ($row->other_compensation ?? ''),
             'startDate' => (string) ($row->start_date ?? ''),
             'finalizedAt' => $row->finalized_at === null ? '' : substr((string) $row->finalized_at, 0, 16),
+        ];
+    }
+
+    /**
+     * A case with no saved pay snapshot shows the company default. A saved snapshot stays on that case.
+     *
+     * @return array{optHours: string, hourlyRate: string, salary: string, salaryFrequency: string, annualCompensation: string}
+     */
+    private function displayedCompensation(object $row): array
+    {
+        $hourly = $this->hourlyAmount($row);
+        $annual = $this->annualAmount($row);
+        $hasSnapshot = $row->opt_hours !== null || $hourly !== null || ($annual !== null && $annual !== '');
+
+        if (! $hasSnapshot) {
+            $defaults = $this->employerProfiles->compensationDefaults((int) ($row->tenant_id ?? 0));
+
+            return [
+                'optHours' => $defaults['opt_hours'] === null ? '' : (string) $defaults['opt_hours'],
+                'hourlyRate' => $this->printedMoney($defaults['hourly_rate']),
+                'salary' => $this->printedMoney($defaults['annual_compensation']),
+                'salaryFrequency' => (string) ($defaults['salary_frequency'] ?? ''),
+                'annualCompensation' => $this->printedMoney($defaults['annual_compensation']),
+            ];
+        }
+
+        $calculated = $row->opt_hours !== null && $hourly !== null
+            ? I983EmployerProfile::annualFromHourly($this->printedMoney($hourly), (int) $row->opt_hours)
+            : $annual;
+
+        return [
+            'optHours' => $row->opt_hours === null ? '' : (string) $row->opt_hours,
+            'hourlyRate' => $this->printedMoney($hourly),
+            'salary' => $row->salary === null ? $this->printedMoney($calculated) : number_format((float) $row->salary, 2, '.', ''),
+            'salaryFrequency' => (string) ($row->salary_frequency ?? ''),
+            'annualCompensation' => $this->printedMoney($calculated),
         ];
     }
 
@@ -1239,7 +1306,7 @@ class I983Cases
     }
 
     /**
-     * Salary, hours, and the start date stay on the case and are checked before the final PDF.
+     * Identity fields open the training plan. Pay and the start date are checked before the final PDF.
      *
      * @return list<string>
      */
@@ -1283,13 +1350,15 @@ class I983Cases
     {
         $training = DB::table('i983_training_plans')->where('case_id', $case->id)->first();
 
+        $filled = $this->filledTraining($training);
+
         foreach (['student_role', 'site_name', 'site_address', 'official_name', 'official_title', 'official_email', 'official_phone'] as $field) {
-            if (! $this->requirementFilled($training->{$field} ?? null)) {
+            if (! $this->requirementFilled($filled[$field] ?? null)) {
                 return false;
             }
         }
 
-        return $training !== null && in_array($training->work_arrangement, ['remote', 'on_site', 'hybrid'], true);
+        return in_array($filled['work_arrangement'] ?? null, ['remote', 'on_site', 'hybrid'], true);
     }
 
     private function signatoryStepReady(object $case): bool
@@ -1306,6 +1375,52 @@ class I983Cases
     private function requirementFilled(mixed $value): bool
     {
         return $value !== null && trim((string) $value) !== '';
+    }
+
+    private function stemOptEnd(?string $start): ?string
+    {
+        if ($start === null) {
+            return null;
+        }
+
+        return Carbon::parse($start)->addMonths(24)->subDay()->toDateString();
+    }
+
+    /**
+     * A null training field uses the company default. A saved blank string stays blank.
+     *
+     * @return array<string, string>
+     */
+    private function filledTraining(?object $training): array
+    {
+        $companyId = (int) ($training->tenant_id ?? 0);
+        $defaults = $companyId > 0 ? $this->employerProfiles->trainingDefaults($companyId) : [
+            'student_role' => '', 'goals' => '', 'site_name' => '', 'site_address' => '',
+            'work_arrangement' => '', 'official_email' => '', 'official_phone' => '',
+            'oversight' => '', 'measures' => '',
+        ];
+        $signatory = $companyId > 0 ? $this->signatory->present($companyId) : ['name' => '', 'title' => ''];
+        $values = [
+            'student_role' => $defaults['student_role'],
+            'goals' => $defaults['goals'],
+            'site_name' => $defaults['site_name'],
+            'site_address' => $defaults['site_address'],
+            'work_arrangement' => $defaults['work_arrangement'],
+            'official_email' => $defaults['official_email'],
+            'official_phone' => $defaults['official_phone'],
+            'official_name' => $signatory['name'],
+            'official_title' => $signatory['title'],
+            'oversight' => $defaults['oversight'],
+            'measures' => $defaults['measures'],
+        ];
+
+        foreach ($values as $field => $fallback) {
+            if ($training !== null && $training->{$field} !== null) {
+                $values[$field] = trim((string) $training->{$field});
+            }
+        }
+
+        return $values;
     }
 
     /**
@@ -1325,6 +1440,7 @@ class I983Cases
 
         $employer = DB::table('i983_employers')->where('case_id', $case->id)->first();
         $training = DB::table('i983_training_plans')->where('case_id', $case->id)->first();
+        $filled = $this->filledTraining($training);
         $checks = [
             'Employer legal name' => $employer->legal_name ?? null,
             'Street address' => $employer->street ?? null,
@@ -1337,14 +1453,14 @@ class I983Cases
             'OPT hours per week' => $employer->opt_hours ?? null,
             'Compensation' => $employer->salary ?? $employer->annual_compensation ?? null,
             'Employment start date' => $employer->start_date ?? null,
-            'Student role' => $training->student_role ?? null,
-            'Training site name' => $training->site_name ?? null,
-            'Training site address' => $training->site_address ?? null,
-            'Employer official name' => $training->official_name ?? null,
-            'Employer official title' => $training->official_title ?? null,
-            'Employer official email' => $training->official_email ?? null,
-            'Employer official phone' => $training->official_phone ?? null,
-            'Work arrangement' => in_array($training->work_arrangement ?? null, ['remote', 'on_site', 'hybrid'], true) ? $training->work_arrangement : null,
+            'Student role' => $filled['student_role'] ?? null,
+            'Training site name' => $filled['site_name'] ?? null,
+            'Training site address' => $filled['site_address'] ?? null,
+            'Employer official name' => $filled['official_name'] ?? null,
+            'Employer official title' => $filled['official_title'] ?? null,
+            'Employer official email' => $filled['official_email'] ?? null,
+            'Employer official phone' => $filled['official_phone'] ?? null,
+            'Work arrangement' => in_array($filled['work_arrangement'] ?? null, ['remote', 'on_site', 'hybrid'], true) ? $filled['work_arrangement'] : null,
         ];
 
         foreach ($checks as $label => $value) {
@@ -1536,6 +1652,14 @@ class I983Cases
     private function presentTraining(?object $training, ?object $student, ?object $employer): array
     {
         $values = $this->trainingArray($training);
+        $filled = $this->filledTraining($training);
+
+        foreach ($filled as $field => $value) {
+            if (($training === null || $training->{$field} === null) && $value !== '') {
+                $values[Str::camel($field)] = $value;
+            }
+        }
+
         $printedStudent = $this->printedStudentName($student);
         $printedEmployer = $this->printedEmployerName($employer);
 

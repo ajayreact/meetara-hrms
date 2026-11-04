@@ -1,3 +1,4 @@
+import { OfferApprovals, type OfferApprovalState } from '@/components/hrms/offer-approvals';
 import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { HrmsLayout } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
@@ -47,7 +48,8 @@ function dateZone(zones: string[], officeName: string | null, role: string): str
     return officeName ?? role;
 }
 
-export default function CompanyAdminDashboard({ workspace, companyStats, payrollBoard, workplace }: HrmsPageProps & {
+export default function CompanyAdminDashboard({ workspace, companyStats, payrollBoard, workplace, offerApprovals = null }: HrmsPageProps & {
+    offerApprovals?: OfferApprovalState | null;
     workplace?: WorkplacePayload;
     companyStats?: { headcount: number; offices: number; pendingNetworks: number; officeList: OfficeCard[] };
     payrollBoard?: PayrollBoard;
@@ -84,6 +86,7 @@ export default function CompanyAdminDashboard({ workspace, companyStats, payroll
                     </div>
                 </div>
             </section>
+            {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard tone="blue" icon={Users} label="Employees" value={String(companyStats?.headcount ?? 0)} hint="Active employees" badge={(companyStats?.headcount ?? 0) > 0 ? 'Active' : undefined} href="/employees" action="View employees" />
                 <MetricCard tone="green" icon={Building2} label="Offices" value={String(companyStats?.offices ?? 0)} hint="Recorded offices" badge={offices.length > 0 && activeOffices === offices.length ? 'Active' : undefined} href="/offices" action="Manage offices" />

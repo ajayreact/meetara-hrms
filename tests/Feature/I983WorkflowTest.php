@@ -35,7 +35,7 @@ class I983WorkflowTest extends TestCase
             'naics' => '541511',
         ])->assertRedirect();
 
-        $this->get($link)->assertOk()->assertDontSee('43-2316091')->assertDontSee('37068 Grand River Ave')->assertDontSee('541511');
+        $this->get($link)->assertOk()->assertDontSee('43-2316091')->assertDontSee('541511');
         $this->assertSame('43-2316091', app(\App\Services\Hrms\I983Cases::class)->show($company->hr, $caseId)['employer']['ein']);
         $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('workflow.stage', 'student_submission')
@@ -49,7 +49,7 @@ class I983WorkflowTest extends TestCase
             ->where('workflow.steps.5.key', 'final_pdf')
             ->where('workflow.canGenerateFinal', false)
             ->where('workflow.blockers', fn ($blockers): bool => collect($blockers)->contains('The student must submit Section 1 and certify Section 2.')
-                && collect($blockers)->contains('Work arrangement is required before the final PDF.'))
+                && collect($blockers)->contains('OPT hours per week is required before the final PDF.'))
             ->where('employer.ein', '43-2316091')
         );
         $this->actingAs($company->hr)->get('/i983')->assertOk()->assertInertia(fn (Assert $page) => $page
@@ -125,12 +125,19 @@ class I983WorkflowTest extends TestCase
         ])->assertRedirect()->assertSessionHas('status', 'Employer information saved. Continue with the Training Plan.');
 
         $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('workflow.stage', 'training_plan')
+            ->where('workflow.stage', 'final_pdf')
             ->where('workflow.steps.2.state', 'complete')
             ->where('workflow.steps.3.key', 'training_plan')
-            ->where('workflow.steps.3.state', 'current')
+            ->where('workflow.steps.3.state', 'complete')
+            ->where('training.siteName', 'Veltrix Digital Solutions Inc')
+            ->where('training.siteAddress', '37085 Grand River Ave, Farmington, MI 48335')
+            ->where('training.workArrangement', 'remote')
+            ->where('training.officialName', 'Priya Shah')
+            ->where('training.officialTitle', 'HR Manager')
+            ->where('training.officialEmail', 'hr@veltrixds.com')
+            ->where('training.officialPhone', '+1(248) 755-3888')
             ->where('workflow.steps.4.key', 'employer_certification')
-            ->where('workflow.steps.4.state', 'pending')
+            ->where('workflow.steps.4.state', 'complete')
             ->where('workflow.canGenerateFinal', false)
             ->where('workflow.blockers', fn ($blockers): bool => collect($blockers)->contains('OPT hours per week is required before the final PDF.')
                 && collect($blockers)->contains('Compensation is required before the final PDF.')

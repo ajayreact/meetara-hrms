@@ -437,16 +437,16 @@ class I983Documents
             'salary' => $employer === null ? '' : $this->annualSalary($employer),
             'start_date' => $this->printedDate($employer->start_date ?? null),
             'other_compensation' => trim((string) ($employer->other_compensation ?? '')),
-            'site_name' => trim((string) ($training->site_name ?? '')),
-            'site_address' => trim((string) ($training->site_address ?? '')),
-            'official_name' => trim((string) ($training->official_name ?? '')),
-            'official_title' => trim((string) ($training->official_title ?? '')),
-            'official_email' => trim((string) ($training->official_email ?? '')),
-            'official_phone' => trim((string) ($training->official_phone ?? '')),
-            'student_role' => trim((string) ($training->student_role ?? '')),
-            'goals' => trim((string) ($training->goals ?? '')),
-            'oversight' => trim((string) ($training->oversight ?? '')),
-            'measures' => trim((string) ($training->measures ?? '')),
+            'site_name' => $this->trainingValue($training, 'site_name'),
+            'site_address' => $this->trainingValue($training, 'site_address'),
+            'official_name' => $this->trainingValue($training, 'official_name'),
+            'official_title' => $this->trainingValue($training, 'official_title'),
+            'official_email' => $this->trainingValue($training, 'official_email'),
+            'official_phone' => $this->trainingValue($training, 'official_phone'),
+            'student_role' => $this->trainingValue($training, 'student_role'),
+            'goals' => $this->trainingValue($training, 'goals'),
+            'oversight' => $this->trainingValue($training, 'oversight'),
+            'measures' => $this->trainingValue($training, 'measures'),
             'remarks' => trim((string) ($training->remarks ?? '')),
         ];
     }
@@ -472,7 +472,10 @@ class I983Documents
             ]);
         }
 
-        $arrangement = trim((string) DB::table('i983_training_plans')->where('case_id', $case->id)->value('work_arrangement'));
+        $storedArrangement = DB::table('i983_training_plans')->where('case_id', $case->id)->value('work_arrangement');
+        $arrangement = $storedArrangement === null
+            ? app(I983EmployerProfile::class)->trainingDefaults((int) $case->tenant_id)['work_arrangement']
+            : trim((string) $storedArrangement);
 
         if (! in_array($arrangement, ['remote', 'on_site', 'hybrid'], true)) {
             throw ValidationException::withMessages([
@@ -501,6 +504,32 @@ class I983Documents
         }
 
         return number_format((float) $amount, 2, '.', '');
+    }
+
+    private function trainingValue(?object $training, string $field): string
+    {
+        if ($training === null) {
+            return '';
+        }
+
+        if ($training->{$field} !== null) {
+            return trim((string) $training->{$field});
+        }
+
+        $companyId = (int) $training->tenant_id;
+
+        if ($companyId === 0) {
+            return '';
+        }
+
+        $defaults = app(I983EmployerProfile::class)->trainingDefaults($companyId);
+        $signatory = app(I983Signatory::class)->present($companyId);
+        $fallbacks = [
+            'official_name' => $signatory['name'],
+            'official_title' => $signatory['title'],
+        ];
+
+        return trim((string) ($fallbacks[$field] ?? $defaults[$field] ?? ''));
     }
 
     /**

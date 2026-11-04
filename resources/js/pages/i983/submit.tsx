@@ -104,6 +104,22 @@ function filled(value: string): boolean {
     return value.trim() !== '';
 }
 
+function stemOptEnd(start: string): string {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+
+    if (!match) {
+        return '';
+    }
+
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    date.setMonth(date.getMonth() + 24);
+    date.setDate(date.getDate() - 1);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export default function I983Submit({ token, form, notice }: { token: string; form: StudentFormView; notice?: string }) {
     const finalized = form.status === 'finalized';
     const serverErrors = usePage().props.errors as Record<string, string>;
@@ -151,6 +167,12 @@ export default function I983Submit({ token, form, notice }: { token: string; for
     const printedName = printedCertificationName(page.data.surname, page.data.given_name, page.data.middle_name);
     const signatureSource = retainedStudentSignature(page.data.signature !== null, form.signatureOnFile, cleared);
     const signatureUrl = signatureSource === 'stored' ? `/i983/s/${token}/signature` : null;
+
+    useEffect(() => {
+        if (page.data.opt_start !== '' && page.data.opt_end === '') {
+            page.setData('opt_end', stemOptEnd(page.data.opt_start));
+        }
+    }, [page.data.opt_start, page.data.opt_end]);
 
     const employerAddressKeys = ['street', 'suite', 'city', 'state', 'zip', 'site_address'];
     const studentServerErrors = Object.fromEntries(Object.entries(serverErrors).filter(([key]) => !employerAddressKeys.includes(key)));
@@ -284,7 +306,15 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                             if (key === 'signature') {
                                 setCleared(value === null);
                             }
-                            page.setData(key as 'surname', value as string);
+                            if (key === 'opt_start' && typeof value === 'string') {
+                                page.setData({
+                                    ...page.data,
+                                    opt_start: value,
+                                    opt_end: value === '' ? '' : stemOptEnd(value),
+                                });
+                            } else {
+                                page.setData(key as 'surname', value as string);
+                            }
                             setLocalErrors((current) => {
                                 if (current[key] === undefined) {
                                     return current;

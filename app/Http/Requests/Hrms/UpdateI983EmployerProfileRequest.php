@@ -16,6 +16,12 @@ class UpdateI983EmployerProfileRequest extends FormRequest
             (string) $this->input('state', ''),
             (string) $this->input('zip', ''),
         );
+        foreach (['opt_hours', 'hourly_rate', 'annual_compensation'] as $field) {
+            if ($this->input($field) === '') {
+                $address[$field] = null;
+            }
+        }
+
         $this->merge($address);
     }
 
@@ -44,8 +50,18 @@ class UpdateI983EmployerProfileRequest extends FormRequest
             'ein' => ['required', 'string', 'regex:/^\d{2}-?\d{7}$/'],
             'employee_count' => ['required', 'integer', 'min:1', 'max:10000000'],
             'naics' => ['required', 'string', 'regex:/^\d{2,6}$/'],
+            'opt_hours' => ['nullable', 'integer', 'min:20', 'max:80', 'required_with:hourly_rate'],
+            'hourly_rate' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d+(\.\d{1,2})?$/', 'required_with:opt_hours'],
+            'salary_frequency' => ['nullable', 'string', 'in:year,month,hour'],
             'oversight' => ['nullable', 'string', 'max:5000'],
             'measures' => ['nullable', 'string', 'max:5000'],
+            'site_name' => ['nullable', 'string', 'max:191'],
+            'site_address' => ['nullable', 'string', 'max:300'],
+            'work_arrangement' => ['nullable', 'string', 'in:remote,on_site,hybrid'],
+            'official_email' => ['nullable', 'email', 'max:191'],
+            'official_phone' => ['nullable', 'string', 'max:40'],
+            'student_role' => ['nullable', 'string', 'max:5000'],
+            'goals' => ['nullable', 'string', 'max:5000'],
         ];
     }
 

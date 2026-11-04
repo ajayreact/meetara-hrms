@@ -1505,6 +1505,17 @@ class HrmsSchema
                 $table->string('naics', 10);
                 $table->text('oversight')->nullable();
                 $table->text('measures')->nullable();
+                $table->string('site_name', 191)->nullable();
+                $table->string('site_address', 300)->nullable();
+                $table->string('work_arrangement', 20)->nullable();
+                $table->string('official_email', 191)->nullable();
+                $table->string('official_phone', 40)->nullable();
+                $table->text('student_role')->nullable();
+                $table->text('goals')->nullable();
+                $table->unsignedTinyInteger('opt_hours')->nullable();
+                $table->decimal('hourly_rate', 12, 2)->nullable();
+                $table->string('salary_frequency', 40)->nullable();
+                $table->decimal('annual_compensation', 12, 2)->nullable();
                 $table->unsignedBigInteger('updated_by')->nullable();
                 $table->timestamps();
             });
@@ -1514,6 +1525,27 @@ class HrmsSchema
             Schema::table('i983_employer_profiles', function (Blueprint $table) {
                 $table->text('oversight')->nullable();
                 $table->text('measures')->nullable();
+            });
+        }
+
+        if (Schema::hasTable('i983_employer_profiles') && ! Schema::hasColumn('i983_employer_profiles', 'opt_hours')) {
+            Schema::table('i983_employer_profiles', function (Blueprint $table) {
+                $table->unsignedTinyInteger('opt_hours')->nullable();
+                $table->decimal('hourly_rate', 12, 2)->nullable();
+                $table->string('salary_frequency', 40)->nullable();
+                $table->decimal('annual_compensation', 12, 2)->nullable();
+            });
+        }
+
+        if (Schema::hasTable('i983_employer_profiles') && ! Schema::hasColumn('i983_employer_profiles', 'site_name')) {
+            Schema::table('i983_employer_profiles', function (Blueprint $table) {
+                $table->string('site_name', 191)->nullable();
+                $table->string('site_address', 300)->nullable();
+                $table->string('work_arrangement', 20)->nullable();
+                $table->string('official_email', 191)->nullable();
+                $table->string('official_phone', 40)->nullable();
+                $table->text('student_role')->nullable();
+                $table->text('goals')->nullable();
             });
         }
 

@@ -7,6 +7,7 @@ use App\Services\Hrms\I983EmployerProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
@@ -64,9 +65,11 @@ class I983EmployerProfileTest extends TestCase
         $this->assertSame('Veltrix Profile LLC', $training->employer_name);
         $this->assertNull($training->official_name);
         $this->assertNull($training->official_title);
-        $this->assertNull($training->official_email);
-        $this->assertNull($training->site_name);
-        $this->assertNull($training->site_address);
+        $this->assertSame('hr@veltrixds.com', $training->official_email);
+        $this->assertSame('+1(248) 755-3888', $training->official_phone);
+        $this->assertSame('Veltrix Profile LLC', $training->site_name);
+        $this->assertSame('37068 Grand River Ave, Farmington, MI 48335', $training->site_address);
+        $this->assertSame('remote', $training->work_arrangement);
         $this->assertNotSame($company->hr->name, $training->official_name);
         $this->assertNotSame($company->hr->email, $training->official_email);
 
@@ -250,6 +253,134 @@ class I983EmployerProfileTest extends TestCase
             ->where('i983Signatory.title', 'Director')
             ->where('i983Signatory.hasImage', true)
         );
+    }
+
+    public function test_compensation_defaults_fill_new_cases_and_annual_salary_follows_the_hourly_rate(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'i983-compensation');
+        $other = CompanyFixture::make('Other Company', 'i983-compensation-other');
+        $saved = [
+            ...$this->profile(),
+            'opt_hours' => 25,
+            'hourly_rate' => '20',
+            'salary_frequency' => 'year',
+            'annual_compensation' => '1.00',
+        ];
+
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', $saved)->assertRedirect();
+        $stored = DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->first();
+        $this->assertSame(25, (int) $stored->opt_hours);
+        $this->assertSame('20.00', $this->money($stored->hourly_rate));
+        $this->assertSame('26000.00', $this->money($stored->annual_compensation));
+        $this->assertFalse(Schema::hasColumn('i983_employer_profiles', 'start_date'));
+        $this->actingAs($company->hr)->get('/company/settings')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('i983Employer.optHours', '25')
+            ->where('i983Employer.hourlyRate', '20.00')
+            ->where('i983Employer.annualCompensation', '26000.00')
+        );
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'First Student',
+            'candidate_email' => 'first.pay@example.test',
+        ])->assertRedirect();
+        $firstId = (int) DB::table('i983_cases')->where('candidate_email', 'first.pay@example.test')->value('id');
+        $first = DB::table('i983_employers')->where('case_id', $firstId)->first();
+        $this->assertSame(25, (int) $first->opt_hours);
+        $this->assertSame('20.00', $this->money($first->hourly_rate));
+        $this->assertSame('26000.00', $this->money($first->annual_compensation));
+        $this->assertSame('26000.00', $this->money($first->salary));
+        $this->assertNull($first->start_date);
+        $this->assertNull($first->other_compensation);
+
+        $this->actingAs($company->hr)->post('/i983/'.$firstId.'/employer', [
+            ...$this->profile(),
+            'website' => 'https://veltrixds.com',
+        ])->assertRedirect();
+        $this->assertSame(25, (int) DB::table('i983_employers')->where('case_id', $firstId)->value('opt_hours'));
+        $this->assertSame(25, (int) DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('opt_hours'));
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Second Student',
+            'candidate_email' => 'second.pay@example.test',
+        ])->assertRedirect();
+        $secondId = (int) DB::table('i983_cases')->where('candidate_email', 'second.pay@example.test')->value('id');
+
+        $this->actingAs($company->hr)->post('/i983/'.$firstId.'/employer', [
+            ...$this->profile(),
+            'opt_hours' => 30,
+            'hourly_rate' => '22',
+            'salary_frequency' => 'year',
+            'annual_compensation' => '9.00',
+            'start_date' => '2026-09-02',
+            'other_compensation' => 'Transit',
+        ])->assertRedirect();
+        $updated = DB::table('i983_employers')->where('case_id', $firstId)->first();
+        $this->assertSame(30, (int) $updated->opt_hours);
+        $this->assertSame('22.00', $this->money($updated->hourly_rate));
+        $this->assertSame('34320.00', $this->money($updated->annual_compensation));
+        $this->assertSame('34320.00', $this->money($updated->salary));
+        $this->assertSame('2026-09-02', (string) $updated->start_date);
+        $this->assertSame('Transit', $updated->other_compensation);
+        $profile = DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->first();
+        $this->assertSame(30, (int) $profile->opt_hours);
+        $this->assertSame('22.00', $this->money($profile->hourly_rate));
+        $this->assertSame('34320.00', $this->money($profile->annual_compensation));
+
+        $second = DB::table('i983_employers')->where('case_id', $secondId)->first();
+        $this->assertSame(25, (int) $second->opt_hours);
+        $this->assertSame('26000.00', $this->money($second->annual_compensation));
+        $this->assertNull($second->start_date);
+        $this->assertNull($second->other_compensation);
+
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Third Student',
+            'candidate_email' => 'third.pay@example.test',
+        ])->assertRedirect();
+        $thirdId = (int) DB::table('i983_cases')->where('candidate_email', 'third.pay@example.test')->value('id');
+        $third = DB::table('i983_employers')->where('case_id', $thirdId)->first();
+        $this->assertSame(30, (int) $third->opt_hours);
+        $this->assertSame('34320.00', $this->money($third->annual_compensation));
+        $this->assertSame(25, (int) DB::table('i983_employers')->where('case_id', $secondId)->value('opt_hours'));
+
+        DB::table('i983_employers')->where('case_id', $secondId)->update([
+            'opt_hours' => null,
+            'hourly_rate' => null,
+            'salary' => null,
+            'salary_frequency' => null,
+            'annual_compensation' => null,
+        ]);
+        $this->actingAs($company->hr)->get('/i983/'.$secondId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('employer.optHours', '30')
+            ->where('employer.hourlyRate', '22.00')
+            ->where('employer.annualCompensation', '34320.00')
+            ->where('employer.startDate', '')
+        );
+        $this->assertNull(DB::table('i983_employers')->where('case_id', $secondId)->value('opt_hours'));
+
+        $this->actingAs($other->hr)->post('/i983', [
+            'candidate_name' => 'Other Student',
+            'candidate_email' => 'other.pay@example.test',
+        ])->assertRedirect();
+        $otherId = (int) DB::table('i983_cases')->where('candidate_email', 'other.pay@example.test')->value('id');
+        $this->assertNull(DB::table('i983_employers')->where('case_id', $otherId)->value('opt_hours'));
+        $this->assertSame(0, DB::table('i983_employer_profiles')->where('tenant_id', $other->id)->count());
+
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', [
+            ...$this->profile(),
+            'opt_hours' => 10,
+            'hourly_rate' => '20',
+        ])->assertSessionHasErrors('opt_hours');
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', [
+            ...$this->profile(),
+            'opt_hours' => 25,
+        ])->assertSessionHasErrors('hourly_rate');
+        $this->assertSame(30, (int) DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('opt_hours'));
+        $this->assertSame('34320.00', $this->money(DB::table('i983_employer_profiles')->where('tenant_id', $company->id)->value('annual_compensation')));
+    }
+
+    private function money(mixed $value): string
+    {
+        return number_format((float) $value, 2, '.', '');
     }
 
     /**

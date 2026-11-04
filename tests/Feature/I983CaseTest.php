@@ -306,6 +306,21 @@ class I983CaseTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_a_stem_opt_start_date_fills_the_end_date_24_months_later(): void
+    {
+        $company = CompanyFixture::make('Acme People', 'acme-opt-end');
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Riley Quinn',
+            'candidate_email' => 'riley.opt@example.test',
+        ])->assertRedirect();
+        $link = (string) session('i983_link');
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+
+        $this->post($link, $this->student(['opt_start' => '2026-09-02', 'opt_end' => ''], false))->assertRedirect();
+        $this->assertSame('2026-09-02', DB::table('i983_students')->where('case_id', $caseId)->value('opt_start'));
+        $this->assertSame('2028-09-01', DB::table('i983_students')->where('case_id', $caseId)->value('opt_end'));
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

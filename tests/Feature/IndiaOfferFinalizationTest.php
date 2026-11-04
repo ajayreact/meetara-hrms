@@ -44,6 +44,104 @@ class IndiaOfferFinalizationTest extends TestCase
         $this->assertSame($owner->id, (int) DB::table('company_legal_profiles')->where('tenant_id', $company->id)->value('verified_by'));
     }
 
+    public function test_pending_approvals_are_shown_to_another_authorized_user_without_changing_approved_records(): void
+    {
+        Mail::fake();
+        $company = CompanyFixture::make('Acme People', 'acme-pending-approvals');
+        $hr = $company->hr;
+        $owner = $this->owner($company);
+        $keptAt = '2026-01-15 10:00:00';
+
+        $this->actingAs($hr)->post(route('hrms.offer-letters.legal'), $this->legalPayload())->assertRedirect();
+        $this->actingAs($hr)->post(route('hrms.offer-letters.templates.save'), [
+            'country' => 'india',
+            'name' => 'India Appointment Letter',
+            'body' => IndiaAppointment::html(),
+        ])->assertRedirect();
+        $templateId = (int) DB::table('offer_letter_templates')->where('tenant_id', $company->id)->where('name', 'India Appointment Letter')->value('id');
+        $this->actingAs($hr)->post(route('hrms.offer-letters.templates.submit', $templateId))->assertRedirect();
+
+        $keptId = DB::table('offer_letter_templates')->insertGetId([
+            'tenant_id' => $company->id,
+            'country' => 'india',
+            'name' => 'Approved appointment letter',
+            'status' => 'approved',
+            'current_version' => 1,
+            'created_by' => $owner->id,
+            'created_at' => $keptAt,
+            'updated_at' => $keptAt,
+        ]);
+        DB::table('offer_letter_template_versions')->insert([
+            'tenant_id' => $company->id,
+            'template_id' => $keptId,
+            'version' => 1,
+            'country' => 'india',
+            'body' => '<p>Approved wording</p>',
+            'status' => 'approved',
+            'created_by' => $owner->id,
+            'approved_by' => $owner->id,
+            'approved_at' => $keptAt,
+            'created_at' => $keptAt,
+            'updated_at' => $keptAt,
+        ]);
+
+        $this->actingAs($owner)->get(route('hrms.offer-letters.templates', ['country' => 'india']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('offer-letters/india-settings')
+                ->where('offerApprovals.legal.own', false)
+                ->where('offerApprovals.legal.legalName', 'Acme People Private Limited')
+                ->where('offerApprovals.templates.0.id', $templateId)
+                ->where('offerApprovals.templates.0.name', 'India Appointment Letter')
+                ->where('offerApprovals.templates.0.own', false)
+                ->where('offerApprovals.templates', fn ($rows): bool => count($rows) === 1));
+        $this->actingAs($owner)->get('/dashboard')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('dashboard/company-admin')
+            ->where('offerApprovals.legal.legalName', 'Acme People Private Limited')
+            ->where('offerApprovals.templates.0.id', $templateId)
+            ->where('offerApprovals.templates.0.own', false));
+        $this->actingAs($owner)->get('/company/settings')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('settings/company')
+            ->where('offerApprovals.legal.own', false)
+            ->where('offerApprovals.templates.0.id', $templateId));
+
+        $this->actingAs($hr)->get(route('hrms.offer-letters.templates', ['country' => 'india']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('offerApprovals.legal.own', true)
+                ->where('offerApprovals.templates.0.own', true));
+        $this->actingAs($hr)->get('/dashboard')->assertOk()->assertInertia(fn ($page) => $page
+            ->component('dashboard/hr')
+            ->where('offerApprovals.legal.own', true)
+            ->where('offerApprovals.templates.0.own', true));
+        $this->actingAs($company->employee)->get('/dashboard')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('offerApprovals', null));
+
+        $this->actingAs($hr)->post(route('hrms.offer-letters.legal.verify'), ['confirm' => 'VERIFY', 'country' => 'india'])
+            ->assertSessionHasErrors('legal');
+        $this->actingAs($hr)->post(route('hrms.offer-letters.templates.approve', $templateId), ['confirm' => 'APPROVE'])
+            ->assertSessionHasErrors('template');
+        $this->assertSame('approved', DB::table('offer_letter_templates')->where('id', $keptId)->value('status'));
+        $this->assertSame($owner->id, (int) DB::table('offer_letter_template_versions')->where('template_id', $keptId)->value('approved_by'));
+        $this->assertSame($keptAt, (string) DB::table('offer_letter_template_versions')->where('template_id', $keptId)->value('approved_at'));
+
+        $this->actingAs($owner)->post(route('hrms.offer-letters.legal.verify'), ['confirm' => 'VERIFY', 'country' => 'india'])->assertRedirect();
+        $this->actingAs($owner)->post(route('hrms.offer-letters.templates.approve', $templateId), ['confirm' => 'APPROVE'])->assertRedirect();
+        $this->assertSame('verified', DB::table('company_legal_profiles')->where('tenant_id', $company->id)->value('status'));
+        $this->assertSame($owner->id, (int) DB::table('company_legal_profiles')->where('tenant_id', $company->id)->value('verified_by'));
+        $this->assertSame('approved', DB::table('offer_letter_templates')->where('id', $templateId)->value('status'));
+        $this->assertSame('approved', DB::table('offer_letter_templates')->where('id', $keptId)->value('status'));
+        $this->assertSame('<p>Approved wording</p>', DB::table('offer_letter_template_versions')->where('template_id', $keptId)->value('body'));
+        $this->assertSame($owner->id, (int) DB::table('offer_letter_template_versions')->where('template_id', $keptId)->value('approved_by'));
+        $this->assertSame($keptAt, (string) DB::table('offer_letter_template_versions')->where('template_id', $keptId)->value('approved_at'));
+
+        $this->actingAs($owner)->get(route('hrms.offer-letters.templates', ['country' => 'india']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('offerApprovals.legal', null)
+                ->where('offerApprovals.templates', []));
+    }
+
     public function test_a_mismatched_letterhead_blocks_confirmation_and_pdf_issue_and_older_files_stay_selectable(): void
     {
         Mail::fake();

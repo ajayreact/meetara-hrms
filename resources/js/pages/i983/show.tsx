@@ -104,6 +104,21 @@ const documentLabels: Record<string, string> = {
 };
 const lockedControl = `${control} bg-slate-50 text-slate-700`;
 
+function derivedAnnual(hours: string, rate: string, current: string): string {
+    if (hours.trim() === '' && rate.trim() === '') {
+        return current;
+    }
+
+    const weekly = Number(hours);
+    const hourly = Number(rate.replace(/,/g, ''));
+
+    if (!Number.isInteger(weekly) || weekly <= 0 || !Number.isFinite(hourly) || hourly <= 0) {
+        return '';
+    }
+
+    return ((Math.round(hourly * 100) * weekly * 52) / 100).toFixed(2);
+}
+
 function trainingPlanSaved(training: TrainingInfo): boolean {
     return [
         training.siteName,
@@ -235,6 +250,14 @@ export default function I983Show({ workspace, case: record, student, employer, t
         // useForm returns a new object on every render, so only the name values belong in the dependency list.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [training.employerName, trainingForm.data.employer_name]);
+
+    useEffect(() => {
+        const next = derivedAnnual(employerForm.data.opt_hours, employerForm.data.hourly_rate, employerForm.data.annual_compensation);
+        if (next !== employerForm.data.annual_compensation) {
+            employerForm.setData('annual_compensation', next);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [employerForm.data.opt_hours, employerForm.data.hourly_rate, employerForm.data.annual_compensation]);
 
     function saveEmployer(event: FormEvent) {
         event.preventDefault();
@@ -384,7 +407,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                 <form onSubmit={saveEmployer}>
                     <SectionCard title="3. Employer Information">
                         {addressLayout.length > 0 && <ul className="mb-3 space-y-1 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{addressLayout.map((message) => <li key={message}>{message}</li>)}</ul>}
-                        <p className="mb-3 text-sm text-slate-600">Legal name, address, website, EIN, U.S. employee count, and NAICS are copied from U.S. Employer Information in Company Settings when this case is created. Saving a complete Section 3 here also updates that company record for the next I-983. It does not change an I-983 that already exists. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the saved company record</Link></p>
+                        <p className="mb-3 text-sm text-slate-600">Legal name through annual salary are filled from the company record. Saving this section stores this I-983&apos;s snapshot and updates the company record used for the next I-983. An I-983 that already stored its own snapshot keeps that snapshot. Employment start date and other compensation stay on this I-983. <Link className="font-medium text-blue-700" href={route('hrms.company-settings')}>Edit the saved company record</Link></p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Legal employer name<input className={control} value={employerForm.data.legal_name} onChange={(event) => employerForm.setData('legal_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Website<input className={control} value={employerForm.data.website} onChange={(event) => employerForm.setData('website', event.target.value)} /></label>
@@ -396,7 +419,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                             <label className="text-sm text-slate-700">EIN<input className={control} value={employerForm.data.ein} onChange={(event) => employerForm.setData('ein', event.target.value)} autoComplete="off" /></label>
                             <label className="text-sm text-slate-700">Full-time employees in the U.S.<input className={control} value={employerForm.data.employee_count} onChange={(event) => employerForm.setData('employee_count', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">NAICS code<input className={control} value={employerForm.data.naics} onChange={(event) => employerForm.setData('naics', event.target.value)} /></label>
-                            <p className="text-sm text-slate-600 md:col-span-2">Salary, hourly rate, working hours, and the start date belong to this student. They are not saved in Company Settings.</p>
+                            <p className="text-sm text-slate-600 md:col-span-2">OPT hours and the hourly rate calculate the annual salary for this company. Employment start date and other compensation stay on this I-983.</p>
                             <label className="text-sm text-slate-700">OPT hours per week<input className={control} value={employerForm.data.opt_hours} onChange={(event) => employerForm.setData('opt_hours', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Hourly rate in U.S. dollars<input className={control} value={employerForm.data.hourly_rate} onChange={(event) => employerForm.setData('hourly_rate', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Pay frequency
@@ -406,7 +429,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                                     <option value="hour">Per hour</option>
                                 </select>
                             </label>
-                            <label className="text-sm text-slate-700">Annual salary in U.S. dollars<input className={control} value={employerForm.data.annual_compensation} onChange={(event) => employerForm.setData('annual_compensation', event.target.value)} /><span className="mt-1 block text-xs text-slate-500">This is the amount printed in Section 3. An hourly rate is stored separately and is not converted into an annual salary.</span></label>
+                            <label className="text-sm text-slate-700">Annual salary in U.S. dollars<input className={lockedControl} readOnly value={employerForm.data.annual_compensation} /><span className="mt-1 block text-xs text-slate-500">Hourly rate × OPT hours per week × 52. A $20 rate and 25 hours is $26,000. This amount is printed in Section 3.</span></label>
                             <label className="text-sm text-slate-700">Employment start date<input className={control} type="date" value={employerForm.data.start_date} onChange={(event) => employerForm.setData('start_date', event.target.value)} /></label>
                             <label className="text-sm text-slate-700 md:col-span-2">Other compensation<textarea className={control} rows={2} value={employerForm.data.other_compensation} onChange={(event) => employerForm.setData('other_compensation', event.target.value)} /></label>
                         </div>

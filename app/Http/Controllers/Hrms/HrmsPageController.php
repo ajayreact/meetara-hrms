@@ -76,6 +76,9 @@ class HrmsPageController extends Controller
             'workplace' => app(WorkplaceBoard::class)->present($user),
             'ess' => $workspace['role'] === 'employee' ? app(EmployeeEss::class)->present($user) : null,
             'notice' => $request->session()->get('status'),
+            'offerApprovals' => in_array($workspace['role'], ['company_admin', 'hr'], true)
+                ? app(OfferLetterCatalog::class)->pendingApprovals($user)
+                : null,
         ]);
     }
 
@@ -141,6 +144,9 @@ class HrmsPageController extends Controller
                 : null,
             'notice' => session('status'),
             'error' => session('error'),
+            'offerApprovals' => in_array($user->applicationRole(), ['company_admin', 'hr'], true) && $user->companyId() !== null
+                ? app(OfferLetterCatalog::class)->pendingApprovals($user)
+                : null,
         ]);
     }
 

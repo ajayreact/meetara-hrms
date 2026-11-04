@@ -1,3 +1,4 @@
+import { OfferApprovals, type OfferApprovalState } from '@/components/hrms/offer-approvals';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import InputError from '@/components/input-error';
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import LetterStationery, { type Stationery } from './letter-stationery';
 
 interface PayrollSettings {
@@ -53,8 +54,19 @@ interface I983EmployerProfile {
     ein: string;
     employeeCount: string;
     naics: string;
+    optHours: string;
+    hourlyRate: string;
+    salaryFrequency: string;
+    annualCompensation: string;
     oversight: string;
     measures: string;
+    studentRole: string;
+    goals: string;
+    siteName: string;
+    siteAddress: string;
+    workArrangement: string;
+    officialEmail: string;
+    officialPhone: string;
 }
 
 interface I983Signatory {
@@ -63,7 +75,7 @@ interface I983Signatory {
     hasImage: boolean;
 }
 
-export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, i983Employer = null, i983Signatory = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; i983Employer?: I983EmployerProfile | null; i983Signatory?: I983Signatory | null; notice?: string | null; error?: string | null }) {
+export default function CompanySettingsPage({ workspace, payrollSettings = null, gpsCapture = null, candidateForm = null, stationery = null, i983Employer = null, i983Signatory = null, offerApprovals = null, notice, error }: HrmsPageProps & { payrollSettings?: PayrollSettings | null; gpsCapture?: GpsCaptureSettings | null; candidateForm?: CandidateFormSettings | null; stationery?: Stationery | null; i983Employer?: I983EmployerProfile | null; i983Signatory?: I983Signatory | null; offerApprovals?: OfferApprovalState | null; notice?: string | null; error?: string | null }) {
     const platform = workspace.role === 'super_admin';
     const companyName = workspace.companyName ?? 'Not recorded';
 
@@ -73,6 +85,7 @@ export default function CompanySettingsPage({ workspace, payrollSettings = null,
             {platform ? <PlatformSettings /> : (
                 <>
                     {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
+                    {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
                     <div className={payrollSettings ? 'grid items-start gap-4 xl:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]' : ''}>
                         <SectionCard title="Company name">
                             <p className="text-sm font-medium text-slate-800">{companyName}</p>
@@ -222,8 +235,19 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
         ein: profile.ein,
         employee_count: profile.employeeCount,
         naics: profile.naics,
+        opt_hours: profile.optHours,
+        hourly_rate: profile.hourlyRate,
+        salary_frequency: profile.salaryFrequency || 'year',
+        annual_compensation: profile.annualCompensation,
         oversight: profile.oversight,
         measures: profile.measures,
+        site_name: profile.siteName,
+        site_address: profile.siteAddress,
+        work_arrangement: profile.workArrangement,
+        official_email: profile.officialEmail,
+        official_phone: profile.officialPhone,
+        student_role: profile.studentRole,
+        goals: profile.goals,
     });
     const fields: Array<[keyof typeof form.data, string, string]> = [
         ['legal_name', 'Legal employer name', 'Veltrix Digital Solutions Inc'],
@@ -238,9 +262,18 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
         ['naics', 'NAICS code', '541511'],
     ];
 
+    useEffect(() => {
+        const next = derivedAnnual(form.data.opt_hours, form.data.hourly_rate, form.data.annual_compensation);
+        if (next !== form.data.annual_compensation) {
+            form.setData('annual_compensation', next);
+        }
+        // useForm returns a new object on every render, so only the pay values belong in the dependency list.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.data.opt_hours, form.data.hourly_rate, form.data.annual_compensation]);
+
     return (
         <SectionCard title="U.S. employer information" className="mt-4">
-            <p className="text-sm leading-6 text-slate-600">These details, including the employer oversight and measures and assessments text, are copied onto each new STEM I-983. Saving here does not change an I-983 that already exists. Salary, hourly rate, working hours, start date, and the training site stay on the individual case.</p>
+            <p className="text-sm leading-6 text-slate-600">Legal name, address, website, EIN, U.S. employee count, NAICS, OPT hours, hourly rate, pay frequency, and annual salary are copied onto each new STEM I-983. Saving here updates those defaults for the next I-983. An I-983 that already stored its own employer snapshot keeps that snapshot. Annual salary is the hourly rate multiplied by the weekly OPT hours and 52. Employment start date and other compensation stay on the individual I-983. The training site, official contact, student role, goals, oversight, and measures are copied as well. The employer official name and title come from the company signatory.</p>
             {!profile.ready && <p className="mt-3 text-sm text-amber-800">Employer information storage is not ready on this database, so this record cannot be saved.</p>}
             <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); form.put(route('hrms.company-settings.i983-employer')); }}>
                 {fields.map(([key, label, placeholder]) => (
@@ -250,6 +283,69 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
                         <InputError message={form.errors[key]} />
                     </label>
                 ))}
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-opt_hours">OPT hours per week</Label>
+                    <Input id="i983-opt_hours" value={form.data.opt_hours} inputMode="numeric" onChange={(event) => form.setData('opt_hours', event.target.value)} />
+                    <InputError message={form.errors.opt_hours} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-hourly_rate">Hourly rate in U.S. dollars</Label>
+                    <Input id="i983-hourly_rate" value={form.data.hourly_rate} inputMode="decimal" onChange={(event) => form.setData('hourly_rate', event.target.value)} />
+                    <InputError message={form.errors.hourly_rate} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-salary_frequency">Pay frequency</Label>
+                    <select id="i983-salary_frequency" className="rounded-md border border-slate-200 px-3 py-2" value={form.data.salary_frequency} onChange={(event) => form.setData('salary_frequency', event.target.value)}>
+                        <option value="year">Per year</option>
+                        <option value="month">Per month</option>
+                        <option value="hour">Per hour</option>
+                    </select>
+                    <InputError message={form.errors.salary_frequency} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-annual_compensation">Annual salary in U.S. dollars</Label>
+                    <Input id="i983-annual_compensation" readOnly value={form.data.annual_compensation} />
+                    <span className="text-xs text-slate-500">Hourly rate × OPT hours per week × 52. A $20 rate and 25 hours is $26,000.</span>
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-site_name">Training site name</Label>
+                    <Input id="i983-site_name" value={form.data.site_name} onChange={(event) => form.setData('site_name', event.target.value)} />
+                    <InputError message={form.errors.site_name} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-work_arrangement">Work arrangement</Label>
+                    <select id="i983-work_arrangement" className="rounded-md border border-slate-200 px-3 py-2" value={form.data.work_arrangement} onChange={(event) => form.setData('work_arrangement', event.target.value)}>
+                        <option value="remote">Remote</option>
+                        <option value="on_site">On-site</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                    <InputError message={form.errors.work_arrangement} />
+                </label>
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-site_address">Training site address</Label>
+                    <Input id="i983-site_address" value={form.data.site_address} onChange={(event) => form.setData('site_address', event.target.value)} />
+                    <InputError message={form.errors.site_address} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-official_email">Employer official email</Label>
+                    <Input id="i983-official_email" value={form.data.official_email} onChange={(event) => form.setData('official_email', event.target.value)} />
+                    <InputError message={form.errors.official_email} />
+                </label>
+                <label className="grid gap-1.5 text-sm">
+                    <Label htmlFor="i983-official_phone">Employer official phone</Label>
+                    <Input id="i983-official_phone" value={form.data.official_phone} onChange={(event) => form.setData('official_phone', event.target.value)} />
+                    <InputError message={form.errors.official_phone} />
+                </label>
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-student_role">Student role default</Label>
+                    <textarea id="i983-student_role" className="min-h-28 rounded-md border border-slate-200 px-3 py-2" value={form.data.student_role} onChange={(event) => form.setData('student_role', event.target.value)} />
+                    <InputError message={form.errors.student_role} />
+                </label>
+                <label className="grid gap-1.5 text-sm md:col-span-2">
+                    <Label htmlFor="i983-goals">Goals and objectives default</Label>
+                    <textarea id="i983-goals" className="min-h-28 rounded-md border border-slate-200 px-3 py-2" value={form.data.goals} onChange={(event) => form.setData('goals', event.target.value)} />
+                    <InputError message={form.errors.goals} />
+                </label>
                 <label className="grid gap-1.5 text-sm md:col-span-2">
                     <Label htmlFor="i983-oversight">Employer oversight default</Label>
                     <textarea id="i983-oversight" className="min-h-28 rounded-md border border-slate-200 px-3 py-2" value={form.data.oversight} onChange={(event) => form.setData('oversight', event.target.value)} />
@@ -266,6 +362,21 @@ function I983EmployerForm({ profile }: { profile: I983EmployerProfile }) {
             </form>
         </SectionCard>
     );
+}
+
+function derivedAnnual(hours: string, rate: string, current: string): string {
+    if (hours.trim() === '' && rate.trim() === '') {
+        return current;
+    }
+
+    const weekly = Number(hours);
+    const hourly = Number(rate.replace(/,/g, ''));
+
+    if (!Number.isInteger(weekly) || weekly <= 0 || !Number.isFinite(hourly) || hourly <= 0) {
+        return '';
+    }
+
+    return ((Math.round(hourly * 100) * weekly * 52) / 100).toFixed(2);
 }
 
 function I983SignatoryForm({ signatory }: { signatory: I983Signatory }) {

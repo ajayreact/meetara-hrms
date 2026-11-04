@@ -14,13 +14,23 @@ class I983EmployerProfile
 
     public const DEFAULT_MEASURES = 'The student\'s progress will be evaluated through regular performance reviews, project milestones, code reviews, and assessments of assigned technical tasks. The supervisor will assess the student\'s programming skills, software development knowledge, problem-solving abilities, database management, API integration, and overall project contributions. Feedback will be provided regularly to identify areas for improvement and measure progress toward the established training goals. Periodic evaluations will be conducted to ensure the student is developing the required technical competencies.';
 
+    public const DEFAULT_STUDENT_ROLE = 'The student will complete supervised training in the employer\'s STEM work. The student will apply knowledge from the STEM degree, learn the tools and methods used on assigned projects, and develop practical skills in the field of study.';
+
+    public const DEFAULT_GOALS = 'The training will develop the student\'s ability to apply STEM degree knowledge to the employer\'s work. The student will learn the professional practices used on assigned projects, complete supervised technical tasks, and show progress toward working independently in the field of study.';
+
+    public const DEFAULT_WORK_ARRANGEMENT = 'remote';
+
+    public const VELTRIX_OFFICIAL_EMAIL = 'hr@veltrixds.com';
+
+    public const VELTRIX_OFFICIAL_PHONE = '+1(248) 755-3888';
+
     public function manages(User $actor): bool
     {
         return in_array($actor->applicationRole(), ['company_admin', 'hr'], true) && $actor->companyId() !== null;
     }
 
     /**
-     * @return array{ready: bool, saved: bool, legalName: string, website: string, street: string, suite: string, city: string, state: string, zip: string, ein: string, employeeCount: string, naics: string, oversight: string, measures: string}
+     * @return array{ready: bool, saved: bool, legalName: string, website: string, street: string, suite: string, city: string, state: string, zip: string, ein: string, employeeCount: string, naics: string, optHours: string, hourlyRate: string, salaryFrequency: string, annualCompensation: string, oversight: string, measures: string, studentRole: string, goals: string, siteName: string, siteAddress: string, workArrangement: string, officialEmail: string, officialPhone: string}
      */
     public function present(User $actor): array
     {
@@ -37,8 +47,19 @@ class I983EmployerProfile
             'ein' => '',
             'employeeCount' => '',
             'naics' => '',
+            'optHours' => '',
+            'hourlyRate' => '',
+            'salaryFrequency' => '',
+            'annualCompensation' => '',
             'oversight' => self::DEFAULT_OVERSIGHT,
             'measures' => self::DEFAULT_MEASURES,
+            'studentRole' => self::DEFAULT_STUDENT_ROLE,
+            'goals' => self::DEFAULT_GOALS,
+            'siteName' => '',
+            'siteAddress' => '',
+            'workArrangement' => self::DEFAULT_WORK_ARRANGEMENT,
+            'officialEmail' => '',
+            'officialPhone' => '',
         ];
 
         if (! $this->ready() || ! $this->manages($actor)) {
@@ -59,6 +80,7 @@ class I983EmployerProfile
             (string) $row->zip,
         );
         $training = $this->trainingDefaults((int) $actor->companyId());
+        $compensation = $this->compensationDefaults((int) $actor->companyId());
 
         return [
             'ready' => true,
@@ -73,37 +95,136 @@ class I983EmployerProfile
             'ein' => $this->reveal($row->ein_ciphertext),
             'employeeCount' => (string) $row->employee_count,
             'naics' => (string) $row->naics,
+            'optHours' => $compensation['opt_hours'] === null ? '' : (string) $compensation['opt_hours'],
+            'hourlyRate' => $this->printedMoney($compensation['hourly_rate']),
+            'salaryFrequency' => (string) ($compensation['salary_frequency'] ?? ''),
+            'annualCompensation' => $this->printedMoney($compensation['annual_compensation']),
             'oversight' => $training['oversight'],
             'measures' => $training['measures'],
+            'studentRole' => $training['student_role'],
+            'goals' => $training['goals'],
+            'siteName' => $training['site_name'],
+            'siteAddress' => $training['site_address'],
+            'workArrangement' => $training['work_arrangement'],
+            'officialEmail' => $training['official_email'],
+            'officialPhone' => $training['official_phone'],
         ];
     }
 
     /**
-     * @return array{oversight: string, measures: string}
+     * @return array{oversight: string, measures: string, student_role: string, goals: string, site_name: string, site_address: string, work_arrangement: string, official_email: string, official_phone: string}
      */
     public function trainingDefaults(int $companyId): array
     {
-        $oversight = self::DEFAULT_OVERSIGHT;
-        $measures = self::DEFAULT_MEASURES;
         $row = $this->row($companyId);
+        $address = $row === null ? ['street' => '', 'city' => '', 'state' => '', 'zip' => ''] : $this->splitAddress(
+            (string) $row->street,
+            (string) ($row->suite ?? ''),
+            (string) $row->city,
+            (string) $row->state,
+            (string) $row->zip,
+        );
+        $veltrix = $row !== null && str_contains(strtolower((string) $row->legal_name.' '.(string) ($row->website ?? '')), 'veltrix');
+        $defaults = [
+            'oversight' => self::DEFAULT_OVERSIGHT,
+            'measures' => self::DEFAULT_MEASURES,
+            'student_role' => self::DEFAULT_STUDENT_ROLE,
+            'goals' => self::DEFAULT_GOALS,
+            'site_name' => $row === null ? '' : (string) $row->legal_name,
+            'site_address' => $this->siteAddress($address),
+            'work_arrangement' => self::DEFAULT_WORK_ARRANGEMENT,
+            'official_email' => $veltrix ? self::VELTRIX_OFFICIAL_EMAIL : '',
+            'official_phone' => $veltrix ? self::VELTRIX_OFFICIAL_PHONE : '',
+        ];
 
-        if ($row !== null && $this->hasTrainingColumns()) {
-            if ($row->oversight !== null) {
-                $oversight = (string) $row->oversight;
-            }
+        if ($row === null || ! $this->hasTrainingColumns()) {
+            return $defaults;
+        }
 
-            if ($row->measures !== null) {
-                $measures = (string) $row->measures;
+        foreach (['oversight', 'measures', 'student_role', 'goals', 'site_name', 'site_address', 'work_arrangement', 'official_email', 'official_phone'] as $column) {
+            if ($this->hasTrainingColumn($column) && $row->{$column} !== null) {
+                $defaults[$column] = (string) $row->{$column};
             }
         }
 
-        return ['oversight' => $oversight, 'measures' => $measures];
+        return $defaults;
+    }
+
+    /**
+     * @param  array{street: string, city: string, state: string, zip: string}  $address
+     */
+    public function siteAddress(array $address): string
+    {
+        $region = trim($address['city']);
+        $stateZip = trim(trim($address['state']).' '.trim($address['zip']));
+
+        if ($region !== '' && $stateZip !== '') {
+            $region .= ', '.$stateZip;
+        } elseif ($stateZip !== '') {
+            $region = $stateZip;
+        }
+
+        $street = trim($address['street']);
+
+        if ($street === '') {
+            return $region;
+        }
+
+        return $region === '' ? $street : $street.', '.$region;
+    }
+
+    /**
+     * Annual salary printed in Section 3: hourly rate × weekly OPT hours × 52.
+     */
+    public static function annualFromHourly(string $hourly, int $hours): string
+    {
+        $cents = (int) round(((float) $hourly) * 100);
+
+        return number_format(($cents * $hours * 52) / 100, 2, '.', '');
+    }
+
+    /**
+     * Shared pay fields. Null means the company has not saved that part yet.
+     *
+     * @return array{opt_hours: ?int, hourly_rate: ?string, salary_frequency: ?string, annual_compensation: ?string}
+     */
+    public function compensationDefaults(int $companyId): array
+    {
+        $empty = [
+            'opt_hours' => null,
+            'hourly_rate' => null,
+            'salary_frequency' => null,
+            'annual_compensation' => null,
+        ];
+        $row = $this->row($companyId);
+
+        if ($row === null || ! $this->hasTrainingColumn('opt_hours')) {
+            return $empty;
+        }
+
+        $hours = $row->opt_hours === null ? null : (int) $row->opt_hours;
+        $hourly = $row->hourly_rate === null || $row->hourly_rate === '' ? null : number_format((float) $row->hourly_rate, 2, '.', '');
+        $frequency = $row->salary_frequency === null || $row->salary_frequency === '' ? null : (string) $row->salary_frequency;
+        $annual = $hours !== null && $hourly !== null
+            ? self::annualFromHourly($hourly, $hours)
+            : ($row->annual_compensation === null || $row->annual_compensation === '' ? null : number_format((float) $row->annual_compensation, 2, '.', ''));
+
+        if ($frequency === null && $annual !== null) {
+            $frequency = 'year';
+        }
+
+        return [
+            'opt_hours' => $hours,
+            'hourly_rate' => $hourly,
+            'salary_frequency' => $frequency,
+            'annual_compensation' => $annual,
+        ];
     }
 
     /**
      * Values copied onto a new I-983. A missing profile returns null so the caller can keep its previous suggestion.
      *
-     * @return array{legal_name: string, website: ?string, street: string, suite: ?string, city: string, state: string, zip: string, ein: string, employee_count: int, naics: string}|null
+     * @return array{legal_name: string, website: ?string, street: string, suite: ?string, city: string, state: string, zip: string, ein: string, employee_count: int, naics: string, opt_hours: ?int, hourly_rate: ?string, salary_frequency: ?string, annual_compensation: ?string}|null
      */
     public function snapshot(int $companyId): ?array
     {
@@ -132,6 +253,7 @@ class I983EmployerProfile
             'ein' => $this->reveal($row->ein_ciphertext),
             'employee_count' => (int) $row->employee_count,
             'naics' => (string) $row->naics,
+            ...$this->compensationDefaults($companyId),
         ];
     }
 
@@ -180,6 +302,16 @@ class I983EmployerProfile
         if ($this->hasTrainingColumns() && array_key_exists('oversight', $values)) {
             $payload['oversight'] = $this->blank($values['oversight']);
             $payload['measures'] = $this->blank($values['measures'] ?? null);
+        }
+
+        foreach (['site_name', 'site_address', 'work_arrangement', 'official_email', 'official_phone', 'student_role', 'goals'] as $column) {
+            if ($this->hasTrainingColumn($column) && array_key_exists($column, $values)) {
+                $payload[$column] = $this->blank($values[$column]);
+            }
+        }
+
+        if ($this->hasTrainingColumn('opt_hours') && array_key_exists('opt_hours', $values)) {
+            $payload = [...$payload, ...$this->compensationColumns($values)];
         }
 
         DB::table('i983_employer_profiles')->updateOrInsert(['tenant_id' => $companyId], $payload);
@@ -275,6 +407,47 @@ class I983EmployerProfile
         return ['city' => $address['city'], 'state' => $address['state'], 'zip' => $address['zip']];
     }
 
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array{opt_hours: ?int, hourly_rate: ?string, salary_frequency: ?string, annual_compensation: ?string}
+     */
+    private function compensationColumns(array $values): array
+    {
+        $hours = $values['opt_hours'] ?? null;
+        $hourly = $values['hourly_rate'] ?? null;
+
+        if ($hours === null || $hours === '' || $hourly === null || $hourly === '') {
+            return [
+                'opt_hours' => null,
+                'hourly_rate' => null,
+                'salary_frequency' => null,
+                'annual_compensation' => null,
+            ];
+        }
+
+        $weekly = (int) $hours;
+        $rate = number_format((float) $hourly, 2, '.', '');
+        $frequency = in_array($values['salary_frequency'] ?? null, ['year', 'month', 'hour'], true)
+            ? (string) $values['salary_frequency']
+            : 'year';
+
+        return [
+            'opt_hours' => $weekly,
+            'hourly_rate' => $rate,
+            'salary_frequency' => $frequency,
+            'annual_compensation' => self::annualFromHourly($rate, $weekly),
+        ];
+    }
+
+    private function printedMoney(mixed $value): string
+    {
+        if ($value === null || $value === '' || (float) $value <= 0) {
+            return '';
+        }
+
+        return number_format((float) $value, 2, '.', '');
+    }
+
     public function ready(): bool
     {
         return Schema::hasTable('i983_employer_profiles');
@@ -282,7 +455,12 @@ class I983EmployerProfile
 
     public function hasTrainingColumns(): bool
     {
-        return $this->ready() && Schema::hasColumn('i983_employer_profiles', 'oversight') && Schema::hasColumn('i983_employer_profiles', 'measures');
+        return $this->hasTrainingColumn('oversight') && $this->hasTrainingColumn('measures');
+    }
+
+    public function hasTrainingColumn(string $column): bool
+    {
+        return $this->ready() && Schema::hasColumn('i983_employer_profiles', $column);
     }
 
     private function stripCountry(string $value): string

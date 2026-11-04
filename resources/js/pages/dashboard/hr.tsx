@@ -1,3 +1,4 @@
+import { OfferApprovals, type OfferApprovalState } from '@/components/hrms/offer-approvals';
 import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
@@ -15,7 +16,8 @@ interface LeaveQueue {
     status: string;
 }
 
-export default function HrDashboard({ workspace, companyStats, attendanceRoster, leaveBoard, workplace }: HrmsPageProps & {
+export default function HrDashboard({ workspace, companyStats, attendanceRoster, leaveBoard, workplace, offerApprovals = null }: HrmsPageProps & {
+    offerApprovals?: OfferApprovalState | null;
     workplace?: WorkplacePayload;
     companyStats?: { headcount: number; invited: number };
     attendanceRoster?: { counts: { review: number } } | null;
@@ -26,6 +28,7 @@ export default function HrDashboard({ workspace, companyStats, attendanceRoster,
     return (
         <HrmsLayout workspace={workspace} title="HR & Assistant Operations">
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · headcount, attendance, and leave from company records.`} />
+            {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
             <div className="grid gap-3 md:grid-cols-3">
                 <MetricCard tone="blue" icon={Users} label="Headcount" value={String(companyStats?.headcount ?? 0)} />
                 <MetricCard tone="orange" icon={UserPlus} label="Invited" value={String(companyStats?.invited ?? 0)} />

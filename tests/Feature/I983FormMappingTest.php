@@ -69,8 +69,8 @@ class I983FormMappingTest extends TestCase
         $employer = DB::table('i983_employers')->where('case_id', $caseId)->first();
         $this->assertSame('25.00', number_format((float) $employer->hourly_rate, 2, '.', ''));
         $this->assertSame('hour', $employer->salary_frequency);
-        $this->assertSame('52000.00', number_format((float) $employer->annual_compensation, 2, '.', ''));
-        $this->assertNotSame('26000.00', number_format((float) $employer->annual_compensation, 2, '.', ''));
+        $this->assertSame('26000.00', number_format((float) $employer->annual_compensation, 2, '.', ''));
+        $this->assertSame('26000.00', number_format((float) $employer->salary, 2, '.', ''));
 
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', [
             'site_name' => 'Acme Training Studio',
@@ -99,9 +99,9 @@ class I983FormMappingTest extends TestCase
         $workingBytes = Storage::disk('local')->get($working->file_path);
         $this->assertSame(5, preg_match_all('/\/Type\s*\/Page(?!s)/', $workingBytes));
         $this->assertStringContainsString('46.00 532.00 Td ('.$role.')', $workingBytes);
-        $this->assertStringContainsString('346.00 625.70 Td (52000.00)', $workingBytes);
+        $this->assertStringContainsString('346.00 625.70 Td (26000.00)', $workingBytes);
         $this->assertStringNotContainsString('346.00 625.70 Td (25.00)', $workingBytes);
-        $this->assertStringNotContainsString('26000.00', $workingBytes);
+        $this->assertStringNotContainsString('52000.00', $workingBytes);
         $this->assertStringNotContainsString('per hour', $workingBytes);
         $this->assertStringContainsString('92.00 664.80 Td (Acme Training Studio)', $workingBytes);
         $this->assertStringContainsString('300.00 652.00 Td (500 Training Plaza, Austin, TX 78701)', $workingBytes);
