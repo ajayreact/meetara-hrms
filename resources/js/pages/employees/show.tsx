@@ -404,7 +404,10 @@ function EditEmployee({ employee, options, workspaceRole, onInvalid }: { employe
                         <Field label="Department" error={form.errors.department_id}><Select value={form.data.department_id} onChange={(value) => form.setData('department_id', value)} options={options.departments} /></Field>
                         <Field label="Designation" error={form.errors.designation_id}><Select value={form.data.designation_id} onChange={(value) => form.setData('designation_id', value)} options={options.designations} /></Field>
                         <Field label="Office" error={form.errors.location_id}><Select value={form.data.location_id} onChange={(value) => form.setData('location_id', value)} options={options.offices} /></Field>
-                        <Field label="Reporting manager" error={form.errors.manager_id}><Select value={form.data.manager_id} onChange={(value) => form.setData('manager_id', value)} options={options.managers} /></Field>
+                        <Field label="Reporting manager" error={form.errors.manager_id}>
+                            <Select value={form.data.manager_id} onChange={(value) => form.setData('manager_id', value)} options={options.managers} />
+                            <span className="text-xs text-slate-500">Ajay is Head of Operations for every office. HR and a Team Lead report to him. Other employees report to him, to HR, or to a Team Lead. A designation named Team Lead does not add someone.</span>
+                        </Field>
                         <Field label="Employment type" error={form.errors.employment_type}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.employment_type} onChange={(event) => form.setData('employment_type', event.target.value)}>
                                 <option value="full_time">Full time</option>

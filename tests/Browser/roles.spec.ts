@@ -171,10 +171,12 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
 
     await signIn(page, data.emails.lead, data.password);
     await expect(page.getByText('Team Lead · Main office').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Employees' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'My team' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Employees' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Salary' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Route Map' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'My Payslips' })).toBeVisible();
     await denied(page, '/salary', 403);
     await denied(page, '/offer-letters', 403);

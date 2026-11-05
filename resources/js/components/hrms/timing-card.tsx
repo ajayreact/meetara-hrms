@@ -18,6 +18,7 @@ export interface TimingState {
     gpsRequired?: boolean;
     gpsCapture?: boolean;
     gpsNoticePending?: boolean;
+    shiftNotice?: string | null;
 }
 
 function formatClock(date: Date): string {
@@ -190,6 +191,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
                 <InfoRow icon={Clock3} label="Clock In" value={timing.clockIn ?? '—'} />
                 <InfoRow icon={AlarmClock} label="Break In" value={timing.breakIn ?? '—'} />
             </div>
+            {timing.shiftNotice ? <p className="mt-3 text-xs text-slate-600">{timing.shiftNotice}</p> : null}
             <p className="mt-3 text-xs text-slate-500">
                 {timing.officeName ? `Clock-in and clock-out are checked against the approved public network for ${timing.officeName}.` : 'Clock-in and clock-out are recorded only after the server verifies an approved office network.'}
                 {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough. The browser can share that location from http://localhost, http://127.0.0.1, or HTTPS. An http LAN address cannot.' : ''}

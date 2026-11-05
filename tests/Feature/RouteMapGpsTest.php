@@ -158,8 +158,8 @@ class RouteMapGpsTest extends TestCase
             ->where('map.points.0.latitude', 22.57265)
             ->where('mapTiles.template', MapTiles::DEFAULT_TEMPLATE)
             ->where('mapTiles.disclosure', 'Opening this map loads tiles from OpenStreetMap and sends the area you are viewing to that service. No API key is used.'));
-        $this->actingAs($company->lead)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->where('map.points.0.latitude', 22.57265));
-        $this->actingAs($company->lead)->get('/route-map?employee='.$company->outsideEmployeeId)->assertNotFound();
+        $this->actingAs($company->lead)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden')->missing('map'));
+        $this->actingAs($company->lead)->get('/route-map?employee='.$company->outsideEmployeeId)->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden')->missing('map'));
 
         $accounts = $this->owner($company, 'Accounts');
         $this->actingAs($accounts)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
@@ -170,11 +170,10 @@ class RouteMapGpsTest extends TestCase
             ->where('map.points', [])
             ->where('map.offices', fn ($offices) => collect($offices)->contains(fn ($office) => $office['mapLabel'] === 'Park Street office')));
         $views = DB::table('attendance_location_view_events')->where('tenant_id', $company->id)->orderBy('id')->get();
-        $this->assertCount(3, $views);
+        $this->assertCount(2, $views);
         $this->assertSame([
             'c:e'.$company->reportEmployeeId.':20261013:20261019',
             's:e'.$company->reportEmployeeId.':20261013:20261019',
-            't:e'.$company->reportEmployeeId.':20261013:20261019',
         ], $views->pluck('subject')->all());
         $this->assertTrue($views->every(fn ($view) => strlen((string) $view->subject) <= 40));
         $encoded = json_encode($views);

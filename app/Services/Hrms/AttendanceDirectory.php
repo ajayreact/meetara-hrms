@@ -33,6 +33,7 @@ class AttendanceDirectory
             'gpsRequired' => false,
             'gpsCapture' => false,
             'gpsNoticePending' => false,
+            'shiftNotice' => null,
         ];
 
         $employee = $this->employee($user);
@@ -44,11 +45,25 @@ class AttendanceDirectory
         $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
         $timezone = $this->timezone($office, (int) $employee->tenant_id);
         $now = now()->timezone($timezone);
+        $schedule = WorkSchedule::forEmployee($employee, $now);
+        $shiftDate = $schedule->attendanceDate($now);
         $log = AttendanceLog::query()
             ->where('employee_id', $employee->id)
             ->where('tenant_id', $employee->tenant_id)
-            ->whereDate('work_date', $now->toDateString())
+            ->whereNotNull('check_in')
+            ->whereNull('check_out')
+            ->orderByDesc('work_date')
             ->first();
+
+        if ($log === null && $shiftDate !== null) {
+            $log = AttendanceLog::query()
+                ->where('employee_id', $employee->id)
+                ->where('tenant_id', $employee->tenant_id)
+                ->whereDate('work_date', $shiftDate->toDateString())
+                ->first();
+        }
+
+        $outsideWindow = $log === null && $schedule->crossesMidnight() && $shiftDate === null;
         $openBreak = $log ? $this->openBreak($log) : null;
         $state = 'out';
 
@@ -68,18 +83,19 @@ class AttendanceDirectory
 
         return [
             'state' => $state,
-            'clockIn' => $log?->check_in ? Carbon::parse((string) $log->check_in, $timezone)->format('g:i A') : null,
+            'clockIn' => $this->clockLabel($log?->check_in, $timezone, $log?->work_date?->toDateString()),
             'breakIn' => $openBreak ? Carbon::parse((string) $openBreak->started_at, $timezone)->format('g:i A') : null,
             'breakSeconds' => $breakSeconds,
             'officeName' => $office?->name,
             'officeNow' => $now->toIso8601String(),
-            'canClockIn' => $state === 'out' && $employee->status === 'active',
+            'canClockIn' => $state === 'out' && $employee->status === 'active' && ! $outsideWindow,
             'canStartBreak' => $state === 'in',
             'canEndBreak' => $state === 'break',
             'canClockOut' => $state === 'in',
             'gpsRequired' => (bool) $office?->gps_verification_enabled,
             'gpsCapture' => app(GpsCapture::class)->shouldRequest($user),
             'gpsNoticePending' => app(GpsCapture::class)->noticePending($user),
+            'shiftNotice' => $outsideWindow ? $schedule->outsideWindowMessage() : null,
         ];
     }
 
@@ -215,7 +231,8 @@ class AttendanceDirectory
     {
         $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
         $timezone = $this->timezone($office, (int) $employee->tenant_id);
-        $today = now()->timezone($timezone)->startOfDay();
+        $now = now()->timezone($timezone);
+        $today = $now->copy()->startOfDay();
         $logs = AttendanceLog::query()
             ->where('employee_id', $employee->id)
             ->where('tenant_id', $employee->tenant_id)
@@ -243,6 +260,9 @@ class AttendanceDirectory
                 $holiday->name ?? null,
                 $log?->check_in !== null,
             );
+            if ($log === null && $status === 'Absent' && $schedule->shiftStillOpen($now, $cursor)) {
+                $status = 'Not started';
+            }
             $days[] = [
                 'day' => $cursor->day,
                 'date' => $cursor->toDateString(),
@@ -259,8 +279,8 @@ class AttendanceDirectory
                 'expectedMinutes' => $schedule->expected ? $schedule->expectedMinutes : 0,
                 'lateMinutes' => (int) ($log->late_minutes ?? 0),
                 'earlyMinutes' => $metrics['early'],
-                'clockIn' => $log?->check_in ? Carbon::parse((string) $log->check_in, $timezone)->format('g:i A') : null,
-                'clockOut' => $log?->check_out ? Carbon::parse((string) $log->check_out, $timezone)->format('g:i A') : null,
+                'clockIn' => $this->clockLabel($log?->check_in, $timezone, $cursor->toDateString()),
+                'clockOut' => $this->clockLabel($log?->check_out, $timezone, $cursor->toDateString()),
                 'clockInIp' => $log?->check_in_ip,
                 'clockOutIp' => $log?->check_out_ip,
                 'clockInDistance' => $this->distanceMeters($log, 'check_in_distance_meters'),
@@ -386,13 +406,17 @@ class AttendanceDirectory
             $log?->check_in !== null,
         );
 
+        if ($log === null && $status === 'Absent' && $schedule->shiftStillOpen(now()->timezone($timezone), $day->copy()->timezone($timezone))) {
+            $status = 'Not started';
+        }
+
         return [
             'id' => $log?->id,
             'name' => trim($person->first_name.' '.$person->last_name),
             'office' => $office && (int) $office->tenant_id === (int) $person->tenant_id ? $office->name : null,
             'date' => $day->toDateString(),
-            'clockIn' => $log?->check_in ? Carbon::parse((string) $log->check_in, $timezone)->format('g:i A') : null,
-            'clockOut' => $log?->check_out ? Carbon::parse((string) $log->check_out, $timezone)->format('g:i A') : null,
+            'clockIn' => $this->clockLabel($log?->check_in, $timezone, $day->toDateString()),
+            'clockOut' => $this->clockLabel($log?->check_out, $timezone, $day->toDateString()),
             'breakLabel' => $metrics['break'] > 0 ? $this->duration($metrics['break']) : '—',
             'workLabel' => $metrics['work'] > 0 ? $this->duration($metrics['work']) : '—',
             'late' => $late,
@@ -534,6 +558,22 @@ class AttendanceDirectory
         }
 
         return $choices;
+    }
+
+    private function clockLabel(mixed $value, string $timezone, ?string $workDate): ?string
+    {
+        if (! is_string($value) || $value === '') {
+            return null;
+        }
+
+        $parsed = Carbon::parse($value, $timezone);
+        $label = $parsed->format('g:i A');
+
+        if ($workDate !== null && $parsed->toDateString() !== $workDate) {
+            $label .= ', '.$parsed->format('D j M');
+        }
+
+        return $label;
     }
 
     private function duration(int $minutes): string

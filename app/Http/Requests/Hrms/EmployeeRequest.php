@@ -176,10 +176,6 @@ abstract class EmployeeRequest extends FormRequest
             return;
         }
 
-        if ($employee instanceof Employee && $employee->manager_id !== null && $managerId === (int) $employee->manager_id) {
-            return;
-        }
-
         $manager = Employee::query()
             ->whereKey($managerId)
             ->where('tenant_id', $companyId)
@@ -189,12 +185,15 @@ abstract class EmployeeRequest extends FormRequest
             return;
         }
 
+        $roles = app(RoleAssignment::class);
+        $subjectRole = $this->reportingSubjectRole($roles, $companyId, $employee instanceof Employee ? $employee : null);
+        $allowed = $roles->allowedReportingManagerUserIds($companyId, $subjectRole);
         $activeManager = $manager->status === 'active'
             && $manager->user_id !== null
-            && in_array((int) $manager->user_id, app(RoleAssignment::class)->reportingManagerUserIds($companyId), true);
+            && in_array((int) $manager->user_id, $allowed, true);
 
         if (! $activeManager) {
-            $validator->errors()->add('manager_id', 'Choose an active Team Lead or Company Manager in this company.');
+            $validator->errors()->add('manager_id', $this->reportingManagerMessage($subjectRole));
 
             return;
         }
@@ -202,6 +201,30 @@ abstract class EmployeeRequest extends FormRequest
         if ($employee instanceof Employee && $this->reportingCycle($employee->id, $managerId, $companyId)) {
             $validator->errors()->add('manager_id', 'That reporting manager would create a circular reporting line.');
         }
+    }
+
+    private function reportingSubjectRole(RoleAssignment $roles, int $companyId, ?Employee $employee): ?string
+    {
+        $selected = $this->input('role');
+
+        if (is_string($selected) && $selected !== '') {
+            return $selected;
+        }
+
+        return $roles->roleNameForUser($companyId, $employee?->user_id === null ? null : (int) $employee->user_id);
+    }
+
+    private function reportingManagerMessage(?string $subjectRole): string
+    {
+        if ($subjectRole === 'Owner') {
+            return 'Head of Operations is the head of every office and does not report to another person.';
+        }
+
+        if (in_array($subjectRole, ['HR', 'Manager', RoleAssignment::COMPANY_MANAGER], true)) {
+            return 'HR and Team Leads report to the Head of Operations.';
+        }
+
+        return 'Choose an active Head of Operations, HR, or Team Lead in this company.';
     }
 
     private function reportingCycle(int $employeeId, int $managerId, int $companyId): bool

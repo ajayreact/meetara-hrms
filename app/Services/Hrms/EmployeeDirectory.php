@@ -97,19 +97,20 @@ class EmployeeDirectory
         $roles = app(RoleAssignment::class);
         $roles->ensureStandard($companyId);
 
+        $current = $exceptEmployeeId === null
+            ? null
+            : Employee::query()->inCompany($companyId)->whereKey($exceptEmployeeId)->first(['user_id', 'department_id', 'designation_id', 'manager_id']);
+        $subjectRole = $current === null ? null : $roles->roleNameForUser($companyId, $current->user_id === null ? null : (int) $current->user_id);
         $managers = Employee::query()
             ->inCompany($companyId)
             ->with('designation')
             ->where('status', 'active')
-            ->whereIn('user_id', $roles->reportingManagerUserIds($companyId))
+            ->whereIn('user_id', $roles->allowedReportingManagerUserIds($companyId, $subjectRole))
             ->when($exceptEmployeeId, fn ($query) => $query->whereKeyNot($exceptEmployeeId))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->limit(200)
             ->get();
-        $current = $exceptEmployeeId === null
-            ? null
-            : Employee::query()->inCompany($companyId)->whereKey($exceptEmployeeId)->first(['department_id', 'designation_id', 'manager_id']);
 
         if ($current?->manager_id && ! $managers->contains('id', (int) $current->manager_id)) {
             $kept = Employee::query()->inCompany($companyId)->with('designation')->whereKey($current->manager_id)->first();

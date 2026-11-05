@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
 
 class WorkSchedule
 {
+    public const CLOCK_IN_LEAD_MINUTES = 60;
+
     public function __construct(
         public bool $expected,
         public ?string $start,
@@ -44,6 +46,10 @@ class WorkSchedule
 
         $deadline = $clockIn->copy()->setTimeFromTimeString($this->start)->addMinutes($this->grace);
 
+        if ($this->crossesMidnight() && $this->end !== null && $clockIn->format('H:i') < substr($this->end, 0, 5)) {
+            $deadline->subDay();
+        }
+
         if ($clockIn->lessThanOrEqualTo($deadline)) {
             return 0;
         }
@@ -56,6 +62,69 @@ class WorkSchedule
         return $this->start !== null && $this->end !== null && $this->end < $this->start;
     }
 
+    /**
+     * The office date this punch belongs to. An overnight shift that is still
+     * before its end belongs to the previous evening. A time after the end and
+     * before the next clock-in window does not belong to either shift.
+     */
+    public function attendanceDate(CarbonInterface $local): ?CarbonInterface
+    {
+        $day = $local->copy()->startOfDay();
+
+        if (! $this->crossesMidnight()) {
+            return $day;
+        }
+
+        $clock = $local->format('H:i');
+
+        if ($clock >= $this->leadClock()) {
+            return $day;
+        }
+
+        if ($this->end !== null && $clock < substr($this->end, 0, 5)) {
+            return $day->subDay();
+        }
+
+        return null;
+    }
+
+    public function outsideWindowMessage(): string
+    {
+        $end = $this->end === null ? '' : $this->clockLabel(substr($this->end, 0, 5));
+
+        return 'Clock-in for this shift is open from '.$this->clockLabel($this->leadClock()).' to '.$end.' the next morning.';
+    }
+
+    public function shiftStillOpen(CarbonInterface $now, CarbonInterface $shiftDay): bool
+    {
+        if (! $this->crossesMidnight() || $this->end === null) {
+            return false;
+        }
+
+        return $now->lt($shiftDay->copy()->addDay()->setTimeFromTimeString(substr($this->end, 0, 5)));
+    }
+
+    private function leadClock(): string
+    {
+        [$hour, $minute] = array_map('intval', explode(':', substr((string) $this->start, 0, 5)));
+        $total = max(0, ($hour * 60 + $minute) - self::CLOCK_IN_LEAD_MINUTES);
+
+        return sprintf('%02d:%02d', intdiv($total, 60), $total % 60);
+    }
+
+    private function clockLabel(string $hhmm): string
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $hhmm));
+        $suffix = $hour >= 12 ? 'PM' : 'AM';
+        $hour12 = $hour % 12;
+
+        if ($hour12 === 0) {
+            $hour12 = 12;
+        }
+
+        return $hour12.':'.str_pad((string) $minute, 2, '0', STR_PAD_LEFT).' '.$suffix;
+    }
+
     public function earlyMinutes(CarbonInterface $clockOut, CarbonInterface $shiftStart): int
     {
         if (! $this->expected || $this->end === null) {
@@ -64,7 +133,7 @@ class WorkSchedule
 
         $end = $shiftStart->copy()->setTimeFromTimeString($this->end);
 
-        if ($this->crossesMidnight()) {
+        if ($this->crossesMidnight() && $end->lessThanOrEqualTo($shiftStart)) {
             $end->addDay();
         }
 

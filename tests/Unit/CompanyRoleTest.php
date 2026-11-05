@@ -49,6 +49,8 @@ class CompanyRoleTest extends TestCase
 
         $this->assertFalse(CompanyRole::permissions('hr')['payroll']);
         $this->assertFalse(CompanyRole::permissions('team_lead')['exportAttendance']);
+        $this->assertFalse(CompanyRole::permissions('team_lead')['routeMap']);
+        $this->assertTrue(CompanyRole::permissions('employee')['routeMap']);
         $this->assertFalse(CompanyRole::permissions('accounts')['employees']);
         $this->assertTrue(CompanyRole::permissions('accounts')['payroll']);
     }

@@ -89,7 +89,7 @@ class RoleAccessAuditTest extends TestCase
         $this->actingAs($company->lead)->get('/offices')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->lead)->get('/attendance/export')->assertForbidden();
         $this->actingAs($company->lead)->post('/attendance/'.$company->attendanceId.'/recover', ['reason' => 'Closed the open session'])->assertForbidden();
-        $this->actingAs($company->lead)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index'));
+        $this->actingAs($company->lead)->get('/route-map')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
 
         $this->actingAs($company->employee)->get('/employees')->assertInertia(fn (Assert $page) => $page->component('hrms/forbidden'));
         $this->actingAs($company->employee)->get('/employees/'.$company->outsideEmployeeId)->assertNotFound();

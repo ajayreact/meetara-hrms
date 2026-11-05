@@ -428,7 +428,7 @@ class OfficeNetworkAttendanceTest extends TestCase
 
         $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
             ->post('/attendance/clock-in')
-            ->assertSessionHasErrors(['attendance' => 'You already have an attendance record for today.']);
+            ->assertSessionHasErrors(['attendance' => 'You already have an attendance record for this shift.']);
         $this->assertSame($checkIn, DB::table('attendance_logs')->where('id', $log->id)->value('check_in'));
     }
 

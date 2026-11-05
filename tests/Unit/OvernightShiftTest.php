@@ -28,8 +28,21 @@ class OvernightShiftTest extends TestCase
         $this->assertSame(10, $overnight->earlyMinutes(Carbon::parse('2026-10-17 03:20:00', 'Asia/Kolkata'), $start));
         $this->assertSame(0, $overnight->earlyMinutes(Carbon::parse('2026-10-17 03:30:00', 'Asia/Kolkata'), $start));
         $this->assertSame(270, $overnight->earlyMinutes(Carbon::parse('2026-10-16 23:00:00', 'Asia/Kolkata'), $start));
+        $this->assertSame(440, $overnight->lateMinutes(Carbon::parse('2026-10-17 02:00:00', 'Asia/Kolkata')));
+        $this->assertSame(10, $overnight->earlyMinutes(
+            Carbon::parse('2026-10-17 03:20:00', 'Asia/Kolkata'),
+            Carbon::parse('2026-10-17 02:00:00', 'Asia/Kolkata'),
+        ));
+
+        $india = new WorkSchedule(true, '18:30', '04:00', 0, 570);
+        $this->assertSame('2026-11-05', $india->attendanceDate(Carbon::parse('2026-11-05 17:30:00', 'Asia/Kolkata'))?->toDateString());
+        $this->assertSame('2026-11-05', $india->attendanceDate(Carbon::parse('2026-11-05 23:48:00', 'Asia/Kolkata'))?->toDateString());
+        $this->assertSame('2026-11-05', $india->attendanceDate(Carbon::parse('2026-11-06 03:59:00', 'Asia/Kolkata'))?->toDateString());
+        $this->assertNull($india->attendanceDate(Carbon::parse('2026-11-05 17:29:00', 'Asia/Kolkata')));
+        $this->assertNull($india->attendanceDate(Carbon::parse('2026-11-05 04:54:00', 'Asia/Kolkata')));
 
         $day = new WorkSchedule(true, '09:30', '18:30', 10, 540);
+        $this->assertSame('2026-11-05', $day->attendanceDate(Carbon::parse('2026-11-05 04:54:00', 'Asia/Kolkata'))?->toDateString());
         $morning = Carbon::parse('2026-10-16 09:30:00', 'Asia/Kolkata');
 
         $this->assertFalse($day->crossesMidnight());

@@ -226,6 +226,51 @@ class OfferLetterStationeryTest extends TestCase
         $this->assertSame(1, (int) json_decode((string) DB::table('offer_letters')->where('id', $letterId)->value('issued_values'), true)['signature_version']);
     }
 
+    public function test_editor_line_breaks_stay_on_separate_pdf_lines(): void
+    {
+        $pdf = (new OfferLetterPdf)->render(
+            '<ol><li><p>Keep the marker with the item.</p></li></ol>'
+            .'<p><strong>Work Location:</strong><br><strong>VELTRIX DIGITAL SOLUTIONS</strong><br>Flat - 1104, 11th Floor, B-Block, Asian Suncity,<br>Kondapur, Hyderabad, Telangana - 500084, India.</p>'
+            .'<p>The next clause stays below the address.</p>'
+            .'<p>Line one<br />'."\n".'Line two</p>',
+            null,
+            [],
+            [
+                'pageWidth' => 612,
+                'pageHeight' => 792,
+                'margins' => ['top' => 72, 'right' => 54, 'bottom' => 56, 'left' => 54],
+            ],
+        );
+
+        $lines = $this->pdfLines($pdf);
+        $line = function (string $needle) use ($lines): float {
+            foreach ($lines as $row) {
+                if (str_contains($row['text'], $needle)) {
+                    return $row['y'];
+                }
+            }
+
+            $this->fail('Missing PDF line: '.$needle);
+        };
+
+        $company = $line('VELTRIX');
+        $street = $line('Asian Suncity');
+        $city = $line('Kondapur');
+        $next = $line('next clause');
+        $this->assertGreaterThan($street, $company);
+        $this->assertGreaterThan($city, $street);
+        $this->assertGreaterThan($next, $city);
+        $this->assertLessThan(22, $company - $street);
+        $this->assertLessThan(22, $street - $city);
+
+        $marker = $line('Keep the marker');
+        $this->assertEqualsWithDelta($marker, $line('1.'), 0.2);
+
+        $plain = $line('Line one') - $line('Line two');
+        $this->assertGreaterThan(8, $plain);
+        $this->assertLessThan(22, $plain);
+    }
+
     public function test_later_pages_keep_the_letter_size_and_clear_the_footer(): void
     {
         $paragraphs = '';
@@ -364,6 +409,25 @@ class OfferLetterStationeryTest extends TestCase
         $this->assertStringStartsWith('%PDF', $pdf);
         $this->assertSignatureSitsInTheClosing($pdf);
         $this->assertSame(0, DB::table('offer_letters')->count());
+    }
+
+    /**
+     * @return list<array{y: float, text: string}>
+     */
+    private function pdfLines(string $pdf): array
+    {
+        preg_match_all('/BT\s+[0-9.]+\s+([0-9.]+)\s+Td\s*\(((?:\\\\.|[^\\\\)])*)\)\s*Tj/s', $pdf, $matches, PREG_SET_ORDER);
+        $lines = [];
+
+        foreach ($matches as $match) {
+            $y = round((float) $match[1], 1);
+            $text = stripcslashes($match[2]);
+            $key = (string) $y;
+            $lines[$key]['y'] = $y;
+            $lines[$key]['text'] = ($lines[$key]['text'] ?? '').$text;
+        }
+
+        return array_values($lines);
     }
 
     private function pdfText(string $pdf): string

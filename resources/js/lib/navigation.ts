@@ -49,7 +49,9 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         { label: 'Announcements', href: '/announcements', icon: Megaphone, section: 'Workspace' },
     ];
 
-    if (workspace.permissions.employees) {
+    if (workspace.role === 'team_lead') {
+        items.push({ label: 'My team', href: '/employees', icon: Users, section: 'Workspace' });
+    } else if (workspace.permissions.employees) {
         items.push({ label: 'Employees', href: '/employees', icon: Users, section: 'People' });
     }
     if (workspace.role === 'company_admin' || workspace.role === 'hr') {

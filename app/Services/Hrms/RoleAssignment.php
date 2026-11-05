@@ -68,19 +68,66 @@ class RoleAssignment
     }
 
     /**
-     * @return list<int>
-     */
-    /**
+     * Active employees with these access levels can be chosen as a reporting manager.
+     * A job designation named Team Lead does not qualify on its own.
+     *
      * @return list<int>
      */
     public function reportingManagerUserIds(int $companyId): array
+    {
+        return $this->userIdsForRoles($companyId, ['Owner', 'HR', 'Manager', self::COMPANY_MANAGER]);
+    }
+
+    /**
+     * Head of Operations is the head of every office and has no manager.
+     * HR and Team Leads report to Head of Operations.
+     * Other employees report to Head of Operations, HR, or a Team Lead.
+     *
+     * @return list<int>
+     */
+    public function allowedReportingManagerUserIds(int $companyId, ?string $subjectRole): array
+    {
+        if ($subjectRole === 'Owner') {
+            return [];
+        }
+
+        if (in_array($subjectRole, ['HR', 'Manager', self::COMPANY_MANAGER], true)) {
+            return $this->userIdsForRoles($companyId, ['Owner']);
+        }
+
+        return $this->reportingManagerUserIds($companyId);
+    }
+
+    public function roleNameForUser(int $companyId, ?int $userId): ?string
+    {
+        if ($userId === null) {
+            return null;
+        }
+
+        $name = DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_type', User::class)
+            ->where('model_has_roles.model_id', $userId)
+            ->where('model_has_roles.tenant_id', $companyId)
+            ->where('roles.tenant_id', $companyId)
+            ->where('roles.guard_name', 'web')
+            ->value('roles.name');
+
+        return is_string($name) && $name !== '' ? $name : null;
+    }
+
+    /**
+     * @param  list<string>  $roleNames
+     * @return list<int>
+     */
+    private function userIdsForRoles(int $companyId, array $roleNames): array
     {
         return DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_type', User::class)
             ->where('model_has_roles.tenant_id', $companyId)
             ->where('roles.tenant_id', $companyId)
-            ->whereIn('roles.name', [self::COMPANY_MANAGER, 'Manager'])
+            ->whereIn('roles.name', $roleNames)
             ->where('roles.guard_name', 'web')
             ->pluck('model_has_roles.model_id')
             ->map(fn ($id) => (int) $id)

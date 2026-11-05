@@ -36,21 +36,22 @@ class AttendanceService
             $observed = $this->requireNetwork($request, $office, (int) $employee->tenant_id, 'Clock-in');
             $location = $this->requireLocation($request, $office, 'Clock-in');
             $local = $this->localNow($office);
+            $shiftDate = $this->shiftDate($employee, $local);
             $this->assertNoOpenSession($employee, $local);
 
             $existing = AttendanceLog::query()
                 ->where('employee_id', $employee->id)
                 ->where('tenant_id', $employee->tenant_id)
-                ->whereDate('work_date', $local->toDateString())
+                ->whereDate('work_date', $shiftDate->toDateString())
                 ->lockForUpdate()
                 ->first();
 
             if ($existing !== null) {
-                throw new AttendanceRejected('You already have an attendance record for today.');
+                throw new AttendanceRejected('You already have an attendance record for this shift.');
             }
 
-            $schedule = WorkSchedule::forEmployee($employee, $local);
-            $status = $this->dayStatus($employee, $office, $local, $schedule);
+            $schedule = WorkSchedule::forEmployee($employee, $shiftDate);
+            $status = $this->dayStatus($employee, $office, $shiftDate, $schedule);
 
             try {
                 $log = new AttendanceLog;
@@ -58,7 +59,7 @@ class AttendanceService
                     'tenant_id' => $employee->tenant_id,
                     'employee_id' => $employee->id,
                     'location_id' => $office->id,
-                    'work_date' => $local->toDateString(),
+                    'work_date' => $shiftDate->toDateString(),
                     'check_in' => $local->format('Y-m-d H:i:s'),
                     'work_mode' => $employee->work_mode ?: 'office',
                     'check_in_ip' => $observed,
@@ -449,6 +450,18 @@ class AttendanceService
         }
 
         return 'present';
+    }
+
+    private function shiftDate(Employee $employee, CarbonInterface $local): CarbonInterface
+    {
+        $schedule = WorkSchedule::forEmployee($employee, $local);
+        $shiftDate = $schedule->attendanceDate($local);
+
+        if ($shiftDate === null) {
+            throw new AttendanceRejected($schedule->outsideWindowMessage());
+        }
+
+        return $shiftDate;
     }
 
     private function localNow(Office $office): Carbon

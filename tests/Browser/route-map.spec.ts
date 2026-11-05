@@ -277,11 +277,10 @@ test('team lead, accounts, super admin, and another company stay inside their sc
     await prepare(page);
 
     await signIn(page, data.emails.lead, data.password);
+    await expect(page.getByRole('link', { name: 'Route Map' })).toHaveCount(0);
     await page.goto('/route-map?from=2026-10-01&to=2026-10-22');
-    await expect(page.getByText('Clock-in · Recorded · 21 m')).toBeVisible();
-    await expect(page.getByText('Clock-in · Recorded · 44 m')).toHaveCount(0);
-    await expect(page.locator('select option', { hasText: 'BRN-OUT Person' })).toHaveCount(0);
-    await denied(page, `/route-map?employee=${data.ids.northOutside}`, 404);
+    await expect(page.getByText('Your account cannot open Route Map')).toBeVisible();
+    expect(await page.content()).not.toContain('22.571111');
     await page.context().clearCookies();
 
     await signIn(page, data.emails.accounts, data.password);

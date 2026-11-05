@@ -117,7 +117,6 @@ class CompanyRole
             ]),
             'team_lead' => array_merge($none, [
                 'employees' => true,
-                'routeMap' => true,
                 'attendanceManage' => true,
                 'leaveApprove' => true,
             ]),

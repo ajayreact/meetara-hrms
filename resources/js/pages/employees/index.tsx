@@ -348,7 +348,7 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                         </Field>
                         <Field label="Reporting manager" error={form.errors.manager_id}>
                             <Select value={form.data.manager_id} onChange={(value) => form.setData('manager_id', value)} options={options.managers} />
-                            <span className="text-xs text-slate-500">Choose an active Team Lead or Company Manager in this company, or leave this as Not assigned.</span>
+                            <span className="text-xs text-slate-500">Head of Operations covers every office. HR and a Team Lead report to Head of Operations. Other employees report to Head of Operations, HR, or a Team Lead.</span>
                         </Field>
                         <Field label="Holiday region" error={form.errors.holiday_calendar}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.holiday_calendar} onChange={(event) => form.setData('holiday_calendar', event.target.value)}>

@@ -332,8 +332,25 @@ class HtmlLetterWriter
 
             $tag = strtolower($child->tagName);
 
+            if ($tag === 'br') {
+                $next = $child->nextSibling;
+                $alreadyBroken = $next instanceof DOMText && str_starts_with($next->textContent, "\n");
+
+                if (! $alreadyBroken) {
+                    $runs[] = ['text' => "\n", 'style' => $style];
+                }
+
+                continue;
+            }
+
             if (in_array($tag, ['ul', 'ol', 'table'], true) || ($tag === 'div' && ($child->hasAttribute('data-page-break') || $child->hasAttribute('data-signature')))) {
                 continue;
+            }
+
+            $block = in_array($tag, ['p', 'div', 'h1', 'h2', 'h3', 'blockquote', 'li'], true);
+
+            if ($block && ! $flattenBlocks) {
+                $this->pushLineBreak($runs, $style);
             }
 
             if ($flattenBlocks && in_array($tag, ['p', 'h1', 'h2', 'h3'], true) && $runs !== []) {
@@ -345,7 +362,26 @@ class HtmlLetterWriter
             }
 
             $this->inlineRuns($child, $this->inlineStyle($child, $style), $runs, $flattenBlocks);
+
+            if ($block && ! $flattenBlocks) {
+                $this->pushLineBreak($runs, $style);
+            }
         }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $runs
+     * @param  array<string, mixed>  $style
+     */
+    private function pushLineBreak(array &$runs, array $style): void
+    {
+        $previous = $runs === [] ? '' : (string) ($runs[array_key_last($runs)]['text'] ?? '');
+
+        if ($previous === '' || str_ends_with($previous, "\n")) {
+            return;
+        }
+
+        $runs[] = ['text' => "\n", 'style' => $style];
     }
 
     /**

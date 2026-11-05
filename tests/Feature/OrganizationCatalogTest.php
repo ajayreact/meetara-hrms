@@ -200,6 +200,102 @@ class OrganizationCatalogTest extends TestCase
         ]))->assertSessionHasErrors('department_id');
     }
 
+    public function test_head_of_operations_and_hr_appear_in_the_reporting_manager_list(): void
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'veltrix');
+        $owner = $this->owner($company);
+        $headId = DB::table('employees')->insertGetId([
+            'tenant_id' => $company->id,
+            'user_id' => $owner->id,
+            'employee_code' => 'VLTX-OWN',
+            'first_name' => 'Ajay',
+            'last_name' => 'Owner',
+            'email' => 'ajay-owner@veltrix.test',
+            'employment_type' => 'full_time',
+            'work_mode' => 'office',
+            'holiday_calendar' => 'india',
+            'date_of_joining' => '2026-01-15',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $head = Employee::query()->findOrFail($headId);
+
+        $this->actingAs($owner)->post('/employees', $this->employeePayload([
+            'first_name' => 'Nagaraju',
+            'last_name' => 'HR',
+            'email' => 'nagaraju-hr@veltrix.test',
+            'employee_code' => 'VLTX-HR',
+            'create_login' => true,
+            'role' => 'HR',
+        ]))->assertRedirect();
+        $hr = Employee::query()->where('email', 'nagaraju-hr@veltrix.test')->firstOrFail();
+        DB::table('employees')->where('id', $hr->id)->update(['status' => 'active']);
+
+        $this->actingAs($owner)->post('/employees', $this->employeePayload([
+            'first_name' => 'Sanjana',
+            'last_name' => 'Staff',
+            'email' => 'sanjana-staff@veltrix.test',
+            'employee_code' => 'VLTX-ST',
+            'create_login' => true,
+            'role' => 'Employee',
+        ]))->assertRedirect();
+        $staff = Employee::query()->where('email', 'sanjana-staff@veltrix.test')->firstOrFail();
+        DB::table('employees')->where('id', $staff->id)->update(['status' => 'active']);
+
+        $this->actingAs($owner)->get('/employees/'.$staff->id)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('options.managers', function ($managers): bool {
+                    $names = collect($managers)->pluck('name');
+
+                    return $names->contains('Ajay Owner')
+                        && $names->contains('Nagaraju HR')
+                        && $names->contains('veltrix-LEAD Person — veltrix-role')
+                        && $names->doesntContain('Sanjana Staff');
+                }));
+
+        $this->actingAs($owner)->get('/employees/'.$head->id)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('options.managers', fn ($managers): bool => collect($managers)->pluck('name')->doesntContain('Ajay Owner')));
+
+        $this->actingAs($owner)->get('/employees/'.$hr->id)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('options.managers', fn ($managers): bool => collect($managers)->pluck('name')->all() === ['Ajay Owner']));
+
+        $this->actingAs($owner)->put('/employees/'.$hr->id, $this->employeePayload([
+            'first_name' => 'Nagaraju',
+            'last_name' => 'HR',
+            'email' => 'nagaraju-hr@veltrix.test',
+            'employee_code' => 'VLTX-HR',
+            'manager_id' => $head->id,
+            'role' => 'HR',
+        ]))->assertRedirect();
+        $this->assertSame($headId, (int) $hr->refresh()->manager_id);
+
+        $leadId = (int) $company->leadEmployeeId;
+        $this->actingAs($owner)->put('/employees/'.$hr->id, $this->employeePayload([
+            'first_name' => 'Nagaraju',
+            'last_name' => 'HR',
+            'email' => 'nagaraju-hr@veltrix.test',
+            'employee_code' => 'VLTX-HR',
+            'manager_id' => $leadId,
+            'role' => 'HR',
+        ]))->assertSessionHasErrors('manager_id');
+        $this->assertSame($headId, (int) $hr->refresh()->manager_id);
+
+        $this->actingAs($owner)->put('/employees/'.$staff->id, $this->employeePayload([
+            'first_name' => 'Sanjana',
+            'last_name' => 'Staff',
+            'email' => 'sanjana-staff@veltrix.test',
+            'employee_code' => 'VLTX-ST',
+            'manager_id' => $head->id,
+        ]))->assertRedirect();
+        $this->assertSame((int) $head->id, (int) $staff->refresh()->manager_id);
+    }
+
     public function test_reporting_managers_are_active_company_managers_in_the_same_company(): void
     {
         $company = CompanyFixture::make('Veltrix Digital Solutions', 'veltrix');
@@ -306,7 +402,7 @@ class OrganizationCatalogTest extends TestCase
             'designation_id' => $designationId,
             'manager_id' => $secondManager->id,
             'role' => 'Company Manager',
-        ]))->assertRedirect();
+        ]))->assertSessionHasErrors('manager_id');
         $this->actingAs($company->hr)->put('/employees/'.$secondManager->id, $this->employeePayload([
             'first_name' => 'Bala',
             'last_name' => 'Shah',
