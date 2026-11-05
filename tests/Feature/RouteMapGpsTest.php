@@ -64,7 +64,7 @@ class RouteMapGpsTest extends TestCase
         $this->actingAs($company->employee)->post('/route-map/acknowledgement')->assertRedirect();
         $this->assertSame(1, DB::table('gps_attendance_acknowledgements')->count());
 
-        Carbon::setTestNow('2026-10-20 09:00:00');
+        Carbon::setTestNow('2026-10-23 09:00:00');
         $this->clock($company, ['latitude' => 22.57264549, 'longitude' => 88.36389449, 'accuracy_meters' => 12, 'capture_result' => 'recorded']);
         $saved = DB::table('attendance_location_records')->where('event_type', 'clock_in')->first();
         $this->assertNotNull($saved);
@@ -110,9 +110,9 @@ class RouteMapGpsTest extends TestCase
         $this->assertNull($invalid->longitude);
         $this->close($company);
 
-        Carbon::setTestNow('2026-10-20 09:00:00');
+        Carbon::setTestNow('2026-10-23 09:00:00');
         $this->clock($company, ['latitude' => 22.572645, 'longitude' => 88.363895, 'capture_result' => 'denied']);
-        $denied = DB::table('attendance_location_records')->where('event_type', 'clock_in')->whereDate('captured_at', '2026-10-20')->first();
+        $denied = DB::table('attendance_location_records')->where('event_type', 'clock_in')->whereDate('captured_at', '2026-10-23')->first();
         $this->assertSame('denied', $denied->status);
         $this->assertNull($denied->latitude);
         $this->close($company);

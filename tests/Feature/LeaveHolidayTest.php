@@ -55,10 +55,10 @@ class LeaveHolidayTest extends TestCase
         $request = DB::table('leave_requests')->where('employee_id', $company->reportEmployeeId)->whereDate('start_date', '2026-10-19')->first();
         $this->assertSame($company->id, (int) $request->tenant_id);
         $this->assertSame($company->reportEmployeeId, (int) $request->employee_id);
-        $this->assertEquals(3, (float) $request->days);
+        $this->assertEquals(2, (float) $request->days);
         $this->assertSame('pending', $request->status);
         $this->assertSame('pending', $request->payroll_status);
-        $this->assertEquals(3, (float) DB::table('leave_balances')->where('employee_id', $company->reportEmployeeId)->value('pending'));
+        $this->assertEquals(2, (float) DB::table('leave_balances')->where('employee_id', $company->reportEmployeeId)->value('pending'));
         $this->assertEquals(0, (float) DB::table('leave_balances')->where('employee_id', $company->reportEmployeeId)->value('used'));
 
         $this->from('/leave')->actingAs($company->employee)->post('/leave', [
@@ -91,7 +91,7 @@ class LeaveHolidayTest extends TestCase
         $outsideType = $this->seedLeave($company, $company->outsideEmployeeId, 10);
         $id = $this->requestLeave($company->employee, $type, '2026-10-19', '2026-10-19');
         $outsideUser = User::query()->findOrFail(DB::table('employees')->where('id', $company->outsideEmployeeId)->value('user_id'));
-        $outsideId = $this->requestLeave($outsideUser, $outsideType, '2026-10-20', '2026-10-20');
+        $outsideId = $this->requestLeave($outsideUser, $outsideType, '2026-10-21', '2026-10-21');
 
         $this->actingAs($company->lead)->post("/leave/{$outsideId}/approve")->assertNotFound();
         $this->actingAs($company->employee)->post("/leave/{$id}/approve")->assertForbidden();
@@ -113,12 +113,12 @@ class LeaveHolidayTest extends TestCase
     {
         $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
         $type = $this->seedLeave($company, $company->reportEmployeeId, 10);
-        $this->requestLeave($company->employee, $type, '2026-10-19', '2026-10-20');
+        $this->requestLeave($company->employee, $type, '2026-10-19', '2026-10-21');
 
         $this->from('/leave')->actingAs($company->employee)->post('/leave', [
             'leave_type_id' => $type,
-            'start_date' => '2026-10-20',
-            'end_date' => '2026-10-21',
+            'start_date' => '2026-10-21',
+            'end_date' => '2026-10-22',
             'reason' => 'Family event',
         ])->assertSessionHas('error', 'Those dates overlap a pending or approved request.');
 
@@ -129,7 +129,7 @@ class LeaveHolidayTest extends TestCase
         $this->assertEquals(0, (float) DB::table('leave_balances')->where('employee_id', $company->reportEmployeeId)->where('leave_type_id', $type)->value('pending'));
         $this->assertSame('Dates clash', DB::table('leave_requests')->where('id', $id)->value('reviewer_note'));
 
-        $this->requestLeave($company->employee, $type, '2026-10-20', '2026-10-21');
+        $this->requestLeave($company->employee, $type, '2026-10-21', '2026-10-22');
         $this->assertEquals(2, (float) DB::table('leave_balances')->where('employee_id', $company->reportEmployeeId)->where('leave_type_id', $type)->value('pending'));
     }
 
@@ -141,7 +141,7 @@ class LeaveHolidayTest extends TestCase
         $employee = Employee::query()->findOrFail($company->reportEmployeeId);
         $calendar = app(LeaveCalendar::class);
 
-        $this->assertSame(5.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
+        $this->assertSame(4.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
 
         DB::table('holidays')->insert([
             'tenant_id' => $company->id,
@@ -180,10 +180,10 @@ class LeaveHolidayTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->assertSame(4.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
+        $this->assertSame(3.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
 
         DB::table('holidays')->where('name', 'Midweek')->update(['status' => 'inactive']);
-        $this->assertSame(5.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
+        $this->assertSame(4.0, $calendar->workingDays($employee, Carbon::parse('2026-10-19'), Carbon::parse('2026-10-25')));
         DB::table('holidays')->where('name', 'Midweek')->update(['status' => 'active']);
 
         $this->from('/leave')->actingAs($company->employee)->post('/leave', [
@@ -198,7 +198,7 @@ class LeaveHolidayTest extends TestCase
         $this->assertEquals(0, (float) DB::table('leave_balances')->where('leave_type_id', $type)->value('pending'));
 
         $id = $this->requestLeave($company->employee, $type, '2026-10-19', '2026-10-25');
-        $this->assertEquals(4, (float) DB::table('leave_requests')->where('id', $id)->value('days'));
+        $this->assertEquals(3, (float) DB::table('leave_requests')->where('id', $id)->value('days'));
     }
 
     public function test_cancellation_and_reversal_update_balances_once(): void
@@ -211,7 +211,7 @@ class LeaveHolidayTest extends TestCase
         $this->assertSame('cancelled', DB::table('leave_requests')->where('id', $pending)->value('status'));
         $this->assertEquals(0, (float) DB::table('leave_balances')->where('leave_type_id', $type)->value('pending'));
 
-        $approved = $this->requestLeave($company->employee, $type, '2026-10-20', '2026-10-20');
+        $approved = $this->requestLeave($company->employee, $type, '2026-10-21', '2026-10-21');
         $this->actingAs($company->lead)->post("/leave/{$approved}/approve")->assertRedirect();
         $this->from('/leave')->actingAs($company->employee)->post("/leave/{$approved}/cancel")->assertSessionHas('error');
         $this->assertEquals(1, (float) DB::table('leave_balances')->where('leave_type_id', $type)->value('used'));
@@ -284,7 +284,13 @@ class LeaveHolidayTest extends TestCase
         $this->assertSame('Foundation Day', DB::table('holidays')->where('id', $holidayId)->value('name'));
 
         $this->actingAs($company->employee)->get('/holidays?calendar=india&year=2026')
-            ->assertInertia(fn (Assert $page) => $page->component('holidays/index')->where('holidays', []));
+            ->assertInertia(fn (Assert $page) => $page->component('holidays/index')->where('holidays', fn ($rows) => collect($rows)->pluck('name')->contains('Republic Day')
+                && collect($rows)->pluck('name')->contains('Dussehra')
+                && collect($rows)->pluck('name')->doesntContain('Foundation Day')));
+
+        $this->actingAs($company->employee)->get('/holidays?calendar=usa&year=2026')
+            ->assertInertia(fn (Assert $page) => $page->where('holidays', fn ($rows) => collect($rows)->pluck('name')->contains('Thanksgiving Day')
+                && collect($rows)->contains(fn ($row) => $row['name'] === 'Independence Day' && $row['date'] === '2026-07-03')));
 
         $this->actingAs($other->hr)->get('/holidays?calendar=india&year=2026')
             ->assertInertia(fn (Assert $page) => $page->where('holidays', fn ($rows) => collect($rows)->pluck('name')->doesntContain('Foundation Day')));

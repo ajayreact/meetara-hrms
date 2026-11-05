@@ -32,7 +32,27 @@ class AttendanceCalendar
             }
         });
 
-        return $query->orderByRaw('case when location_id is null then 1 else 0 end')->first();
+        $stored = $query->orderByRaw('case when location_id is null then 1 else 0 end')->first();
+
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        $calendar = $employee->holiday_calendar ?: 'india';
+        $overridden = DB::table('holidays')
+            ->where('tenant_id', $employee->tenant_id)
+            ->whereDate('date', $date)
+            ->where('calendar', $calendar)
+            ->whereNull('location_id')
+            ->exists();
+
+        if ($overridden) {
+            return null;
+        }
+
+        $name = PublicHolidays::name($calendar, $date);
+
+        return $name === null ? null : (object) ['name' => $name, 'date' => $date, 'location_id' => null];
     }
 
     public static function authorized(int $companyId, int $employeeId, string $date, string $kind): bool

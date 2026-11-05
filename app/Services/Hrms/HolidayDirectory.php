@@ -29,13 +29,15 @@ class HolidayDirectory
             ->orderBy('date');
 
         $canManage = in_array($user->applicationRole(), ['company_admin', 'hr'], true);
-
-        if (! $canManage && Schema::hasColumn('holidays', 'status')) {
-            $query->where('status', 'active');
-        }
-
-        return [
-            'holidays' => $query->get()->map(fn (Holiday $holiday) => [
+        $stored = $query->get();
+        $covered = $stored
+            ->filter(fn (Holiday $holiday): bool => $holiday->location_id === null)
+            ->map(fn (Holiday $holiday): string => $holiday->date?->toDateString() ?? '')
+            ->filter()
+            ->all();
+        $visible = $stored
+            ->filter(fn (Holiday $holiday): bool => $canManage || ! Schema::hasColumn('holidays', 'status') || $holiday->status === 'active')
+            ->map(fn (Holiday $holiday) => [
                 'id' => $holiday->id,
                 'name' => $holiday->name,
                 'date' => $holiday->date?->toDateString(),
@@ -43,7 +45,32 @@ class HolidayDirectory
                 'calendar' => $holiday->calendar === 'usa' ? 'United States' : 'India',
                 'officeId' => $holiday->location_id,
                 'status' => Schema::hasColumn('holidays', 'status') ? (string) $holiday->status : 'active',
-            ])->all(),
+                'standard' => false,
+            ])
+            ->all();
+
+        foreach (PublicHolidays::forCalendar($calendar, $year) as $row) {
+            if (in_array($row['date'], $covered, true)) {
+                continue;
+            }
+
+            $date = Carbon::parse($row['date']);
+            $visible[] = [
+                'id' => 'standard-'.$calendar.'-'.$row['date'],
+                'name' => $row['name'],
+                'date' => $row['date'],
+                'weekday' => $date->format('l'),
+                'calendar' => $calendar === 'usa' ? 'United States' : 'India',
+                'officeId' => null,
+                'status' => 'active',
+                'standard' => true,
+            ];
+        }
+
+        usort($visible, fn (array $left, array $right): int => strcmp((string) $left['date'], (string) $right['date']));
+
+        return [
+            'holidays' => $visible,
             'calendar' => $calendar,
             'year' => $year,
             'canManage' => $canManage,

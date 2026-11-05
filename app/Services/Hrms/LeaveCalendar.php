@@ -74,10 +74,24 @@ class LeaveCalendar
                 }
             });
 
-        if (Schema::hasColumn('holidays', 'status')) {
-            $query->where('status', 'active');
+        $rows = (clone $query)->get(['date', 'location_id', 'status']);
+        $dates = $rows
+            ->filter(fn (Holiday $holiday): bool => ! Schema::hasColumn('holidays', 'status') || $holiday->status === 'active')
+            ->map(fn (Holiday $holiday): string => $holiday->date?->toDateString() ?? '')
+            ->filter()
+            ->all();
+        $covered = $rows
+            ->filter(fn (Holiday $holiday): bool => $holiday->location_id === null)
+            ->map(fn (Holiday $holiday): string => $holiday->date?->toDateString() ?? '')
+            ->filter()
+            ->all();
+
+        foreach (PublicHolidays::dates($calendar, $start->toDateString(), $end->toDateString()) as $date) {
+            if (! in_array($date, $covered, true)) {
+                $dates[] = $date;
+            }
         }
 
-        return $query->pluck('date')->map(fn ($date) => Carbon::parse($date)->toDateString())->all();
+        return array_values(array_unique($dates));
     }
 }

@@ -7,13 +7,14 @@ import type { HrmsPageProps } from '@/types/hrms';
 import { router, useForm } from '@inertiajs/react';
 
 interface HolidayRow {
-    id: number;
+    id: number | string;
     name: string;
     date: string;
     weekday: string;
     calendar: string;
     officeId: number | null;
     status: string;
+    standard?: boolean;
 }
 
 interface OfficeOption {
@@ -53,7 +54,7 @@ export default function HolidaysPage({
 
     return (
         <HrmsLayout workspace={workspace} title="Holidays">
-            <PageIntro title="Holidays" subtitle="India and United States calendars stay separate. A company-wide holiday applies to every office. An office holiday applies only to that office." />
+            <PageIntro title="Holidays" subtitle="India dates follow the Central Government gazetted list for 2026 and 2027. United States dates follow the federal holiday schedule, including the observed weekday when a holiday falls on a weekend. A company holiday on the same date replaces the standard one. An office holiday applies only to that office." />
             {(notice || error) && (
                 <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>
             )}
@@ -83,14 +84,14 @@ export default function HolidaysPage({
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <span>
                                         <span className="block font-medium">{holiday.name}</span>
-                                        <span className="text-xs text-slate-500">{holiday.officeId ? 'One office' : 'All offices'} · {holiday.calendar}</span>
+                                        <span className="text-xs text-slate-500">{holiday.standard ? 'Standard holiday · All offices' : holiday.officeId ? 'One office' : 'Company holiday · All offices'} · {holiday.calendar}</span>
                                     </span>
                                     <span className="flex items-center gap-3 text-slate-600">
                                         <span>{holiday.weekday}, {holiday.date}</span>
                                         <StatusBadge value={holiday.status === 'inactive' ? 'Inactive' : 'Active'} />
                                     </span>
                                 </div>
-                                {canManage && (
+                                {canManage && !holiday.standard && (
                                     <details className="mt-2">
                                         <summary className="cursor-pointer text-sm font-medium text-blue-700">Edit</summary>
                                         <HolidayEditor holiday={holiday} offices={offices} />

@@ -274,8 +274,8 @@ class RoleAccessAuditTest extends TestCase
 
         $this->from('/leave')->actingAs($company->employee)->post('/leave', [
             'leave_type_id' => $typeId,
-            'start_date' => '2026-10-20',
-            'end_date' => '2026-10-20',
+            'start_date' => '2026-10-21',
+            'end_date' => '2026-10-21',
             'reason' => 'Family event',
             'employee_id' => $company->outsideEmployeeId,
         ])->assertSessionHas('error', 'No leave balance is recorded for this year.');
