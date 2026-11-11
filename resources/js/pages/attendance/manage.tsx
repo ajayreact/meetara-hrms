@@ -71,6 +71,7 @@ export default function AttendanceManagePage({ workspace, timing, roster, filter
     notice?: string | null;
 }) {
     const [selectedId, setSelectedId] = useState<number | null>(roster.rows.find((row) => row.id)?.id ?? null);
+    const [month, setMonth] = useState((filters.date || roster.date).slice(0, 7));
     const selected = roster.rows.find((row) => row.id === selectedId) ?? null;
     const [correct, setCorrect] = useState(false);
     const [detail, setDetail] = useState<Correction | null>(null);
@@ -149,9 +150,15 @@ export default function AttendanceManagePage({ workspace, timing, roster, filter
                         </Button>
                     )}
                     {canExport && (
-                        <Button type="button" variant="outline" onClick={() => { window.location.href = route('hrms.attendance.export', { date: filters.date || roster.date, office: filters.office, status: filters.status, employee: filters.employee }); }}>
-                            Export
-                        </Button>
+                        <>
+                            <Input type="month" aria-label="Attendance month" className="w-40" value={month} onChange={(event) => setMonth(event.target.value)} />
+                            <Button type="button" variant="outline" disabled={month === ''} onClick={() => { window.location.href = route('hrms.attendance.export', { month, office: filters.office, employee: filters.employee }); }}>
+                                Download month
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => { window.location.href = route('hrms.attendance.export', { date: filters.date || roster.date, office: filters.office, status: filters.status, employee: filters.employee }); }}>
+                                Export day
+                            </Button>
+                        </>
                     )}
                 </div>
             </SectionCard>

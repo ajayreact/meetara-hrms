@@ -1,9 +1,11 @@
 import type { Workspace } from '@/types/hrms';
 import {
+    BarChart3,
     Briefcase,
     Building2,
     CalendarCheck,
     CalendarDays,
+    Contact,
     CalendarRange,
     Inbox,
     LayoutDashboard,
@@ -51,9 +53,24 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
 
     if (workspace.role === 'team_lead') {
         items.push({ label: 'My team', href: '/employees', icon: Users, section: 'Workspace' });
+        items.push({ label: 'My leads', href: '/my-leads', icon: Contact, section: 'Workspace' });
+        if (workspace.permissions.leadsReport) {
+            items.push({ label: 'Lead reports', href: '/my-leads/reports', icon: BarChart3, section: 'Workspace' });
+        }
     } else if (workspace.permissions.employees) {
         items.push({ label: 'Employees', href: '/employees', icon: Users, section: 'People' });
     }
+    if (workspace.permissions.leadsViewAll) {
+        items.push({ label: 'Leads', href: '/leads', icon: Contact, section: 'People' });
+    }
+    if (workspace.permissions.leadsViewAll && workspace.permissions.leadsReport) {
+        items.push({ label: 'Lead reports', href: '/leads/reports', icon: BarChart3, section: 'People' });
+    }
+    if (workspace.role === 'employee' && workspace.permissions.leadsFollowUpOwn) {
+        items.push({ label: 'My leads', href: '/leads/mine', icon: Contact, section: 'Workspace' });
+        items.push({ label: 'My report', href: '/leads/mine/report', icon: BarChart3, section: 'Workspace' });
+    }
+
     if (workspace.role === 'company_admin' || workspace.role === 'hr') {
         items.push({ label: 'Offer letters', href: '/offer-letters', icon: ScrollText, section: 'People' });
         items.push({ label: 'Offer templates', href: '/offer-letters/templates', icon: ScrollText, section: 'People' });
@@ -153,6 +170,18 @@ export function isNavActive(href: string, url: string): boolean {
 
     if (hrefPath === '/dashboard' || hrefPath === '/payroll') {
         return path === hrefPath;
+    }
+
+    if (hrefPath === '/leads') {
+        return (path === '/leads' || path.startsWith('/leads/')) && !path.startsWith('/leads/reports');
+    }
+
+    if (hrefPath === '/leads/mine') {
+        return path === '/leads/mine' || /^\/leads\/mine\/\d+$/.test(path);
+    }
+
+    if (hrefPath === '/my-leads') {
+        return path === '/my-leads' || /^\/my-leads\/\d+$/.test(path);
     }
 
     if (hrefPath === '/payroll/runs' && actual.get('status') === 'review') {

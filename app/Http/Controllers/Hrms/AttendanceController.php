@@ -191,15 +191,27 @@ class AttendanceController extends Controller
         abort_unless($user->can('export', AttendanceLog::class), 403);
         $officeId = ctype_digit((string) $request->query('office')) ? (int) $request->query('office') : null;
 
-        return response($this->directory->export(
-            $user,
-            $request->query('date'),
-            $officeId,
-            (string) $request->query('status', 'All statuses'),
-            trim((string) $request->query('employee', '')),
-        ), 200, [
+        $month = $request->query('month');
+        $search = trim((string) $request->query('employee', ''));
+
+        if (is_string($month) && $month !== '') {
+            abort_unless(preg_match('/^\d{4}-\d{2}$/', $month) === 1, 404);
+            $csv = $this->directory->exportMonth($user, $month, $officeId, $search);
+            $filename = 'attendance-'.$month.'.csv';
+        } else {
+            $csv = $this->directory->export(
+                $user,
+                $request->query('date'),
+                $officeId,
+                (string) $request->query('status', 'All statuses'),
+                $search,
+            );
+            $filename = 'attendance.csv';
+        }
+
+        return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="attendance.csv"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);

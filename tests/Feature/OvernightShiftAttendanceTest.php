@@ -225,6 +225,138 @@ class OvernightShiftAttendanceTest extends TestCase
         $this->assertSame('2026-11-05 05:02:00', $kept->check_out);
     }
 
+    public function test_a_forgotten_morning_session_moves_to_the_previous_shift_and_tonight_can_start(): void
+    {
+        $company = $this->overnightCompany('18:30', '04:00');
+        DB::table('attendance_logs')->insert([
+            'tenant_id' => $company->id,
+            'employee_id' => $company->reportEmployeeId,
+            'location_id' => $company->officeId,
+            'work_date' => '2026-11-06',
+            'check_in' => '2026-11-06 01:46:00',
+            'check_out' => '2026-11-06 20:02:00',
+            'status' => 'present',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-06 21:00:00', 'Asia/Kolkata'));
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn ($page) => $page
+            ->where('timing.canClockIn', true)
+            ->where('timing.canClockOut', false)
+            ->where('timing.shiftNotice', 'The earlier session stays on the previous shift. Clock in starts tonight\'s shift.'));
+
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasNoErrors();
+
+        $previous = DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-11-05')->first();
+        $tonight = DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-11-06')->first();
+        $this->assertSame('2026-11-06 01:46:00', $previous->check_in);
+        $this->assertSame('2026-11-06 20:02:00', $previous->check_out);
+        $this->assertSame('2026-11-06 21:00:00', $tonight->check_in);
+        $this->assertNull($tonight->check_out);
+    }
+
+    public function test_clocking_out_a_forgotten_morning_session_frees_tonight(): void
+    {
+        $company = $this->overnightCompany('18:30', '04:00');
+        DB::table('attendance_logs')->insert([
+            'tenant_id' => $company->id,
+            'employee_id' => $company->reportEmployeeId,
+            'location_id' => $company->officeId,
+            'work_date' => '2026-11-06',
+            'check_in' => '2026-11-06 01:42:00',
+            'status' => 'present',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-06 20:02:00', 'Asia/Kolkata'));
+        $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn ($page) => $page
+            ->where('timing.canClockIn', false)
+            ->where('timing.canClockOut', true)
+            ->where('timing.shiftNotice', 'Clock out closes the previous shift. You can clock in for tonight after that.'));
+
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-out')
+            ->assertSessionHasNoErrors();
+
+        $previous = DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-11-05')->first();
+        $this->assertSame('2026-11-06 01:42:00', $previous->check_in);
+        $this->assertSame('2026-11-06 20:02:00', $previous->check_out);
+        $this->assertSame(0, DB::table('attendance_logs')->whereDate('work_date', '2026-11-06')->count());
+
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasNoErrors();
+        $tonight = DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-11-06')->first();
+        $this->assertSame('2026-11-06 20:02:00', $tonight->check_in);
+        $this->assertNull($tonight->check_out);
+    }
+
+    public function test_a_forgotten_morning_session_does_not_replace_the_previous_shift_record(): void
+    {
+        $company = $this->overnightCompany('18:30', '04:00');
+        DB::table('attendance_logs')->insert([
+            [
+                'tenant_id' => $company->id,
+                'employee_id' => $company->reportEmployeeId,
+                'location_id' => $company->officeId,
+                'work_date' => '2026-11-05',
+                'check_in' => '2026-11-05 18:40:00',
+                'check_out' => '2026-11-06 03:50:00',
+                'status' => 'present',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'tenant_id' => $company->id,
+                'employee_id' => $company->reportEmployeeId,
+                'location_id' => $company->officeId,
+                'work_date' => '2026-11-06',
+                'check_in' => '2026-11-06 01:46:00',
+                'check_out' => '2026-11-06 20:02:00',
+                'status' => 'present',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-06 21:00:00', 'Asia/Kolkata'));
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors(['attendance' => 'The previous shift already has an attendance record, so tonight\'s clock-in cannot start. Contact HR.']);
+
+        $this->assertSame('2026-11-05 18:40:00', DB::table('attendance_logs')->whereDate('work_date', '2026-11-05')->value('check_in'));
+        $this->assertSame('2026-11-06 03:50:00', DB::table('attendance_logs')->whereDate('work_date', '2026-11-05')->value('check_out'));
+        $this->assertSame('2026-11-06 01:46:00', DB::table('attendance_logs')->whereDate('work_date', '2026-11-06')->value('check_in'));
+        $this->assertSame('2026-11-06 20:02:00', DB::table('attendance_logs')->whereDate('work_date', '2026-11-06')->value('check_out'));
+    }
+
+    public function test_a_day_shift_session_stays_on_its_calendar_date(): void
+    {
+        $company = $this->overnightCompany('09:00', '18:00');
+        DB::table('attendance_logs')->insert([
+            'tenant_id' => $company->id,
+            'employee_id' => $company->reportEmployeeId,
+            'location_id' => $company->officeId,
+            'work_date' => '2026-11-06',
+            'check_in' => '2026-11-06 09:10:00',
+            'check_out' => '2026-11-06 18:00:00',
+            'status' => 'present',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-06 21:00:00', 'Asia/Kolkata'));
+        $this->actingAs($company->employee)->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors(['attendance' => 'You already have an attendance record for this shift.']);
+        $this->assertSame('2026-11-06 09:10:00', DB::table('attendance_logs')->whereDate('work_date', '2026-11-06')->value('check_in'));
+        $this->assertSame(0, DB::table('attendance_logs')->whereDate('work_date', '2026-11-05')->count());
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -236,6 +368,23 @@ class OvernightShiftAttendanceTest extends TestCase
             'grace_minutes' => $grace,
             'working_days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
         ];
+    }
+
+    private function overnightCompany(string $start, string $end): CompanyFixture
+    {
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix');
+        $owner = $this->member($company, 'Owner');
+        DB::table('locations')->where('id', $company->officeId)->update(['status' => 'active', 'timezone' => 'Asia/Kolkata']);
+        DB::table('location_networks')->insert([
+            'tenant_id' => $company->id,
+            'location_id' => $company->officeId,
+            'cidr' => '203.0.113.0/24',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->actingAs($owner)->put('/offices/schedule', $this->schedule($start, $end, 0))->assertSessionHasNoErrors();
+
+        return $company;
     }
 
     private function member(CompanyFixture $company, string $role): User

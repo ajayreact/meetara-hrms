@@ -64,6 +64,23 @@ class AttendanceDirectory
         }
 
         $outsideWindow = $log === null && $schedule->crossesMidnight() && $shiftDate === null;
+        $shiftNotice = $outsideWindow ? $schedule->outsideWindowMessage() : null;
+        $attendance = app(AttendanceService::class);
+        $earlierShift = $log !== null ? $attendance->earlierShiftDate($employee, $log, $timezone) : null;
+
+        if ($log !== null && $earlierShift !== null && $shiftDate !== null && $shiftDate->toDateString() > $earlierShift) {
+            if ($log->check_out === null) {
+                $shiftNotice = $attendance->earlierShiftCanMove($employee, $log, $timezone)
+                    ? 'Clock out closes the previous shift. You can clock in for tonight after that.'
+                    : 'Clock out closes this session. Tonight\'s clock-in needs HR because the previous shift already has a record.';
+            } elseif ($attendance->earlierShiftCanMove($employee, $log, $timezone)) {
+                $shiftNotice = 'The earlier session stays on the previous shift. Clock in starts tonight\'s shift.';
+                $log = null;
+            } else {
+                $shiftNotice = 'The previous shift already has an attendance record, so tonight\'s clock-in cannot start. Contact HR.';
+            }
+        }
+
         $openBreak = $log ? $this->openBreak($log) : null;
         $state = 'out';
 
@@ -95,7 +112,7 @@ class AttendanceDirectory
             'gpsRequired' => (bool) $office?->gps_verification_enabled,
             'gpsCapture' => app(GpsCapture::class)->shouldRequest($user),
             'gpsNoticePending' => app(GpsCapture::class)->noticePending($user),
-            'shiftNotice' => $outsideWindow ? $schedule->outsideWindowMessage() : null,
+            'shiftNotice' => $shiftNotice,
         ];
     }
 
@@ -135,27 +152,7 @@ class AttendanceDirectory
             return ['date' => $day->toDateString(), 'offices' => [], 'rows' => [], 'counts' => ['showing' => 0, 'present' => 0, 'review' => 0, 'pendingCorrections' => 0]];
         }
 
-        $employees = Employee::query()->inCompany($companyId)->orderBy('first_name')->orderBy('last_name');
-
-        if ($user->applicationRole() === 'team_lead') {
-            $actor = $this->employee($user);
-            $employees->where(function ($query) use ($actor): void {
-                $query->where('id', $actor?->id ?? 0)->orWhere('manager_id', $actor?->id ?? 0);
-            });
-        }
-
-        if ($officeId !== null) {
-            $employees->where('location_id', $officeId);
-        }
-
-        if ($search !== '') {
-            $term = '%'.addcslashes($search, '%_\\').'%';
-            $employees->where(function ($query) use ($term): void {
-                $query->where('first_name', 'like', $term)->orWhere('last_name', 'like', $term)->orWhere('employee_code', 'like', $term);
-            });
-        }
-
-        $people = $employees->limit(200)->get();
+        $people = $this->scopedEmployees($user, $officeId, $search);
         $officeMap = Office::query()->inCompany($companyId)->get()->keyBy('id');
         $logs = AttendanceLog::query()
             ->inCompany($companyId)
@@ -224,9 +221,83 @@ class AttendanceDirectory
         return $csv === false ? '' : "\xEF\xBB\xBF".$csv;
     }
 
+    public function exportMonth(User $user, string $month, ?int $officeId, string $search): string
+    {
+        $companyId = (int) ($user->companyId() ?? 0);
+        $timezone = $this->timezone(null, $companyId);
+        $start = Carbon::createFromFormat('!Y-m-d', $month.'-01', $timezone);
+        abort_if($start === false || $start->format('Y-m') !== $month, 404);
+        $start = $start->startOfDay();
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, ['Employee code', 'Employee', 'Office', 'Date', 'Clock in', 'Clock out', 'Break', 'Work', 'Status']);
+
+        if ($user->can('viewAny', AttendanceLog::class)) {
+            $offices = Office::query()->inCompany($companyId)->get()->keyBy('id');
+
+            foreach ($this->scopedEmployees($user, $officeId, $search) as $person) {
+                $office = $offices->get($person->location_id);
+                $name = trim($person->first_name.' '.$person->last_name);
+
+                foreach ($this->days($person, $start->copy()) as $day) {
+                    $status = (string) $day['status'];
+
+                    if (! $day['occurred'] && $status === 'Absent') {
+                        $status = 'Not started';
+                    }
+
+                    fputcsv($handle, [
+                        $this->csv((string) $person->employee_code),
+                        $this->csv($name),
+                        $this->csv($office instanceof Office ? (string) $office->name : ''),
+                        $this->csv((string) $day['date']),
+                        $this->csv((string) ($day['clockIn'] ?? '')),
+                        $this->csv((string) ($day['clockOut'] ?? '')),
+                        $this->csv($this->spreadsheetCell($day['breakMinutes'] > 0 ? $this->duration((int) $day['breakMinutes']) : '—')),
+                        $this->csv($this->spreadsheetCell($day['workMinutes'] > 0 ? $this->duration((int) $day['workMinutes']) : '—')),
+                        $this->csv($status),
+                    ]);
+                }
+            }
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        return $csv === false ? '' : "\xEF\xBB\xBF".$csv;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Employee>
+     */
+    private function scopedEmployees(User $user, ?int $officeId, string $search)
+    {
+        $employees = Employee::query()->inCompany((int) $user->companyId())->orderBy('first_name')->orderBy('last_name');
+
+        if ($user->applicationRole() === 'team_lead') {
+            $actor = $this->employee($user);
+            $employees->where(function ($query) use ($actor): void {
+                $query->where('id', $actor?->id ?? 0)->orWhere('manager_id', $actor?->id ?? 0);
+            });
+        }
+
+        if ($officeId !== null) {
+            $employees->where('location_id', $officeId);
+        }
+
+        if ($search !== '') {
+            $term = '%'.addcslashes($search, '%_\\').'%';
+            $employees->where(function ($query) use ($term): void {
+                $query->where('first_name', 'like', $term)->orWhere('last_name', 'like', $term)->orWhere('employee_code', 'like', $term);
+            });
+        }
+
+        return $employees->limit(200)->get();
+    }
+
     private function days(Employee $employee, Carbon $month): array
     {
         $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);

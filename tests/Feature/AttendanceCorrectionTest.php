@@ -226,10 +226,41 @@ class AttendanceCorrectionTest extends TestCase
         $this->assertStringStartsWith("\xEF\xBB\xBF", $export->getContent());
         $this->assertStringNotContainsString('—', $export->getContent());
         $this->assertStringContainsString('Holiday', $export->getContent());
+
+        $this->actingAs($company->hr)->get('/attendance/export?month=2026-13')->assertNotFound();
         $this->actingAs($company->hr)->get('/attendance?date=2026-11-02')->assertInertia(fn (Assert $page) => $page
             ->where('roster.rows', function ($rows): bool {
                 return collect($rows)->contains(fn ($row) => ($row['status'] ?? null) === 'Holiday' && ($row['holidayName'] ?? null) === 'Foundation Day');
             }));
+    }
+
+    public function test_hr_can_download_every_employee_for_one_month(): void
+    {
+        [$company] = $this->company();
+        $other = CompanyFixture::make('Other Attendance Co', 'other-att');
+        $this->freeze('2026-11-06 12:00:00');
+        DB::table('tenants')->where('id', $company->id)->update(['week_off' => json_encode(['saturday', 'sunday'])]);
+        DB::table('locations')->where('id', $company->officeId)->update(['timezone' => 'Asia/Kolkata']);
+        $this->log($company, '2026-11-02', '09:30:00', '18:00:00');
+        $code = (string) DB::table('employees')->where('id', $company->reportEmployeeId)->value('employee_code');
+        $otherCode = (string) DB::table('employees')->where('id', $other->reportEmployeeId)->value('employee_code');
+
+        $this->actingAs($company->employee)->get('/attendance/export?month=2026-11')->assertForbidden();
+
+        $export = $this->actingAs($company->hr)->get('/attendance/export?month=2026-11')->assertOk();
+        $export->assertHeader('content-disposition', 'attachment; filename="attendance-2026-11.csv"');
+        $body = $export->getContent();
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+        $this->assertStringContainsString('"Employee code",Employee,Office,Date,"Clock in","Clock out",Break,Work,Status', $body);
+        $this->assertStringContainsString($code, $body);
+        $this->assertStringContainsString('2026-11-02', $body);
+        $this->assertStringContainsString('9:30 AM', $body);
+        $this->assertStringContainsString('6:00 PM', $body);
+        $this->assertStringContainsString('Not started', $body);
+        $this->assertStringNotContainsString('2026-10-01', $body);
+        $this->assertStringNotContainsString('2026-12-01', $body);
+        $this->assertStringNotContainsString($otherCode, $body);
+        $this->assertCount(91, preg_split("/\r\n|\n|\r/", trim($body)));
     }
 
     public function test_holiday_clock_in_requires_authorization_and_still_enforces_office_checks(): void

@@ -70,6 +70,13 @@ class CompanyRole
             'companies' => false,
             'audit' => false,
             'i983Sign' => false,
+            'leadsViewAll' => false,
+            'leadsImport' => false,
+            'leadsAssignTeam' => false,
+            'leadsDistribute' => false,
+            'leadsFollowUpTeam' => false,
+            'leadsFollowUpOwn' => false,
+            'leadsReport' => false,
         ];
 
         return match ($role) {
@@ -94,6 +101,13 @@ class CompanyRole
                 'offices' => true,
                 'exportAttendance' => true,
                 'i983Sign' => true,
+                'leadsViewAll' => true,
+                'leadsImport' => true,
+                'leadsAssignTeam' => true,
+                'leadsDistribute' => true,
+                'leadsFollowUpTeam' => true,
+                'leadsFollowUpOwn' => true,
+                'leadsReport' => true,
             ]),
             'hr' => array_merge($none, [
                 'employees' => true,
@@ -107,6 +121,13 @@ class CompanyRole
                 'offices' => true,
                 'exportAttendance' => true,
                 'i983Sign' => true,
+                'leadsViewAll' => true,
+                'leadsImport' => true,
+                'leadsAssignTeam' => true,
+                'leadsDistribute' => true,
+                'leadsFollowUpTeam' => true,
+                'leadsFollowUpOwn' => true,
+                'leadsReport' => true,
             ]),
             'accounts' => array_merge($none, [
                 'payroll' => true,
@@ -119,9 +140,14 @@ class CompanyRole
                 'employees' => true,
                 'attendanceManage' => true,
                 'leaveApprove' => true,
+                'leadsDistribute' => true,
+                'leadsFollowUpTeam' => true,
+                'leadsFollowUpOwn' => true,
+                'leadsReport' => true,
             ]),
             'employee' => array_merge($none, [
                 'routeMap' => true,
+                'leadsFollowUpOwn' => true,
             ]),
             default => $none,
         };

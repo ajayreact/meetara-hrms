@@ -180,14 +180,9 @@ class OrganizationCatalogTest extends TestCase
             'manager_id' => $manager->id,
             'create_login' => true,
             'role' => 'HR',
-        ]))->assertRedirect();
+        ]))->assertSessionHasErrors('manager_id');
+        $this->assertNull(Employee::query()->where('email', 'second@veltrix.test')->first());
 
-        $second = Employee::query()->where('email', 'second@veltrix.test')->firstOrFail();
-        $this->assertSame((int) $manager->id, (int) $second->manager_id);
-        $this->assertSame('HR', DB::table('roles')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $second->user_id)
-            ->value('roles.name'));
         $this->assertSame('Company Manager', DB::table('roles')
             ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_id', $manager->user_id)

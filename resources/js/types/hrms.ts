@@ -18,6 +18,13 @@ export interface WorkspacePermissions {
     companies: boolean;
     audit: boolean;
     i983Sign: boolean;
+    leadsViewAll: boolean;
+    leadsImport: boolean;
+    leadsAssignTeam: boolean;
+    leadsDistribute: boolean;
+    leadsFollowUpTeam: boolean;
+    leadsFollowUpOwn: boolean;
+    leadsReport: boolean;
 }
 
 export interface Workspace {

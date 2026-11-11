@@ -47,7 +47,14 @@ class AttendanceService
                 ->first();
 
             if ($existing !== null) {
-                throw new AttendanceRejected('You already have an attendance record for this shift.');
+                $timezone = $this->timezone($office);
+                $this->restoreEarlierShift($employee, $existing, $timezone);
+
+                if ($existing->work_date?->toDateString() === $shiftDate->toDateString()) {
+                    throw new AttendanceRejected($this->earlierShiftDate($employee, $existing, $timezone) !== null
+                        ? 'The previous shift already has an attendance record, so tonight\'s clock-in cannot start. Contact HR.'
+                        : 'You already have an attendance record for this shift.');
+                }
             }
 
             $schedule = WorkSchedule::forEmployee($employee, $shiftDate);
@@ -129,6 +136,7 @@ class AttendanceService
             $observed = $this->requireNetwork($request, $office, (int) $employee->tenant_id, 'Clock-out');
             $location = $this->requireLocation($request, $office, 'Clock-out');
             $local = $this->localNow($office);
+            $this->restoreEarlierShift($employee, $log, $this->timezone($office));
             $checkIn = (string) $log->check_in;
             $schedule = WorkSchedule::forEmployee($employee, Carbon::parse($checkIn, $this->timezone($office)));
 
@@ -191,6 +199,7 @@ class AttendanceService
             $employee = Employee::query()->whereKey($locked->employee_id)->where('tenant_id', $locked->tenant_id)->first();
             abort_if($employee === null, 404);
             $office = $this->officeForLog($locked, $employee);
+            $this->restoreEarlierShift($employee, $locked, $this->timezone($office));
             $checkIn = (string) $locked->check_in;
             $checkOut = $this->localNow($office)->format('Y-m-d H:i:s');
 
@@ -450,6 +459,72 @@ class AttendanceService
         }
 
         return 'present';
+    }
+
+    /**
+     * An overnight punch stored on a later calendar date belongs to the shift that was still open.
+     */
+    public function earlierShiftDate(Employee $employee, AttendanceLog $log, string $timezone): ?string
+    {
+        if ($log->check_in === null) {
+            return null;
+        }
+
+        $checkIn = Carbon::parse((string) $log->check_in, $timezone);
+        $schedule = WorkSchedule::forEmployee($employee, $checkIn);
+
+        if (! $schedule->crossesMidnight()) {
+            return null;
+        }
+
+        $intended = $schedule->attendanceDate($checkIn);
+        $stored = $log->work_date?->toDateString();
+        $earlier = $intended?->toDateString();
+
+        if ($stored === null || $earlier === null || $earlier >= $stored) {
+            return null;
+        }
+
+        return $earlier;
+    }
+
+    public function earlierShiftCanMove(Employee $employee, AttendanceLog $log, string $timezone): bool
+    {
+        $earlier = $this->earlierShiftDate($employee, $log, $timezone);
+
+        if ($earlier === null) {
+            return false;
+        }
+
+        return ! AttendanceLog::query()
+            ->where('employee_id', $employee->id)
+            ->where('tenant_id', $employee->tenant_id)
+            ->whereDate('work_date', $earlier)
+            ->whereKeyNot($log->id)
+            ->exists();
+    }
+
+    private function restoreEarlierShift(Employee $employee, AttendanceLog $log, string $timezone): void
+    {
+        $earlier = $this->earlierShiftDate($employee, $log, $timezone);
+
+        if ($earlier === null) {
+            return;
+        }
+
+        $occupied = AttendanceLog::query()
+            ->where('employee_id', $employee->id)
+            ->where('tenant_id', $employee->tenant_id)
+            ->whereDate('work_date', $earlier)
+            ->whereKeyNot($log->id)
+            ->lockForUpdate()
+            ->exists();
+
+        if ($occupied) {
+            return;
+        }
+
+        $log->forceFill(['work_date' => $earlier])->save();
     }
 
     private function shiftDate(Employee $employee, CarbonInterface $local): CarbonInterface
