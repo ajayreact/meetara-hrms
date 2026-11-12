@@ -1,7 +1,7 @@
 import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-table';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
-import { SectionCard } from '@/components/hrms/section-card';
+import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -90,28 +90,26 @@ function applyFilters(event: FormEvent<HTMLFormElement>) {
 
 function Breakdown({ title, rows }: { title: string; rows: CountRow[] }) {
     return (
-        <SectionCard title={title}>
+        <SectionCard className="min-w-0" title={title}>
             {rows.length === 0 ? (
                 <p className="text-sm text-slate-500">No leads in this range.</p>
             ) : (
-                <DataTable>
-                    <thead>
-                        <tr>
-                            <th className={headCell}>{title}</th>
-                            <th className={headCell}>Leads</th>
-                            <th className={headCell}>Converted</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div className="max-h-80 overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200">
+                    <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_4rem_5.25rem] gap-2 bg-blue-50 px-3 py-2.5 text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                        <span className="min-w-0 truncate">{title}</span>
+                        <span className="text-right">Leads</span>
+                        <span className="text-right">Converted</span>
+                    </div>
+                    <ul>
                         {rows.map((row) => (
-                            <tr key={row.label} className={bodyRow}>
-                                <td className={bodyCell}>{row.label}</td>
-                                <td className={bodyCell}>{row.total}</td>
-                                <td className={bodyCell}>{row.converted}</td>
-                            </tr>
+                            <li key={row.label} className="grid grid-cols-[minmax(0,1fr)_4rem_5.25rem] items-start gap-2 border-t border-slate-100 px-3 py-2.5 text-sm hover:bg-blue-50/60">
+                                <span className="min-w-0 break-words text-slate-900">{row.label || 'Not set'}</span>
+                                <span className="text-right tabular-nums text-slate-800">{row.total}</span>
+                                <span className="text-right tabular-nums text-slate-800">{row.converted}</span>
+                            </li>
                         ))}
-                    </tbody>
-                </DataTable>
+                    </ul>
+                </div>
             )}
         </SectionCard>
     );
@@ -147,22 +145,18 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                 <MetricCard tone="green" icon={CalendarClock} label="Follow-up activities" value={String(summary.activities)} />
             </div>
             <SectionCard title="Pipeline">
-                <DataTable>
-                    <thead>
-                        <tr>
-                            <th className={headCell}>Status</th>
-                            <th className={headCell}>Leads</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                {pipeline.length === 0 ? (
+                    <p className="text-sm text-slate-500">No pipeline counts in this range.</p>
+                ) : (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {pipeline.map((row) => (
-                            <tr key={row.value} className={bodyRow}>
-                                <td className={bodyCell}>{row.label}</td>
-                                <td className={bodyCell}>{row.count}</td>
-                            </tr>
+                            <div key={row.value} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5">
+                                <StatusBadge value={row.label} />
+                                <span className="text-lg font-semibold tabular-nums text-slate-950">{row.count}</span>
+                            </div>
                         ))}
-                    </tbody>
-                </DataTable>
+                    </div>
+                )}
             </SectionCard>
             <div className="mt-4">
                 <SectionCard title="Team Lead performance">
@@ -236,7 +230,7 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                     )}
                 </SectionCard>
             </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
                 <Breakdown title="State" rows={states} />
                 <Breakdown title="University" rows={universities} />
                 <Breakdown title="Graduation term" rows={graduationTerms} />
