@@ -143,19 +143,25 @@ export default function LeadIndexPage({
                     <Button type="button" variant={filters.pool === 'all' ? 'default' : 'outline'} onClick={() => visit({ pool: 'all', page: 1 })}>All leads</Button>
                     <Button type="button" variant={filters.pool === 'unassigned' ? 'default' : 'outline'} onClick={() => visit({ pool: 'unassigned', page: 1 })}>Unassigned pool</Button>
                 </div>
-                <form className="mb-4 grid gap-2 rounded-2xl bg-slate-50 p-3 lg:grid-cols-6" onSubmit={(event) => { event.preventDefault(); visit({ q: term, page: 1 }); }}>
-                    <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white lg:col-span-2" />
+                <form
+                    className="mb-4 grid items-end gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,0.9fr))_auto]"
+                    onSubmit={(event) => { event.preventDefault(); visit({ q: term, page: 1 }); }}
+                >
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-500">
+                        Search
+                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
+                    </label>
                     <Select label="State" value={filters.state} options={options.states} onChange={(value) => visit({ state: value, page: 1 })} />
                     <Select label="University" value={filters.university} options={options.universities} onChange={(value) => visit({ university: value, page: 1 })} />
                     <Select label="Graduation term" value={filters.term} options={options.terms} onChange={(value) => visit({ term: value, page: 1 })} />
-                    <label className="grid gap-1 text-xs text-slate-500">
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-500">
                         Pipeline status
-                        <select aria-label="Pipeline status" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={filters.status} onChange={(event) => visit({ status: event.target.value, page: 1 })}>
+                        <select aria-label="Pipeline status" className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={filters.status} onChange={(event) => visit({ status: event.target.value, page: 1 })}>
                             <option value="">All statuses</option>
                             {options.statuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                         </select>
                     </label>
-                    <div className="flex items-end gap-2 lg:col-span-6">
+                    <div className="flex gap-2">
                         <Button type="submit" variant="outline">Search</Button>
                         <Button type="button" variant="ghost" onClick={() => { setTerm(''); visit({ q: '', state: '', university: '', term: '', status: '', page: 1 }); }}>Clear</Button>
                     </div>
@@ -308,9 +314,9 @@ function Pagination({ page, pages, matching, perPage, onPage }: { page: number; 
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
     return (
-        <label className="grid gap-1 text-xs text-slate-500">
+        <label className="grid min-w-0 gap-1 text-xs text-slate-500">
             {label}
-            <select aria-label={label} className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={value} onChange={(event) => onChange(event.target.value)}>
+            <select aria-label={label} className="h-10 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={value} onChange={(event) => onChange(event.target.value)}>
                 <option value="">All</option>
                 {options.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
