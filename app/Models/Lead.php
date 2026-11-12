@@ -19,7 +19,7 @@ class Lead extends Model
         'interested' => 'Interested',
         'not_interested' => 'Not interested',
         'converted' => 'Converted',
-        'do_not_contact' => 'Do not contact',
+        'do_not_contact' => 'Not answering / Didn\'t connected',
     ];
 
     /**

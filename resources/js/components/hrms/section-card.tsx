@@ -80,6 +80,7 @@ const tones: Record<string, string> = {
     'Not interested': 'bg-rose-50 text-rose-700',
     Converted: 'bg-emerald-50 text-emerald-700',
     'Do not contact': 'bg-rose-50 text-rose-700',
+    'Not answering / Didn\'t connected': 'bg-rose-50 text-rose-700',
 };
 
 export function StatusBadge({ value }: { value: string }) {
