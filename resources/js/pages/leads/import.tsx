@@ -1,3 +1,4 @@
+import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-table';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
@@ -123,7 +124,7 @@ export default function LeadImportPage({
                             </form>
                         )}
                         {preview.rawStatus === 'imported' && (
-                            <p className="mt-3 text-sm text-slate-700">These leads are in the company pool. Team Lead and employee assignment is a later step.</p>
+                            <p className="mt-3 text-sm text-slate-700">These leads are in the company pool. Open Leads, choose Unassigned pool, select the rows, then choose Assign to Team Lead.</p>
                         )}
                         {preview.truncated && <p className="mt-3 text-sm text-slate-500">Showing the first 150 rows. The counts above include the whole sheet.</p>}
                         <div className="mt-4 flex flex-wrap gap-4">
@@ -131,37 +132,39 @@ export default function LeadImportPage({
                             <Link href="/leads/import" className="text-sm text-blue-700">Upload another file</Link>
                         </div>
                     </SectionCard>
-                    <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                        <table className="w-full min-w-[1100px] text-left text-sm">
-                            <thead className="bg-blue-50 text-xs text-slate-600">
+                    <div className="mt-4">
+                        <DataTable wide>
+                            <thead>
                                 <tr>
                                     {['Row', 'Date', 'Name', 'Email', 'Phone', 'LinkedIn', 'State', 'University', 'Graduation term', 'Experience', 'Designations', 'Result'].map((heading) => (
-                                        <th key={heading} className="px-3 py-3">{heading}</th>
+                                        <th key={heading} className={`${headCell} whitespace-nowrap`}>{heading}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {preview.rows.map((row) => (
-                                    <tr key={row.line} className="border-t border-slate-100 align-top">
-                                        <td className="px-3 py-3">{row.line}</td>
-                                        <td className="px-3 py-3">{row.importedOn || '—'}</td>
-                                        <td className="px-3 py-3">{row.name || '—'}</td>
-                                        <td className="px-3 py-3">{row.email || '—'}</td>
-                                        <td className="px-3 py-3">{row.phone || '—'}</td>
-                                        <td className="px-3 py-3">{row.linkedin || '—'}</td>
-                                        <td className="px-3 py-3">{row.state || '—'}</td>
-                                        <td className="px-3 py-3">{row.university || '—'}</td>
-                                        <td className="px-3 py-3">{row.graduationTerm || '—'}</td>
-                                        <td className="px-3 py-3">{row.experience || '—'}</td>
-                                        <td className="px-3 py-3">{row.designations || '—'}</td>
-                                        <td className="px-3 py-3">
+                                    <tr key={row.line} className={bodyRow}>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.line}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.importedOn || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap font-medium`}>{row.name || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.email || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.phone || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>
+                                            {row.linkedin ? <a href={row.linkedin} className="text-blue-700 hover:underline" target="_blank" rel="noreferrer">{row.linkedin}</a> : '—'}
+                                        </td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.state || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.university || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.graduationTerm || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.experience || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{row.designations || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>
                                             <StatusBadge value={outcomeLabel[row.outcome]} />
-                                            {row.reason && <p className="mt-1 text-slate-600">{row.reason}</p>}
+                                            {row.reason ? <span className="ml-2 text-slate-600">{row.reason}</span> : null}
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
-                        </table>
+                        </DataTable>
                     </div>
                 </div>
             )}

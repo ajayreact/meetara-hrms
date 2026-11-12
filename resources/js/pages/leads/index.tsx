@@ -1,4 +1,4 @@
-import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-table';
+import { bodyCell, bodyRow, DataTable, headCell, selectedRow } from '@/components/hrms/data-table';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
@@ -42,6 +42,7 @@ interface LeadIndexProps extends HrmsPageProps {
     matching: number;
     page: number;
     pages: number;
+    perPage?: number;
     selectedIds: number[] | null;
     selectable: boolean;
     canImport: boolean;
@@ -61,6 +62,7 @@ export default function LeadIndexPage({
     matching,
     page,
     pages,
+    perPage = 25,
     selectedIds,
     canImport,
     canAssign,
@@ -157,49 +159,111 @@ export default function LeadIndexPage({
                     {canAssign && selected.length > 0 && (
                         <Button type="button" onClick={() => router.post('/leads/assignments/prepare', { ids: selected })}>Assign to Team Lead</Button>
                     )}
-                    <span>{matching} matching · page {page} of {pages}</span>
                 </div>
                 {leads.length === 0 ? (
-                    <p className="text-sm text-slate-500">No leads match these filters.</p>
+                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No leads match these filters.</p>
                 ) : (
-                    <DataTable>
+                    <DataTable wide>
                         <thead>
                             <tr>
-                                <th className={headCell}>
+                                <th className={`${headCell} w-10`}>
                                     <input aria-label="Select all leads on this page" type="checkbox" checked={allOnPage} onChange={togglePage} />
                                 </th>
-                                {['Name', 'Email', 'Phone', 'State', 'University', 'Graduation term', 'Status', 'Import batch', 'Pool', 'Held by'].map((heading) => (
-                                    <th key={heading} className={headCell}>{heading}</th>
+                                {['Name', 'Email', 'Phone', 'State', 'University', 'Graduation term', 'Status', 'Pool'].map((heading) => (
+                                    <th key={heading} className={`${headCell} whitespace-nowrap`}>{heading}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {leads.map((lead) => (
-                                <tr key={lead.id} className={bodyRow}>
-                                    <td className={bodyCell}>
-                                        <input aria-label={`Select ${lead.name}`} type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggle(lead.id)} />
-                                    </td>
-                                    <td className={`${bodyCell} font-medium`}><Link href={`/leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
-                                    <td className={bodyCell}>{lead.email || '—'}</td>
-                                    <td className={bodyCell}>{lead.phone || '—'}</td>
-                                    <td className={bodyCell}>{lead.state || '—'}</td>
-                                    <td className={bodyCell}>{lead.university || '—'}</td>
-                                    <td className={bodyCell}>{lead.graduationTerm || '—'}</td>
-                                    <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
-                                    <td className={bodyCell}>{lead.batchName || '—'}</td>
-                                    <td className={bodyCell}>{lead.unassigned ? 'Unassigned' : 'Assigned'}</td>
-                                    <td className={bodyCell}>{lead.heldBy}</td>
-                                </tr>
-                            ))}
+                            {leads.map((lead, index) => {
+                                const isSelected = selected.includes(lead.id);
+
+                                return (
+                                    <tr key={lead.id} className={rowTone(isSelected, index)}>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>
+                                            <input aria-label={`Select ${lead.name}`} type="checkbox" checked={isSelected} onChange={() => toggle(lead.id)} />
+                                        </td>
+                                        <td className={`${bodyCell} whitespace-nowrap font-medium text-slate-950`}><Link href={`/leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
+                                        <td className={`${bodyCell} whitespace-nowrap text-slate-600`}>{lead.email || '—'}</td>
+                                        <td className={`${bodyCell} min-w-[11rem] whitespace-nowrap font-medium tabular-nums tracking-wide text-slate-950`}>{phoneLabel(lead.phone)}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{lead.university || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}><StatusBadge value={lead.statusLabel} /></td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${lead.unassigned ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
+                                                {lead.unassigned ? 'Unassigned' : 'Assigned'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </DataTable>
                 )}
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                    {page > 1 && <Button type="button" variant="outline" onClick={() => visit({ page: page - 1 })}>Previous</Button>}
-                    {page < pages && <Button type="button" variant="outline" onClick={() => visit({ page: page + 1 })}>Next</Button>}
-                </div>
+                <Pagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} />
             </SectionCard>
         </HrmsLayout>
+    );
+}
+
+function phoneLabel(phone: string): string {
+    const compact = phone.replace(/\s+/g, '').trim();
+
+    return compact === '' ? '—' : compact.replaceAll('-', '\u2011');
+}
+
+function rowTone(isSelected: boolean, index: number): string {
+    if (isSelected) {
+        return `${bodyRow} ${selectedRow}`;
+    }
+
+    return `${bodyRow} ${index % 2 === 1 ? 'bg-slate-50/80' : 'bg-white'}`;
+}
+
+function pageItems(page: number, pages: number): Array<number | 'gap'> {
+    if (pages <= 7) {
+        return Array.from({ length: pages }, (_, index) => index + 1);
+    }
+
+    const items: Array<number | 'gap'> = [1];
+    const start = Math.max(2, page - 1);
+    const end = Math.min(pages - 1, page + 1);
+
+    if (start > 2) {
+        items.push('gap');
+    }
+
+    for (let number = start; number <= end; number += 1) {
+        items.push(number);
+    }
+
+    if (end < pages - 1) {
+        items.push('gap');
+    }
+
+    items.push(pages);
+
+    return items;
+}
+
+function Pagination({ page, pages, matching, perPage, onPage }: { page: number; pages: number; matching: number; perPage: number; onPage: (page: number) => void }) {
+    const start = matching === 0 ? 0 : (page - 1) * perPage + 1;
+    const end = matching === 0 ? 0 : Math.min(page * perPage, matching);
+
+    return (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <p className="text-sm text-slate-600">Showing {start}-{end} of {matching}</p>
+            <div className="flex flex-wrap items-center gap-1">
+                <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</Button>
+                {pageItems(page, pages).map((item, index) => (
+                    item === 'gap'
+                        ? <span key={`gap-${index}`} className="px-1 text-slate-400">...</span>
+                        : <Button key={item} type="button" size="sm" variant={item === page ? 'default' : 'outline'} aria-current={item === page ? 'page' : undefined} onClick={() => onPage(item)}>{item}</Button>
+                ))}
+                <Button type="button" variant="outline" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</Button>
+            </div>
+        </div>
     );
 }
 

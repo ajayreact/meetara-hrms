@@ -81,6 +81,7 @@ class LeadDirectory
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
+            'perPage' => self::PAGE_SIZE,
             'selectedIds' => $this->selectedIds($tenantId, $filters, $input),
             'selectable' => true,
         ];
