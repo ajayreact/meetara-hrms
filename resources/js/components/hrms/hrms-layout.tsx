@@ -45,13 +45,13 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
     }
 
     return (
-        <div className="min-h-screen bg-[#f3f6fb] text-slate-950">
+        <div className="min-h-screen bg-[linear-gradient(180deg,#e8eef8_0%,#f3f6fb_28%,#f7f9fc_100%)] text-slate-950">
             <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-3">
                 Skip to content
             </a>
             <div className="flex min-h-screen w-full min-w-0">
-                <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} ${compact ? 'md:w-[76px]' : 'md:w-60'} no-print fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white shadow-sm transition-[width,transform] md:sticky md:top-0 md:h-dvh md:translate-x-0 md:self-start md:shadow-none`}>
-                    <div className={`flex items-center gap-2 px-3 pt-4 pb-3 ${compact ? 'md:flex-col' : ''}`}>
+                <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} ${compact ? 'md:w-[76px]' : 'md:w-60'} no-print fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] shadow-[4px_0_24px_-18px_rgba(15,23,42,0.35)] transition-[width,transform] md:sticky md:top-0 md:h-dvh md:translate-x-0 md:self-start md:shadow-none`}>
+                    <div className={`flex items-center gap-2 border-b border-blue-50 px-3 pt-4 pb-3 ${compact ? 'md:flex-col' : ''}`}>
                         <Link href="/dashboard" className="flex min-w-0 flex-1 justify-center md:justify-start" onClick={() => setOpen(false)}>
                             <img src="/brand/veltrix-logo.png" alt="Veltrix" className={`h-9 w-auto object-contain ${compact ? 'max-w-[148px] md:max-w-10' : 'max-w-[148px]'}`} />
                         </Link>
@@ -81,12 +81,12 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                 {open && <button type="button" aria-label="Close menu" className="fixed inset-0 z-30 bg-slate-900/40 md:hidden" onClick={() => setOpen(false)} />}
 
                 <div className="min-w-0 flex-1">
-                    <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
+                    <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 py-3 shadow-[0_8px_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur md:px-6">
                         <Button type="button" variant="outline" size="icon" className="md:hidden" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
                             {open ? <X /> : <Menu />}
                         </Button>
                         <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 sm:flex" aria-hidden="true">
+                            <span className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-600/30 sm:flex" aria-hidden="true">
                                 <Building2 className="size-4" />
                             </span>
                             <div className="min-w-0">
@@ -95,7 +95,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                             </div>
                         </div>
                         <div className="flex min-w-0 items-center gap-2">
-                            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">{initials(workspace.userName)}</span>
+                            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white shadow-sm shadow-blue-600/30">{initials(workspace.userName)}</span>
                             <span className="hidden min-w-0 text-right sm:block">
                                 <span className="block truncate text-sm font-medium text-slate-900">{workspace.userName}</span>
                                 <span className="block text-xs text-slate-500">{workspace.roleLabel}</span>

@@ -24,19 +24,19 @@ interface PayrollBoard {
     outstanding: number;
 }
 
-const roles = [
-    ['Head of Operations', 'Can manage offices, shifts, and roles. Prepares calculated payroll, approves it, and records payments.'],
-    ['HR & Assistant Operations', 'Can maintain employees, attendance, leave, and salary imports.'],
-    ['Company Manager', 'Can be assigned as the reporting manager for employees.'],
-    ['Team Lead', 'Sees the assigned team.'],
+const roles: Array<{ title: string; detail: string; tone: string }> = [
+    { title: 'Head of Operations', detail: 'Can manage offices, shifts, and roles. Prepares calculated payroll, approves it, and records payments.', tone: 'border-blue-100 bg-blue-50/80' },
+    { title: 'HR & Assistant Operations', detail: 'Can maintain employees, attendance, leave, and salary imports.', tone: 'border-emerald-100 bg-emerald-50/80' },
+    { title: 'Company Manager', detail: 'Can be assigned as the reporting manager for employees.', tone: 'border-amber-100 bg-amber-50/80' },
+    { title: 'Team Lead', detail: 'Sees the assigned team.', tone: 'border-sky-100 bg-sky-50/80' },
 ];
 
-const shortcuts: Array<{ href: string; label: string; icon: LucideIcon }> = [
-    { href: '/employees', label: 'Employees', icon: Users },
-    { href: '/offices', label: 'Offices', icon: Building2 },
-    { href: '/payroll/runs', label: 'Payroll runs', icon: Receipt },
-    { href: '/holidays', label: 'Holidays', icon: CalendarDays },
-    { href: '/leave', label: 'Leave', icon: CalendarRange },
+const shortcuts: Array<{ href: string; label: string; icon: LucideIcon; tone: string }> = [
+    { href: '/employees', label: 'Employees', icon: Users, tone: 'bg-blue-600 text-white shadow-blue-600/25' },
+    { href: '/offices', label: 'Offices', icon: Building2, tone: 'bg-emerald-600 text-white shadow-emerald-600/25' },
+    { href: '/payroll/runs', label: 'Payroll runs', icon: Receipt, tone: 'bg-slate-800 text-white shadow-slate-800/25' },
+    { href: '/holidays', label: 'Holidays', icon: CalendarDays, tone: 'bg-amber-500 text-white shadow-amber-500/25' },
+    { href: '/leave', label: 'Leave', icon: CalendarRange, tone: 'bg-sky-600 text-white shadow-sky-600/25' },
 ];
 
 function dateZone(zones: string[], officeName: string | null, role: string): string {
@@ -70,21 +70,21 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
 
     return (
         <HrmsLayout workspace={workspace} title="Dashboard">
-            <section className="relative mb-4 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-sky-100 via-blue-50 to-white px-5 py-4 shadow-sm">
-                <div className="pointer-events-none absolute -top-10 right-16 size-40 rounded-full bg-sky-200/70 blur-2xl" aria-hidden="true" />
-                <div className="pointer-events-none absolute right-0 -bottom-8 size-32 rounded-full bg-blue-200/50 blur-2xl" aria-hidden="true" />
+            <section className="relative mb-4 overflow-hidden rounded-2xl border border-blue-200/70 bg-[linear-gradient(135deg,#1d4ed8_0%,#2563eb_42%,#0ea5e9_100%)] px-5 py-5 text-white shadow-[0_18px_40px_-24px_rgba(37,99,235,0.8)]">
+                <div className="pointer-events-none absolute -top-12 right-10 size-44 rounded-full bg-sky-300/30 blur-2xl" aria-hidden="true" />
+                <div className="pointer-events-none absolute right-0 -bottom-10 size-36 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
                 <div className="relative flex flex-wrap items-center justify-between gap-4">
                     <div className="min-w-0">
-                        <p className="text-sm text-slate-500">{hello},</p>
-                        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{first} <span aria-hidden="true">👋</span></h1>
-                        <p className="mt-1 text-sm text-slate-600">Here&apos;s what&apos;s happening at {company} today.</p>
+                        <p className="text-sm text-blue-100">{hello},</p>
+                        <h1 className="text-3xl font-semibold tracking-tight text-white">{first}</h1>
+                        <p className="mt-1 text-sm text-blue-50/95">Here&apos;s what&apos;s happening at {company} today.</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-sm">
-                        <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
-                            <CalendarDays className="size-4 text-blue-700" aria-hidden="true" />
+                    <div className="rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 backdrop-blur-sm">
+                        <div className="flex items-center gap-2 text-sm font-medium text-white">
+                            <CalendarDays className="size-4 text-sky-100" aria-hidden="true" />
                             <time dateTime={todayStamp}>{today}</time>
                         </div>
-                        <p className="mt-0.5 pl-6 text-xs text-slate-500">{dateZone(zones, workspace.officeName, workspace.roleLabel)}</p>
+                        <p className="mt-0.5 pl-6 text-xs text-blue-100">{dateZone(zones, workspace.officeName, workspace.roleLabel)}</p>
                     </div>
                 </div>
             </section>
@@ -103,8 +103,8 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                     ) : (
                         <ul className="flex flex-col gap-3">
                             {offices.map((office) => (
-                                <li key={office.id} className="grid items-center gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
-                                    <span className="flex size-[4.5rem] items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-50 text-blue-700" aria-hidden="true">
+                                <li key={office.id} className="grid items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/90 to-sky-50/60 p-3 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+                                    <span className="flex size-[4.5rem] items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/30" aria-hidden="true">
                                         <Building2 className="size-7" />
                                     </span>
                                     <div className="min-w-0">
@@ -130,8 +130,8 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                 </SectionCard>
                 <SectionCard className="flex h-full flex-col xl:col-span-5" title="Payroll status" extra={<Link className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline" href="/payroll">Open payroll</Link>}>
                     {runs === 0 ? (
-                        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-                            <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700" aria-hidden="true">
+                        <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                            <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-slate-800 text-white shadow-sm shadow-slate-800/30" aria-hidden="true">
                                 <Receipt className="size-5" />
                             </span>
                             <p className="text-sm font-semibold text-slate-900">No payroll runs yet</p>
@@ -139,11 +139,11 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                             <Button asChild className="mt-4"><Link href="/payroll/runs">Open payroll runs</Link></Button>
                         </div>
                     ) : (
-                        <ul className="divide-y divide-slate-100 text-sm text-slate-700">
-                            <li className="flex justify-between py-2"><span>Awaiting review</span><span className="font-semibold">{payrollBoard?.review ?? 0}</span></li>
-                            <li className="flex justify-between py-2"><span>Approved</span><span className="font-semibold">{payrollBoard?.approved ?? 0}</span></li>
-                            <li className="flex justify-between py-2"><span>Processed</span><span className="font-semibold">{payrollBoard?.processed ?? 0}</span></li>
-                            <li className="flex justify-between py-2"><span>Outstanding payments</span><span className="font-semibold">{payrollBoard?.outstanding ?? 0}</span></li>
+                        <ul className="grid gap-2 text-sm text-slate-700">
+                            <li className="flex justify-between rounded-xl bg-amber-50 px-3 py-2"><span>Awaiting review</span><span className="font-semibold text-amber-900">{payrollBoard?.review ?? 0}</span></li>
+                            <li className="flex justify-between rounded-xl bg-emerald-50 px-3 py-2"><span>Approved</span><span className="font-semibold text-emerald-800">{payrollBoard?.approved ?? 0}</span></li>
+                            <li className="flex justify-between rounded-xl bg-blue-50 px-3 py-2"><span>Processed</span><span className="font-semibold text-blue-800">{payrollBoard?.processed ?? 0}</span></li>
+                            <li className="flex justify-between rounded-xl bg-rose-50 px-3 py-2"><span>Outstanding payments</span><span className="font-semibold text-rose-800">{payrollBoard?.outstanding ?? 0}</span></li>
                         </ul>
                     )}
                 </SectionCard>
@@ -151,10 +151,10 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
             <div className="mt-4">
                 <SectionCard title="Roles and responsibilities">
                     <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        {roles.map(([title, detail]) => (
-                            <li key={title} className="rounded-xl bg-slate-50 px-3 py-2.5">
-                                <p className="text-sm font-medium text-slate-950">{title}</p>
-                                <p className="mt-0.5 text-xs leading-5 text-slate-500">{detail}</p>
+                        {roles.map((role) => (
+                            <li key={role.title} className={`rounded-xl border px-3 py-2.5 ${role.tone}`}>
+                                <p className="text-sm font-medium text-slate-950">{role.title}</p>
+                                <p className="mt-0.5 text-xs leading-5 text-slate-600">{role.detail}</p>
                             </li>
                         ))}
                     </ul>
@@ -165,8 +165,8 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                         {shortcuts.map((item) => (
                             <li key={item.href}>
-                                <Link href={item.href} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none">
-                                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                                <Link href={item.href} className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-sm font-medium text-slate-800 transition-colors hover:border-blue-100 hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none">
+                                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${item.tone}`}>
                                         <item.icon className="size-4" aria-hidden="true" />
                                     </span>
                                     {item.label}

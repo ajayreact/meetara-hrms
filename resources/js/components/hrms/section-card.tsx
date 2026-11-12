@@ -1,8 +1,11 @@
 export function SectionCard({ title, extra, children, className = '', divided = false }: { title: string; extra?: React.ReactNode; children: React.ReactNode; className?: string; divided?: boolean }) {
     return (
-        <section className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}>
+        <section className={`rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.35)] ${className}`}>
             <div className={`mb-3 flex flex-wrap items-center justify-between gap-3 ${divided ? 'border-b border-slate-100 pb-3' : ''}`}>
-                <h2 className="text-[15px] font-semibold text-slate-950">{title}</h2>
+                <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-950">
+                    <span className="inline-block size-2 rounded-full bg-blue-600" aria-hidden="true" />
+                    {title}
+                </h2>
                 {extra}
             </div>
             {children}
@@ -70,6 +73,13 @@ const tones: Record<string, string> = {
     'Not linked': 'bg-slate-100 text-slate-600',
     Valid: 'bg-emerald-50 text-emerald-700',
     'Needs correction': 'bg-rose-50 text-rose-700',
+    New: 'bg-rose-50 text-rose-700',
+    Contacted: 'bg-sky-50 text-sky-700',
+    'Follow-up required': 'bg-amber-50 text-amber-800',
+    Interested: 'bg-blue-50 text-blue-700',
+    'Not interested': 'bg-rose-50 text-rose-700',
+    Converted: 'bg-emerald-50 text-emerald-700',
+    'Do not contact': 'bg-rose-50 text-rose-700',
 };
 
 export function StatusBadge({ value }: { value: string }) {
