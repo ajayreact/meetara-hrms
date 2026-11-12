@@ -48,6 +48,10 @@ class LeadDistributionTest extends TestCase
                 ->where('summary.myTotal', 0)
                 ->where('summary.teamTotal', 1)
                 ->where('section', 'pending')
+                ->where('destinations.0.id', $company->leadEmployeeId)
+                ->where('destinations.0.name', 'Me (Team Lead)')
+                ->where('destinations.0.self', true)
+                ->where('destinations.1.id', $company->reportEmployeeId)
                 ->where('reports', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => (int) $row['id'] === $company->reportEmployeeId && $row['name'] === 'retainlead-REP Person')));
 
         $this->actingAs($company->lead)->post('/my-leads/retain/review', ['ids' => [$leadId]])
@@ -164,12 +168,17 @@ class LeadDistributionTest extends TestCase
                 })
                 ->where('reports', fn ($rows): bool => collect($rows)->pluck('id')->map(fn ($id): int => (int) $id)->all() === [$company->reportEmployeeId]));
 
-        foreach ([$company->leadEmployeeId, $company->outsideEmployeeId, $inactiveId, $otherReportId, $other->reportEmployeeId] as $employeeId) {
+        foreach ([$company->outsideEmployeeId, $inactiveId, $otherReportId, $other->reportEmployeeId] as $employeeId) {
             $this->actingAs($company->lead)->post('/my-leads/distribute', [
                 'ids' => [$ids[0]],
                 'employee_id' => $employeeId,
             ])->assertOk()->assertInertia(fn (Assert $page) => $page->where('error', 'Choose an active employee who reports to you.'));
         }
+
+        $this->actingAs($company->lead)->post('/my-leads/distribute', [
+            'ids' => [$ids[0]],
+            'employee_id' => $company->leadEmployeeId,
+        ])->assertOk()->assertInertia(fn (Assert $page) => $page->where('error', 'Select at least one lead that is not yet distributed.'));
 
         $this->actingAs($company->lead)->post('/my-leads/distribute', [
             'ids' => $ids,
@@ -217,6 +226,61 @@ class LeadDistributionTest extends TestCase
                 ->where('summary.teamTotal', 2)
                 ->where('leads.0.id', $leadId));
         $this->actingAs($company->employee)->post('/my-leads/recall', ['ids' => [$leadId]])->assertForbidden();
+    }
+
+    public function test_team_lead_can_assign_pool_leads_to_herself_or_an_employee(): void
+    {
+        $company = CompanyFixture::make('Assign Self', 'assignself');
+        $mine = $this->lead($company, $company->leadEmployeeId, ['name' => 'Keep For Me']);
+        $theirs = $this->lead($company, $company->leadEmployeeId, ['name' => 'Give To Report']);
+        $left = $this->lead($company, $company->leadEmployeeId, ['name' => 'Still In Pool']);
+
+        $this->actingAs($company->lead)->post('/my-leads/distribute/review', [
+            'ids' => [$mine],
+            'employee_id' => $company->leadEmployeeId,
+        ])->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('leads/team-confirm')
+            ->where('action', 'retain')
+            ->where('count', 1));
+
+        $this->actingAs($company->lead)->post('/my-leads/distribute', [
+            'ids' => [$mine],
+            'employee_id' => $company->leadEmployeeId,
+        ])->assertRedirect(route('hrms.my-leads', ['section' => 'retained']))
+            ->assertSessionHas('status', 'Retained 1 lead.');
+
+        $this->assertSame($company->leadEmployeeId, (int) DB::table('leads')->where('id', $mine)->value('assignee_employee_id'));
+        $this->assertSame(1, DB::table('lead_assignments')->where('lead_id', $mine)->where('note', 'Retained by the Team Lead')->count());
+
+        $this->actingAs($company->lead)->post('/my-leads/distribute', [
+            'ids' => [$theirs],
+            'employee_id' => $company->reportEmployeeId,
+        ])->assertRedirect(route('hrms.my-leads', ['section' => 'distributed']))
+            ->assertSessionHas('status', 'Distributed 1 lead to assignself-REP Person.');
+
+        $this->assertSame($company->reportEmployeeId, (int) DB::table('leads')->where('id', $theirs)->value('assignee_employee_id'));
+        $this->assertNull(DB::table('leads')->where('id', $left)->value('assignee_employee_id'));
+
+        $this->actingAs($company->lead)->get('/my-leads')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.myTotal', 1)
+                ->where('summary.distributed', 1)
+                ->where('summary.pending', 1)
+                ->where('summary.teamTotal', 3)
+                ->where('destinations', fn ($rows): bool => collect($rows)->first()['name'] === 'Me (Team Lead)'
+                    && collect($rows)->contains(fn ($row): bool => (int) $row['id'] === $company->reportEmployeeId && $row['self'] === false)));
+
+        $this->actingAs($company->lead)->get('/my-leads?section=total')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('section', 'total')->where('matching', 3));
+
+        $this->actingAs($company->lead)->post("/my-leads/{$left}/follow-ups", [
+            'pipeline_status' => 'contacted',
+            'follow_up_on' => '2026-11-20',
+            'remarks' => 'Status only',
+        ])->assertRedirect("/my-leads/{$left}");
+        $this->assertNull(DB::table('leads')->where('id', $left)->value('assignee_employee_id'));
     }
 
     public function test_team_lead_allocation_counts_use_the_priya_split_and_ignore_other_teams(): void
@@ -272,8 +336,10 @@ class LeadDistributionTest extends TestCase
                 ->where('leadBoard.pending', 30)
                 ->where('leadBoard.teamTotal', 100));
 
-        $this->actingAs($company->lead)->post('/my-leads/retain', ['ids' => array_slice($pendingIds, 0, 5)])
-            ->assertRedirect(route('hrms.my-leads', ['section' => 'retained']));
+        $this->actingAs($company->lead)->post('/my-leads/distribute', [
+            'ids' => array_slice($pendingIds, 0, 5),
+            'employee_id' => $company->leadEmployeeId,
+        ])->assertRedirect(route('hrms.my-leads', ['section' => 'retained']));
         $this->actingAs($company->lead)->get('/my-leads')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page

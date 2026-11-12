@@ -124,9 +124,10 @@ class LeadReportTest extends TestCase
                     return count($rows) === 2
                         && $lead !== null
                         && (int) $lead['total'] === 3
-                        && (int) $lead['undistributed'] === 1
                         && (int) $lead['retained'] === 1
                         && (int) $lead['distributed'] === 1
+                        && (int) $lead['undistributed'] === 1
+                        && (int) $lead['total'] === (int) $lead['retained'] + (int) $lead['distributed'] + (int) $lead['undistributed']
                         && (int) $lead['converted'] === 1
                         && (int) $lead['conversionRate'] === 33
                         && (int) $lead['dueToday'] === 1

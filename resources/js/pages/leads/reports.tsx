@@ -159,7 +159,7 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                 )}
             </SectionCard>
             <div className="mt-4">
-                <SectionCard title="Team Lead performance">
+                <SectionCard title="Team Lead allocation">
                     {teamLeads.length === 0 ? (
                         <p className="text-sm text-slate-500">No leads have a Team Lead in this range.</p>
                     ) : (
@@ -167,10 +167,10 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                             <thead>
                                 <tr>
                                     <th className={headCell}>Team Lead</th>
-                                    <th className={headCell}>Leads</th>
-                                    <th className={headCell}>Not distributed</th>
-                                    <th className={headCell}>Retained</th>
-                                    <th className={headCell}>With employees</th>
+                                    <th className={headCell}>Total received</th>
+                                    <th className={headCell}>Team Lead's own</th>
+                                    <th className={headCell}>Distributed to employees</th>
+                                    <th className={headCell}>Undistributed</th>
                                     <th className={headCell}>Converted</th>
                                     <th className={headCell}>Due today</th>
                                     <th className={headCell}>Overdue</th>
@@ -182,9 +182,9 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                                     <tr key={row.id} className={bodyRow}>
                                         <td className={bodyCell}>{row.name}</td>
                                         <td className={bodyCell}>{row.total}</td>
-                                        <td className={bodyCell}>{row.undistributed}</td>
                                         <td className={bodyCell}>{row.retained}</td>
                                         <td className={bodyCell}>{row.distributed}</td>
+                                        <td className={bodyCell}>{row.undistributed}</td>
                                         <td className={bodyCell}>{row.converted} ({row.conversionRate}%)</td>
                                         <td className={bodyCell}>{row.dueToday}</td>
                                         <td className={bodyCell}>{row.overdue}</td>

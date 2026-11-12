@@ -54,9 +54,10 @@ interface FollowUpRecord {
     at: string;
 }
 
-interface DirectReport {
+interface Destination {
     id: number;
     name: string;
+    self?: boolean;
 }
 
 interface ImportBatch {
@@ -85,6 +86,7 @@ export default function LeadShowPage({
     statuses = [],
     backHref = '/leads',
     reports = [],
+    destinations,
     notice,
     error,
 }: HrmsPageProps & {
@@ -99,17 +101,20 @@ export default function LeadShowPage({
     followUpUrl?: string;
     statuses?: { value: string; label: string }[];
     backHref?: string;
-    reports?: DirectReport[];
+    reports?: Destination[];
+    destinations?: Destination[];
     notice?: string | null;
     error?: string | null;
 }) {
+    const assignmentDestinations = destinations ?? reports;
     const assign = useForm({ ids: [lead.id] });
     const followUp = useForm({
         pipeline_status: lead.status,
         follow_up_on: lead.followUpOn ?? '',
         remarks: lead.remarks,
     });
-    const [reportId, setReportId] = useState(reports[0]?.id ?? 0);
+    const [assigneeId, setAssigneeId] = useState(assignmentDestinations[0]?.id ?? 0);
+    const selectedDestination = assignmentDestinations.find((row) => row.id === assigneeId) ?? assignmentDestinations[0] ?? null;
     const showFollowUp = canFollowUp && followUpUrl !== '';
     const candidateFacts = [
         { icon: Mail, label: 'Email', value: lead.email || '—' },
@@ -140,9 +145,6 @@ export default function LeadShowPage({
                     <div className="flex flex-wrap items-center gap-3">
                         {canAssign && lead.unassigned && (
                             <Button type="button" disabled={assign.processing} onClick={() => assign.post('/leads/assignments/prepare')}>Assign to Team Lead</Button>
-                        )}
-                        {canManage && placement?.section === 'pending' && (
-                            <Button type="button" onClick={() => router.post('/my-leads/retain/review', { ids: [lead.id] })}>Retain</Button>
                         )}
                         {canManage && placement?.section === 'distributed' && (
                             <Button type="button" onClick={() => router.post('/my-leads/recall/review', { ids: [lead.id] })}>Take back</Button>
@@ -221,21 +223,27 @@ export default function LeadShowPage({
                 </SectionCard>
             </div>
 
-            {canManage && placement?.section === 'pending' && reports.length > 0 && (
+            {canManage && placement?.section === 'pending' && assignmentDestinations.length > 0 && (
                 <form
                     className="mt-4 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        router.post('/my-leads/distribute/review', { ids: [lead.id], employee_id: reportId });
+                        if (selectedDestination?.self) {
+                            router.post('/my-leads/retain/review', { ids: [lead.id] });
+
+                            return;
+                        }
+
+                        router.post('/my-leads/distribute/review', { ids: [lead.id], employee_id: assigneeId });
                     }}
                 >
                     <label className="grid min-w-56 flex-1 gap-1 text-xs text-slate-500">
-                        Direct report
-                        <select aria-label="Direct report" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={reportId} onChange={(event) => setReportId(Number(event.target.value))}>
-                            {reports.map((report) => <option key={report.id} value={report.id}>{report.name}</option>)}
+                        Assign to
+                        <select aria-label="Assign to" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={assigneeId} onChange={(event) => setAssigneeId(Number(event.target.value))}>
+                            {assignmentDestinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.name}</option>)}
                         </select>
                     </label>
-                    <Button type="submit">Distribute this lead</Button>
+                    <Button type="submit">{selectedDestination?.self ? 'Assign to me' : 'Assign this lead'}</Button>
                 </form>
             )}
 

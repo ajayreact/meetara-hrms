@@ -126,7 +126,9 @@ class LeadDistributionController extends Controller
             ]);
         }
 
-        return redirect()->route('hrms.my-leads', ['section' => $section])->with('status', $result['message']);
+        return redirect()
+            ->route('hrms.my-leads', ['section' => $result['section'] ?? $section])
+            ->with('status', $result['message']);
     }
 
     /**

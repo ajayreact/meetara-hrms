@@ -48,6 +48,7 @@ class LeadDistribution
             'myPipeline' => $this->pipelineCounts($context['tenantId'], $context['employeeId'], 'retained'),
             'employees' => $this->employeeSummary($context['tenantId'], $context['employeeId']),
             'reports' => $this->reports($context['tenantId'], $context['employeeId']),
+            'destinations' => $this->destinations($context['tenantId'], $context['employeeId']),
             'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $names, $today, $section))->all(),
             'matching' => $matching,
             'page' => $page,
@@ -121,6 +122,7 @@ class LeadDistribution
             'canManage' => true,
             'backHref' => '/my-leads',
             'reports' => $this->reports($context['tenantId'], $context['employeeId']),
+            'destinations' => $this->destinations($context['tenantId'], $context['employeeId']),
             ...$this->timeline($context['tenantId'], $leadId),
         ];
     }
@@ -160,6 +162,10 @@ class LeadDistribution
     {
         $context = $this->context($actor);
 
+        if ($employeeId === $context['employeeId']) {
+            return $this->reviewRetain($actor, $ids);
+        }
+
         return $this->review($actor, $ids, 'distribute', $this->requireReport($context, $employeeId));
     }
 
@@ -188,6 +194,11 @@ class LeadDistribution
     public function distribute(User $actor, array $ids, int $employeeId): array
     {
         $context = $this->context($actor);
+
+        if ($employeeId === $context['employeeId']) {
+            return $this->retain($actor, $ids);
+        }
+
         $report = $this->requireReport($context, $employeeId);
 
         return $this->commit($actor, $ids, 'distribute', $report);
@@ -262,6 +273,7 @@ class LeadDistribution
             return [
                 'count' => $count,
                 'message' => $this->successMessage($action, $count, is_array($report) ? $report['name'] : ''),
+                'section' => $action === 'distribute' ? 'distributed' : 'retained',
             ];
         });
     }
@@ -538,6 +550,10 @@ class LeadDistribution
     {
         $query = Lead::query()->inCompany($tenantId)->where('leads.team_lead_employee_id', $employeeId);
 
+        if ($section === 'total') {
+            return $query;
+        }
+
         if ($section === 'retained') {
             return $query->where('leads.assignee_employee_id', $employeeId);
         }
@@ -556,7 +572,7 @@ class LeadDistribution
      */
     private function selectedIds(array $context, string $section, array $input): ?array
     {
-        if ((string) ($input['selection'] ?? '') !== 'matching' || $section === 'retained') {
+        if ((string) ($input['selection'] ?? '') !== 'matching' || ! in_array($section, ['pending', 'distributed'], true)) {
             return null;
         }
 
@@ -678,7 +694,7 @@ class LeadDistribution
             'followUpOn' => $followUpOn,
             'remarks' => (string) ($lead->remarks ?? ''),
             'reminder' => $this->reminder($followUpOn, $today),
-            'canFollowUp' => in_array($section, ['pending', 'retained', 'distributed'], true),
+            'canFollowUp' => in_array($section, ['total', 'pending', 'retained', 'distributed'], true),
             'assigneeName' => $assigneeId === null ? '' : (string) ($names[$assigneeId] ?? ''),
         ];
     }
@@ -760,13 +776,13 @@ class LeadDistribution
             $label = 'Company pool';
         } elseif ($assigneeId === null) {
             $section = 'pending';
-            $label = 'Not yet distributed';
+            $label = 'Pool';
         } elseif ($assigneeId === $teamLeadId) {
             $section = 'retained';
-            $label = 'Retained by the Team Lead';
+            $label = 'My Leads';
         } else {
             $section = 'distributed';
-            $label = 'Distributed to an employee';
+            $label = 'Distributed to Employees';
         }
 
         return [
@@ -907,7 +923,31 @@ class LeadDistribution
 
     private function section(string $section): string
     {
-        return in_array($section, ['pending', 'retained', 'distributed'], true) ? $section : 'pending';
+        return in_array($section, ['total', 'pending', 'retained', 'distributed'], true) ? $section : 'pending';
+    }
+
+    /**
+     * Assignment destinations for the pool: the Team Lead herself, then active direct reports.
+     *
+     * @return list<array{id: int, name: string, self: bool}>
+     */
+    private function destinations(int $tenantId, int $employeeId): array
+    {
+        $self = [
+            'id' => $employeeId,
+            'name' => 'Me (Team Lead)',
+            'self' => true,
+        ];
+        $reports = array_map(
+            fn (array $report): array => [
+                'id' => $report['id'],
+                'name' => $report['name'],
+                'self' => false,
+            ],
+            $this->reports($tenantId, $employeeId),
+        );
+
+        return [$self, ...$reports];
     }
 
     /**

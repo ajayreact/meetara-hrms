@@ -53,19 +53,21 @@ interface RecentFollowUp {
     at: string;
 }
 
-interface DirectReport {
+interface Destination {
     id: number;
     name: string;
+    self?: boolean;
 }
 
-type Section = 'pending' | 'retained' | 'distributed';
+type Section = 'total' | 'pending' | 'retained' | 'distributed';
 
 interface TeamPageProps extends HrmsPageProps {
     summary: { pending: number; retained: number; distributed: number; myTotal: number; teamTotal: number };
     section: Section;
     myPipeline?: { value: string; label: string; count: number }[];
     employees: EmployeeSummary[];
-    reports: DirectReport[];
+    reports?: Destination[];
+    destinations?: Destination[];
     attention: { queue: 'overdue' | 'today' | 'upcoming'; overdue: number; today: number; upcoming: number; leads: AttentionLead[] };
     recentFollowUps: RecentFollowUp[];
     leads: TeamLeadRow[];
@@ -79,7 +81,8 @@ interface TeamPageProps extends HrmsPageProps {
 }
 
 const sectionCopy: Record<Section, string> = {
-    pending: 'Not yet distributed',
+    total: 'Total Leads',
+    pending: 'Pool',
     retained: 'My Leads',
     distributed: 'Distributed to Employees',
 };
@@ -90,7 +93,8 @@ export default function TeamLeadPage({
     section,
     myPipeline = [],
     employees,
-    reports,
+    reports = [],
+    destinations,
     attention,
     recentFollowUps,
     leads,
@@ -102,19 +106,33 @@ export default function TeamLeadPage({
     notice,
     error,
 }: TeamPageProps) {
+    const assignmentDestinations = destinations ?? [
+        ...reports.map((report) => ({ ...report, self: report.self ?? false })),
+    ];
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
-    const [reportId, setReportId] = useState(reports[0]?.id ?? 0);
+    const [assigneeId, setAssigneeId] = useState(assignmentDestinations[0]?.id ?? 0);
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
     const pageIds = leads.map((lead) => lead.id);
     const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
-    const canSelect = section !== 'retained';
+    const canSelect = section === 'pending' || section === 'distributed';
+    const selectedDestination = assignmentDestinations.find((row) => row.id === assigneeId) ?? assignmentDestinations[0] ?? null;
 
     useEffect(() => {
         if (selectionKey !== null) {
             setSelected(selectionKey === '' ? [] : selectionKey.split(',').map((id) => Number(id)));
         }
     }, [selectionKey]);
+
+    useEffect(() => {
+        if (assignmentDestinations.length === 0) {
+            return;
+        }
+
+        if (!assignmentDestinations.some((row) => row.id === assigneeId)) {
+            setAssigneeId(assignmentDestinations[0].id);
+        }
+    }, [assignmentDestinations, assigneeId]);
 
     function visit(next: { section?: Section; page?: number; selection?: string }) {
         const nextSection = next.section ?? section;
@@ -133,19 +151,33 @@ export default function TeamLeadPage({
         setSelected((current) => (allOnPage ? current.filter((id) => !pageIds.includes(id)) : [...new Set([...current, ...pageIds])]));
     }
 
+    function assignSelected() {
+        if (selected.length === 0 || selectedDestination === null) {
+            return;
+        }
+
+        if (selectedDestination.self) {
+            router.post('/my-leads/retain/review', { ids: selected });
+
+            return;
+        }
+
+        router.post('/my-leads/distribute/review', { ids: selected, employee_id: selectedDestination.id });
+    }
+
     return (
         <HrmsLayout workspace={workspace} title="My leads">
             <PageIntro
                 title="My leads"
-                subtitle="Team Total = My Leads + Distributed + Not yet distributed for your team only. Retain or distribute from the allocation table. Updating status or follow-up never changes ownership."
+                subtitle="Total Leads = My Leads + Distributed + Pool for your team only. Assign pool leads to yourself or a direct report. Updating status or follow-up never changes ownership."
                 actions={<Link href="/my-leads/reports" className="text-sm font-medium text-blue-700">Lead report</Link>}
             />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
             <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard tone="blue" icon={UserRound} label="My Total Leads" value={String(summary.myTotal)} hint="Retained by you" href="/my-leads?section=retained" action="Open my leads" />
-                <MetricCard tone="green" icon={Users} label="Team Total Leads" value={String(summary.teamTotal)} hint="My + distributed + pending" href="/my-leads" action="Open team leads" />
-                <MetricCard tone="green" icon={Contact} label="Distributed to Employees" value={String(summary.distributed)} hint="With your reports" href="/my-leads?section=distributed" action="View distributed" />
-                <MetricCard tone="orange" icon={Users} label="Not yet distributed" value={String(summary.pending)} hint="Available to allocate" href="/my-leads" action="Open pool" />
+                <MetricCard tone="green" icon={Users} label="Total Leads" value={String(summary.teamTotal)} hint="All leads assigned to you" href="/my-leads?section=total" action="Open total" />
+                <MetricCard tone="orange" icon={Contact} label="Pool" value={String(summary.pending)} hint="Not yet distributed" href="/my-leads" action="Open pool" />
+                <MetricCard tone="blue" icon={UserRound} label="My Leads" value={String(summary.myTotal)} hint="Assigned to you" href="/my-leads?section=retained" action="Open my leads" />
+                <MetricCard tone="green" icon={Users} label="Distributed to Employees" value={String(summary.distributed)} hint="With your reports" href="/my-leads?section=distributed" action="View distributed" />
             </div>
 
             <SectionCard title={sectionCopy[section]}>
@@ -159,15 +191,14 @@ export default function TeamLeadPage({
                         <span>{selected.length} selected</span>
                         <Button type="button" variant="outline" onClick={() => visit({ selection: 'matching' })}>Select all in this section</Button>
                         <Button type="button" variant="ghost" onClick={() => setSelected([])}>Clear selection</Button>
-                        {section === 'pending' && selected.length > 0 && (
-                            <Button type="button" onClick={() => router.post('/my-leads/retain/review', { ids: selected })}>Retain selected</Button>
-                        )}
-                        {section === 'pending' && selected.length > 0 && reports.length > 0 && (
+                        {section === 'pending' && selected.length > 0 && assignmentDestinations.length > 0 && (
                             <>
-                                <select aria-label="Employee to receive leads" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm" value={reportId} onChange={(event) => setReportId(Number(event.target.value))}>
-                                    {reports.map((report) => <option key={report.id} value={report.id}>{report.name}</option>)}
+                                <select aria-label="Assign selected leads to" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm" value={assigneeId} onChange={(event) => setAssigneeId(Number(event.target.value))}>
+                                    {assignmentDestinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.name}</option>)}
                                 </select>
-                                <Button type="button" variant="outline" onClick={() => router.post('/my-leads/distribute/review', { ids: selected, employee_id: reportId })}>Distribute selected</Button>
+                                <Button type="button" onClick={assignSelected}>
+                                    {selectedDestination?.self ? 'Assign to me' : 'Assign selected'}
+                                </Button>
                             </>
                         )}
                         {section === 'distributed' && selected.length > 0 && (
