@@ -38,6 +38,7 @@ class LeadDirectory
         $matching = (clone $query)->count();
         $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
+        $today = $this->today($tenantId);
         $rows = (clone $query)
             ->leftJoin('lead_import_batches', function ($join) use ($tenantId): void {
                 $join->on('lead_import_batches.id', '=', 'leads.import_batch_id')
@@ -58,6 +59,8 @@ class LeadDirectory
                 'leads.university',
                 'leads.graduation_term',
                 'leads.pipeline_status',
+                'leads.follow_up_on',
+                'leads.remarks',
                 'leads.import_batch_id',
                 'leads.team_lead_employee_id',
                 'leads.assignee_employee_id',
@@ -77,13 +80,14 @@ class LeadDirectory
                 'pool' => $filters['pool'],
             ],
             'options' => $this->options($tenantId),
-            'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead))->all(),
+            'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $today))->all(),
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
             'perPage' => self::PAGE_SIZE,
             'selectedIds' => $this->selectedIds($tenantId, $filters, $input),
             'selectable' => true,
+            'statuses' => $this->statuses(),
         ];
     }
 
@@ -293,9 +297,10 @@ class LeadDirectory
     /**
      * @return array<string, mixed>
      */
-    private function row(Lead $lead): array
+    private function row(Lead $lead, string $today): array
     {
         $status = (string) $lead->pipeline_status;
+        $followUpOn = $this->date($lead->follow_up_on);
 
         return [
             'id' => (int) $lead->id,
@@ -307,11 +312,49 @@ class LeadDirectory
             'graduationTerm' => (string) ($lead->graduation_term ?? ''),
             'status' => $status,
             'statusLabel' => Lead::STATUSES[$status] ?? $status,
+            'followUpOn' => $followUpOn,
+            'remarks' => (string) ($lead->remarks ?? ''),
+            'reminder' => $this->reminder($followUpOn, $today),
             'batchId' => $lead->import_batch_id === null ? null : (int) $lead->import_batch_id,
             'batchName' => is_string($lead->getAttribute('batch_name')) ? $lead->getAttribute('batch_name') : '',
             'unassigned' => $lead->team_lead_employee_id === null && $lead->assignee_employee_id === null,
             'heldBy' => $this->heldBy($lead),
         ];
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    private function statuses(): array
+    {
+        $statuses = [];
+
+        foreach (Lead::STATUSES as $value => $label) {
+            $statuses[] = ['value' => $value, 'label' => $label];
+        }
+
+        return $statuses;
+    }
+
+    private function today(int $tenantId): string
+    {
+        $timezone = DB::table('tenants')->where('id', $tenantId)->value('timezone');
+        $zone = is_string($timezone) && $timezone !== '' ? $timezone : 'Asia/Kolkata';
+
+        return now()->timezone($zone)->toDateString();
+    }
+
+    private function reminder(?string $date, string $today): string
+    {
+        if ($date === null || $date === '') {
+            return 'none';
+        }
+
+        if ($date < $today) {
+            return 'overdue';
+        }
+
+        return $date === $today ? 'due_today' : 'upcoming';
     }
 
     private function heldBy(Lead $lead): string

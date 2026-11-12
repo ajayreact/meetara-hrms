@@ -1,5 +1,6 @@
 import { bodyCell, bodyRow, DataTable, headCell, selectedRow } from '@/components/hrms/data-table';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,9 @@ interface LeadRow {
     graduationTerm: string;
     status: string;
     statusLabel: string;
+    followUpOn: string | null;
+    remarks: string;
+    reminder: 'none' | 'due_today' | 'overdue' | 'upcoming';
     batchId: number | null;
     batchName: string;
     unassigned: boolean;
@@ -49,6 +53,7 @@ interface LeadIndexProps extends HrmsPageProps {
     canAssign: boolean;
     canFollowUp: boolean;
     canReport?: boolean;
+    statuses?: { value: string; label: string }[];
     notice?: string | null;
     error?: string | null;
 }
@@ -68,14 +73,17 @@ export default function LeadIndexPage({
     canAssign,
     canFollowUp,
     canReport = false,
+    statuses = [],
     notice,
     error,
 }: LeadIndexProps) {
     const [term, setTerm] = useState(filters.q);
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
+    const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
     const pageIds = leads.map((lead) => lead.id);
     const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+    const statusOptions = statuses.length > 0 ? statuses : options.statuses;
 
     useEffect(() => {
         if (selectionKey !== null) {
@@ -163,15 +171,22 @@ export default function LeadIndexPage({
                 {leads.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No leads match these filters.</p>
                 ) : (
-                    <DataTable wide>
+                    <DataTable fit>
                         <thead>
                             <tr>
                                 <th className={`${headCell} w-10`}>
                                     <input aria-label="Select all leads on this page" type="checkbox" checked={allOnPage} onChange={togglePage} />
                                 </th>
-                                {['Name', 'Email', 'Phone', 'State', 'University', 'Graduation term', 'Status', 'Pool'].map((heading) => (
-                                    <th key={heading} className={`${headCell} whitespace-nowrap`}>{heading}</th>
-                                ))}
+                                <th className={`${headCell} w-[12%]`}>Name</th>
+                                <th className={`${headCell} w-[18%]`}>Email</th>
+                                <th className={`${headCell} w-[12%]`}>Phone</th>
+                                <th className={`${headCell} w-[6%]`}>State</th>
+                                <th className={`${headCell} w-[16%]`}>University</th>
+                                <th className={`${headCell} w-[10%]`}>Graduation term</th>
+                                <th className={`${headCell} w-[9%]`}>Status</th>
+                                <th className={`${headCell} w-[9%]`}>Reminder</th>
+                                <th className={`${headCell} w-[8%]`}>Pool</th>
+                                {canFollowUp && <th className={`${headCell} w-[8%]`}>Action</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -180,21 +195,44 @@ export default function LeadIndexPage({
 
                                 return (
                                     <tr key={lead.id} className={rowTone(isSelected, index)}>
-                                        <td className={`${bodyCell} whitespace-nowrap`}>
+                                        <td className={bodyCell}>
                                             <input aria-label={`Select ${lead.name}`} type="checkbox" checked={isSelected} onChange={() => toggle(lead.id)} />
                                         </td>
-                                        <td className={`${bodyCell} whitespace-nowrap font-medium text-slate-950`}><Link href={`/leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
-                                        <td className={`${bodyCell} whitespace-nowrap text-slate-600`}>{lead.email || '—'}</td>
-                                        <td className={`${bodyCell} min-w-[11rem] whitespace-nowrap font-medium tabular-nums tracking-wide text-slate-950`}>{phoneLabel(lead.phone)}</td>
+                                        <td className={`${bodyCell} max-w-0 truncate font-medium text-slate-950`} title={lead.name}>
+                                            <Link href={`/leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link>
+                                        </td>
+                                        <td className={`${bodyCell} max-w-0 truncate text-slate-600`} title={lead.email || undefined}>{lead.email || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap font-medium tabular-nums tracking-wide text-slate-950`}>{phoneLabel(lead.phone)}</td>
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
-                                        <td className={`${bodyCell} whitespace-nowrap`}>{lead.university || '—'}</td>
+                                        <td className={`${bodyCell} max-w-0 truncate`} title={lead.university || undefined}>{lead.university || '—'}</td>
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
-                                        <td className={`${bodyCell} whitespace-nowrap`}><StatusBadge value={lead.statusLabel} /></td>
-                                        <td className={`${bodyCell} whitespace-nowrap`}>
+                                        <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
+                                        <td className={bodyCell}>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder)}</span>
+                                        </td>
+                                        <td className={bodyCell}>
                                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${lead.unassigned ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
                                                 {lead.unassigned ? 'Unassigned' : 'Assigned'}
                                             </span>
                                         </td>
+                                        {canFollowUp && (
+                                            <td className={bodyCell}>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setEditing({
+                                                        id: lead.id,
+                                                        name: lead.name,
+                                                        status: lead.status,
+                                                        followUpOn: lead.followUpOn,
+                                                        remarks: lead.remarks,
+                                                    })}
+                                                >
+                                                    Update
+                                                </Button>
+                                            </td>
+                                        )}
                                     </tr>
                                 );
                             })}
@@ -203,14 +241,15 @@ export default function LeadIndexPage({
                 )}
                 <Pagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} />
             </SectionCard>
+            <LeadFollowUpDialog
+                open={editing !== null}
+                lead={editing}
+                statuses={statusOptions}
+                url={editing ? `/leads/${editing.id}/follow-ups` : ''}
+                onClose={() => setEditing(null)}
+            />
         </HrmsLayout>
     );
-}
-
-function phoneLabel(phone: string): string {
-    const compact = phone.replace(/\s+/g, '').trim();
-
-    return compact === '' ? '—' : compact.replaceAll('-', '\u2011');
 }
 
 function rowTone(isSelected: boolean, index: number): string {

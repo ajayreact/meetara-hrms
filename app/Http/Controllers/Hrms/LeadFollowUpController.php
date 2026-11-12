@@ -76,10 +76,10 @@ class LeadFollowUpController extends Controller
         try {
             $save($this->actor($request), $fields);
         } catch (LeadFollowUpRejected $exception) {
-            return redirect()->to($back)->with('error', $exception->getMessage());
+            return redirect()->to($this->destination($request, $back))->with('error', $exception->getMessage());
         }
 
-        return redirect()->to($back)->with('status', 'Follow-up saved.');
+        return redirect()->to($this->destination($request, $back))->with('status', 'Follow-up saved.');
     }
 
     /**
@@ -91,6 +91,7 @@ class LeadFollowUpController extends Controller
             'pipeline_status' => ['required', 'string', Rule::in(array_keys(Lead::STATUSES))],
             'follow_up_on' => ['nullable', 'date_format:Y-m-d'],
             'remarks' => ['nullable', 'string', 'max:5000'],
+            'return_to' => ['nullable', 'string', 'max:255'],
         ]);
 
         return [
@@ -98,6 +99,21 @@ class LeadFollowUpController extends Controller
             'follow_up_on' => isset($validated['follow_up_on']) && $validated['follow_up_on'] !== '' ? (string) $validated['follow_up_on'] : null,
             'remarks' => trim((string) ($validated['remarks'] ?? '')),
         ];
+    }
+
+    private function destination(Request $request, string $fallback): string
+    {
+        $candidate = trim((string) $request->input('return_to', ''));
+        if ($candidate === '' || ! str_starts_with($candidate, '/')) {
+            return $fallback;
+        }
+
+        $path = (string) (parse_url($candidate, PHP_URL_PATH) ?: '');
+        if (in_array($path, ['/leads', '/leads/mine', '/my-leads', '/leads/follow-ups'], true)) {
+            return $candidate;
+        }
+
+        return $fallback;
     }
 
     private function actor(Request $request): User

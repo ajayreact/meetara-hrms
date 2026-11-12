@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeadFollowUp
 {
@@ -39,25 +40,38 @@ class LeadFollowUp
             'leads.experience',
             'leads.pipeline_status',
             'leads.follow_up_on',
+            'leads.remarks',
         ]);
 
         return [
             'queue' => $queue,
             'counts' => $counts,
-            'leads' => $rows->map(fn (Lead $lead): array => [
-                'id' => (int) $lead->id,
-                'name' => (string) $lead->name,
-                'email' => (string) ($lead->email ?? ''),
-                'phone' => (string) ($lead->phone ?? ''),
-                'linkedin' => (string) ($lead->linkedin_url ?? ''),
-                'university' => (string) ($lead->university ?? ''),
-                'graduationTerm' => (string) ($lead->graduation_term ?? ''),
-                'experience' => (string) ($lead->experience ?? ''),
-                'status' => (string) $lead->pipeline_status,
-                'statusLabel' => $this->label((string) $lead->pipeline_status),
-                'followUpOn' => $this->date($lead->follow_up_on),
-                'timing' => $this->timing($this->date($lead->follow_up_on), $today),
-            ])->all(),
+            'leads' => $rows->map(function (Lead $lead) use ($today): array {
+                $followUpOn = $this->date($lead->follow_up_on);
+                $timing = $this->timing($followUpOn, $today);
+
+                return [
+                    'id' => (int) $lead->id,
+                    'name' => (string) $lead->name,
+                    'email' => (string) ($lead->email ?? ''),
+                    'phone' => (string) ($lead->phone ?? ''),
+                    'linkedin' => (string) ($lead->linkedin_url ?? ''),
+                    'university' => (string) ($lead->university ?? ''),
+                    'graduationTerm' => (string) ($lead->graduation_term ?? ''),
+                    'experience' => (string) ($lead->experience ?? ''),
+                    'status' => (string) $lead->pipeline_status,
+                    'statusLabel' => $this->label((string) $lead->pipeline_status),
+                    'followUpOn' => $followUpOn,
+                    'remarks' => (string) ($lead->remarks ?? ''),
+                    'timing' => $timing,
+                    'reminder' => match ($timing) {
+                        'overdue' => 'overdue',
+                        'today' => 'due_today',
+                        'upcoming' => 'upcoming',
+                        default => 'none',
+                    },
+                ];
+            })->all(),
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
@@ -274,14 +288,20 @@ class LeadFollowUp
         $teamLeadId = $lead->team_lead_employee_id;
         $assigneeId = $lead->assignee_employee_id;
         $now = now();
-
-        Lead::query()->inCompany($tenantId)->whereKey($lead->id)->update([
+        $previousDate = $this->date($lead->follow_up_on);
+        $values = [
             'pipeline_status' => $status,
             'follow_up_on' => $followUpOn,
             'remarks' => $remarks,
             'updated_by' => $userId,
             'updated_at' => $now,
-        ]);
+        ];
+
+        if ($previousDate !== $followUpOn && Schema::hasColumn('leads', 'follow_up_reminded_on')) {
+            $values['follow_up_reminded_on'] = null;
+        }
+
+        Lead::query()->inCompany($tenantId)->whereKey($lead->id)->update($values);
 
         DB::table('lead_activities')->insert([
             'tenant_id' => $tenantId,

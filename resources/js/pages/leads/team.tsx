@@ -1,5 +1,6 @@
 import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-table';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,10 @@ interface TeamLeadRow {
     state: string;
     status: string;
     statusLabel: string;
+    followUpOn: string | null;
+    remarks: string;
+    reminder: 'none' | 'due_today' | 'overdue' | 'upcoming';
+    canFollowUp: boolean;
     assigneeName: string;
 }
 
@@ -67,6 +72,7 @@ interface TeamPageProps extends HrmsPageProps {
     page: number;
     pages: number;
     selectedIds: number[] | null;
+    statuses?: { value: string; label: string }[];
     notice?: string | null;
     error?: string | null;
 }
@@ -90,12 +96,14 @@ export default function TeamLeadPage({
     page,
     pages,
     selectedIds,
+    statuses = [],
     notice,
     error,
 }: TeamPageProps) {
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
     const [reportId, setReportId] = useState(reports[0]?.id ?? 0);
+    const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
     const pageIds = leads.map((lead) => lead.id);
     const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
     const canSelect = section !== 'retained';
@@ -218,17 +226,22 @@ export default function TeamLeadPage({
                     {leads.length === 0 ? (
                         <p className="text-sm text-slate-500">No leads in this section.</p>
                     ) : (
-                        <DataTable>
+                        <DataTable fit>
                             <thead>
                                 <tr>
                                     {canSelect && (
-                                        <th className={headCell}>
+                                        <th className={`${headCell} w-10`}>
                                             <input aria-label="Select all leads on this page" type="checkbox" checked={allOnPage} onChange={togglePage} />
                                         </th>
                                     )}
-                                    {['Name', 'Email', 'Phone', 'State', 'Status', 'Assignee'].map((heading) => (
-                                        <th key={heading} className={headCell}>{heading}</th>
-                                    ))}
+                                    <th className={headCell}>Name</th>
+                                    <th className={headCell}>Email</th>
+                                    <th className={headCell}>Phone</th>
+                                    <th className={headCell}>State</th>
+                                    <th className={headCell}>Status</th>
+                                    <th className={headCell}>Reminder</th>
+                                    <th className={headCell}>Assignee</th>
+                                    <th className={headCell}>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -239,12 +252,33 @@ export default function TeamLeadPage({
                                                 <input aria-label={`Select ${lead.name}`} type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggle(lead.id)} />
                                             </td>
                                         )}
-                                        <td className={`${bodyCell} font-medium`}><Link href={`/my-leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
-                                        <td className={bodyCell}>{lead.email || '—'}</td>
-                                        <td className={bodyCell}>{lead.phone || '—'}</td>
-                                        <td className={bodyCell}>{lead.state || '—'}</td>
+                                        <td className={`${bodyCell} max-w-0 truncate font-medium`} title={lead.name}><Link href={`/my-leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
+                                        <td className={`${bodyCell} max-w-0 truncate`} title={lead.email || undefined}>{lead.email || '—'}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{phoneLabel(lead.phone)}</td>
+                                        <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
                                         <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
-                                        <td className={bodyCell}>{lead.assigneeName || '—'}</td>
+                                        <td className={bodyCell}>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder)}</span>
+                                        </td>
+                                        <td className={`${bodyCell} max-w-0 truncate`} title={lead.assigneeName || undefined}>{lead.assigneeName || '—'}</td>
+                                        <td className={bodyCell}>
+                                            {lead.canFollowUp ? (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setEditing({
+                                                        id: lead.id,
+                                                        name: lead.name,
+                                                        status: lead.status,
+                                                        followUpOn: lead.followUpOn,
+                                                        remarks: lead.remarks,
+                                                    })}
+                                                >
+                                                    Update
+                                                </Button>
+                                            ) : '—'}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -256,6 +290,13 @@ export default function TeamLeadPage({
                     </div>
                 </SectionCard>
             </div>
+            <LeadFollowUpDialog
+                open={editing !== null}
+                lead={editing}
+                statuses={statuses}
+                url={editing ? `/my-leads/${editing.id}/follow-ups` : ''}
+                onClose={() => setEditing(null)}
+            />
         </HrmsLayout>
     );
 }

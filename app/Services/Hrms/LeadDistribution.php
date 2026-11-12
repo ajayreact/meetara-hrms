@@ -27,6 +27,7 @@ class LeadDistribution
         $matching = (clone $query)->count();
         $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
+        $today = $this->today($context['tenantId']);
         $rows = (clone $query)->orderByDesc('leads.id')->forPage($page, self::PAGE_SIZE)->get([
             'leads.id',
             'leads.name',
@@ -34,6 +35,8 @@ class LeadDistribution
             'leads.phone',
             'leads.state',
             'leads.pipeline_status',
+            'leads.follow_up_on',
+            'leads.remarks',
             'leads.assignee_employee_id',
         ]);
         $names = $this->employeeNames($context['tenantId'], $rows->pluck('assignee_employee_id')->filter()->map(fn ($id): int => (int) $id)->all());
@@ -43,11 +46,12 @@ class LeadDistribution
             'section' => $section,
             'employees' => $this->employeeSummary($context['tenantId'], $context['employeeId']),
             'reports' => $this->reports($context['tenantId'], $context['employeeId']),
-            'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $names))->all(),
+            'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $names, $today, $section))->all(),
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
             'selectedIds' => $this->selectedIds($context, $section, $input),
+            'statuses' => $this->statuses(),
         ];
     }
 
@@ -579,10 +583,11 @@ class LeadDistribution
      * @param  array<int, string>  $names
      * @return array<string, mixed>
      */
-    private function row(Lead $lead, array $names): array
+    private function row(Lead $lead, array $names, string $today, string $section): array
     {
         $status = (string) $lead->pipeline_status;
         $assigneeId = $lead->assignee_employee_id === null ? null : (int) $lead->assignee_employee_id;
+        $followUpOn = $this->date($lead->follow_up_on);
 
         return [
             'id' => (int) $lead->id,
@@ -592,8 +597,47 @@ class LeadDistribution
             'state' => (string) ($lead->state ?? ''),
             'status' => $status,
             'statusLabel' => Lead::STATUSES[$status] ?? $status,
+            'followUpOn' => $followUpOn,
+            'remarks' => (string) ($lead->remarks ?? ''),
+            'reminder' => $this->reminder($followUpOn, $today),
+            'canFollowUp' => in_array($section, ['retained', 'distributed'], true),
             'assigneeName' => $assigneeId === null ? '' : (string) ($names[$assigneeId] ?? ''),
         ];
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    private function statuses(): array
+    {
+        $statuses = [];
+
+        foreach (Lead::STATUSES as $value => $label) {
+            $statuses[] = ['value' => $value, 'label' => $label];
+        }
+
+        return $statuses;
+    }
+
+    private function today(int $tenantId): string
+    {
+        $timezone = DB::table('tenants')->where('id', $tenantId)->value('timezone');
+        $zone = is_string($timezone) && $timezone !== '' ? $timezone : 'Asia/Kolkata';
+
+        return now()->timezone($zone)->toDateString();
+    }
+
+    private function reminder(?string $date, string $today): string
+    {
+        if ($date === null || $date === '') {
+            return 'none';
+        }
+
+        if ($date < $today) {
+            return 'overdue';
+        }
+
+        return $date === $today ? 'due_today' : 'upcoming';
     }
 
     /**

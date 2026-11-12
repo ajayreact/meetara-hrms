@@ -30,6 +30,7 @@ class Lead extends Model
         return [
             'imported_on' => 'date',
             'follow_up_on' => 'date',
+            'follow_up_reminded_on' => 'date',
             'assigned_at' => 'datetime',
         ];
     }
