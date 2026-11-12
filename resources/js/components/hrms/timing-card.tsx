@@ -34,7 +34,7 @@ function formatElapsed(totalSeconds: number): string {
     return [hours, minutes, remain].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
-export function TimingCard({ timing, notice }: { timing: TimingState; notice?: string | null }) {
+export function TimingCard({ timing, notice, className = '' }: { timing: TimingState; notice?: string | null; className?: string }) {
     const [now, setNow] = useState(() => new Date(timing.officeNow));
     const [breakSeconds, setBreakSeconds] = useState(timing.breakSeconds);
     const [confirmOut, setConfirmOut] = useState(false);
@@ -158,7 +158,7 @@ export function TimingCard({ timing, notice }: { timing: TimingState; notice?: s
     const messages = [form.errors.attendance, locationMessage, form.errors.attendance ? null : notice].filter((item): item is string => typeof item === 'string' && item !== '');
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`.trim()}>
             <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-base font-semibold">My Timing</h2>
                 <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{statusLabel}</span>

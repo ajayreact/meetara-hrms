@@ -90,10 +90,10 @@ export default function MyProfilePage({ workspace, employee = null, profileCard 
                     <StatusBadge value={status} />
                 </div>
             </section>
-            {profileCard && (
-                <div className="mb-4 grid items-start gap-4 lg:grid-cols-3">
-                    <SectionCard title="Personal information">
-                        <dl>
+            {profileCard ? (
+                <div className="grid items-stretch gap-4 lg:grid-cols-2">
+                    <SectionCard className="flex h-full flex-col" title="Personal information">
+                        <dl className="flex-1">
                             <DetailRow icon={Users} label="Full name">{profileCard.personal.name}</DetailRow>
                             <DetailRow icon={Mail} label="Email">{profileCard.personal.email}</DetailRow>
                             <DetailRow icon={Hash} label="Phone">{profileCard.personal.phone || 'Not recorded'}</DetailRow>
@@ -101,8 +101,8 @@ export default function MyProfilePage({ workspace, employee = null, profileCard 
                             <DetailRow icon={CalendarDays} label="Date of birth">{displayDate(profileCard.personal.dateOfBirth)}</DetailRow>
                         </dl>
                     </SectionCard>
-                    <SectionCard title="Employment information">
-                        <dl>
+                    <SectionCard className="flex h-full flex-col" title="Employment information">
+                        <dl className="flex-1">
                             <DetailRow icon={Hash} label="Employee ID">{profileCard.employment.code}</DetailRow>
                             <DetailRow icon={Briefcase} label="Designation">{profileCard.employment.designation || 'Not assigned'}</DetailRow>
                             <DetailRow icon={Users} label="Department">{profileCard.employment.department || 'Not assigned'}</DetailRow>
@@ -112,30 +112,41 @@ export default function MyProfilePage({ workspace, employee = null, profileCard 
                             <DetailRow icon={Building2} label="Office">{profileCard.employment.office || 'Not assigned'}</DetailRow>
                         </dl>
                     </SectionCard>
-                    <SectionCard title="Bank and payroll information">
-                        <p className="text-sm text-slate-600">{profileCard.payroll.bank ? `Account ending ${profileCard.payroll.bank}` : profileCard.payroll.note}</p>
+                    <SectionCard className="flex h-full flex-col" title="Bank and payroll information">
+                        <div className="flex flex-1 flex-col justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center">
+                            <p className="text-sm leading-6 text-slate-600">{profileCard.payroll.bank ? `Account ending ${profileCard.payroll.bank}` : profileCard.payroll.note}</p>
+                        </div>
+                    </SectionCard>
+                    <SectionCard className="flex h-full flex-col" title="Organization and work location">
+                        <dl className="flex-1">
+                            <DetailRow icon={Building2} label="Company">{company}</DetailRow>
+                            <DetailRow icon={MapPin} label="Office">{office}</DetailRow>
+                            <DetailRow icon={Globe} label="Holiday region">{workspace.officeRegion ?? 'Not assigned'}</DetailRow>
+                            <DetailRow icon={Mail} label="Work email">{workspace.email}</DetailRow>
+                        </dl>
+                    </SectionCard>
+                </div>
+            ) : (
+                <div className="grid items-stretch gap-4 lg:grid-cols-2">
+                    <SectionCard className="flex h-full flex-col" title="Employment details">
+                        <dl className="flex-1">
+                            <DetailRow icon={Hash} label="Employee ID">{code}</DetailRow>
+                            <DetailRow icon={Briefcase} label="Designation">{workspace.designation}</DetailRow>
+                            <DetailRow icon={Users} label="Department">{department}</DetailRow>
+                            <DetailRow icon={CalendarDays} label="Joining date">{displayDate(employee?.joined)}</DetailRow>
+                            <DetailRow icon={BadgeCheck} label="Employment status"><StatusBadge value={status} /></DetailRow>
+                        </dl>
+                    </SectionCard>
+                    <SectionCard className="flex h-full flex-col" title="Organization and work location">
+                        <dl className="flex-1">
+                            <DetailRow icon={Building2} label="Company">{company}</DetailRow>
+                            <DetailRow icon={MapPin} label="Office">{office}</DetailRow>
+                            <DetailRow icon={Globe} label="Holiday region">{workspace.officeRegion ?? 'Not assigned'}</DetailRow>
+                            <DetailRow icon={Mail} label="Work email">{workspace.email}</DetailRow>
+                        </dl>
                     </SectionCard>
                 </div>
             )}
-            <div className="grid items-start gap-4 lg:grid-cols-2">
-                <SectionCard title="Employment details">
-                    <dl>
-                        <DetailRow icon={Hash} label="Employee ID">{code}</DetailRow>
-                        <DetailRow icon={Briefcase} label="Designation">{workspace.designation}</DetailRow>
-                        <DetailRow icon={Users} label="Department">{department}</DetailRow>
-                        <DetailRow icon={CalendarDays} label="Joining date">{displayDate(employee?.joined)}</DetailRow>
-                        <DetailRow icon={BadgeCheck} label="Employment status"><StatusBadge value={status} /></DetailRow>
-                    </dl>
-                </SectionCard>
-                <SectionCard title="Organization and work location">
-                    <dl>
-                        <DetailRow icon={Building2} label="Company">{company}</DetailRow>
-                        <DetailRow icon={MapPin} label="Office">{office}</DetailRow>
-                        <DetailRow icon={Globe} label="Holiday region">{workspace.officeRegion ?? 'Not assigned'}</DetailRow>
-                        <DetailRow icon={Mail} label="Work email">{workspace.email}</DetailRow>
-                    </dl>
-                </SectionCard>
-            </div>
         </HrmsLayout>
     );
 }

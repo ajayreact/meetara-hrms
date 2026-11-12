@@ -30,14 +30,32 @@ export default function HrDashboard({ workspace, timing, companyStats, attendanc
     return (
         <HrmsLayout workspace={workspace} title="HR & Assistant Operations">
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · headcount, attendance, and leave from company records.`} />
-            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
-            {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
-            <div className="grid gap-3 md:grid-cols-3">
-                <MetricCard tone="blue" icon={Users} label="Headcount" value={String(companyStats?.headcount ?? 0)} />
-                <MetricCard tone="orange" icon={UserPlus} label="Invited" value={String(companyStats?.invited ?? 0)} />
-                <MetricCard tone="red" icon={CalendarCheck} label="Attendance exceptions" value={String(attendanceRoster?.counts.review ?? 0)} />
+            <div className={`mb-4 grid items-stretch gap-4 ${timing ? 'xl:grid-cols-12' : ''}`}>
+                {timing && (
+                    <div className="xl:col-span-5">
+                        <TimingCard className="h-full" timing={timing} />
+                    </div>
+                )}
+                <div className={`min-w-0 ${timing ? 'xl:col-span-7' : ''}`}>
+                    {offerApprovals ? (
+                        <OfferApprovals className="h-full" approvals={offerApprovals} />
+                    ) : (
+                        <div className={`grid h-full gap-3 ${timing ? 'sm:grid-cols-1 md:grid-cols-3' : 'md:grid-cols-3'}`}>
+                            <MetricCard tone="blue" icon={Users} label="Headcount" value={String(companyStats?.headcount ?? 0)} />
+                            <MetricCard tone="orange" icon={UserPlus} label="Invited" value={String(companyStats?.invited ?? 0)} />
+                            <MetricCard tone="red" icon={CalendarCheck} label="Attendance exceptions" value={String(attendanceRoster?.counts.review ?? 0)} />
+                        </div>
+                    )}
+                </div>
             </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
+            {offerApprovals && (
+                <div className="mb-4 grid gap-3 md:grid-cols-3">
+                    <MetricCard tone="blue" icon={Users} label="Headcount" value={String(companyStats?.headcount ?? 0)} />
+                    <MetricCard tone="orange" icon={UserPlus} label="Invited" value={String(companyStats?.invited ?? 0)} />
+                    <MetricCard tone="red" icon={CalendarCheck} label="Attendance exceptions" value={String(attendanceRoster?.counts.review ?? 0)} />
+                </div>
+            )}
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
                 <SectionCard title="Leave requests" extra={<Link href="/leave" className="text-sm text-blue-600">Open leave</Link>}>
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
                         <table className="w-full min-w-[640px] text-left text-sm">

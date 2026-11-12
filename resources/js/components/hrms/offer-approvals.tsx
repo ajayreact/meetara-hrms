@@ -14,11 +14,11 @@ export interface OfferApprovalState {
     templates: Array<{ id: number; name: string; updatedAt: string | null; own: boolean }>;
 }
 
-export function OfferApprovals({ approvals }: { approvals: OfferApprovalState }) {
+export function OfferApprovals({ approvals, className = '' }: { approvals: OfferApprovalState; className?: string }) {
     const waiting = approvals.legal !== null || approvals.templates.length > 0;
 
     return (
-        <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className={`rounded-2xl border border-amber-200/80 bg-gradient-to-br from-white to-amber-50/40 p-5 shadow-sm ${className}`.trim()}>
             <h2 className="text-base font-semibold text-slate-950">Pending Approvals</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Head of Operations approves India legal details and the Appointment Letter submitted by HR &amp; Assistant Operations. People → Offer templates. Head of Operations changes are saved and activated immediately.</p>
             {!waiting && <p className="mt-3 text-sm text-slate-500">No India legal details or appointment letters are waiting.</p>}

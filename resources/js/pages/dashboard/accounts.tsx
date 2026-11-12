@@ -34,27 +34,37 @@ export default function AccountsDashboard({ workspace, timing, payrollBoard }: H
     return (
         <HrmsLayout workspace={workspace} title="Accounts">
             <PageIntro title={greetingName(workspace.userName)} subtitle={board.currencyNote || `${workspace.companyName ?? 'Your company'} · payroll figures come from saved runs.`} />
-            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
-            {board.runs === 0 ? (
-                <SectionCard title="Payroll" extra={<PayrollLinks />}>
-                    <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
-                        <p className="text-sm font-medium text-slate-800">No payroll runs yet</p>
-                        <p className="mx-auto mt-2 max-w-lg text-sm leading-5 text-slate-500">{payrollGuidance}</p>
+            <div className={`mb-4 grid items-stretch gap-4 ${timing ? 'xl:grid-cols-12' : ''}`}>
+                {timing && (
+                    <div className="xl:col-span-5">
+                        <TimingCard className="h-full" timing={timing} />
                     </div>
-                </SectionCard>
-            ) : (
+                )}
+                <div className={`min-w-0 ${timing ? 'xl:col-span-7' : ''}`}>
+                    {board.runs === 0 ? (
+                        <SectionCard className="h-full" title="Payroll" extra={<PayrollLinks />}>
+                            <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
+                                <p className="text-sm font-medium text-slate-800">No payroll runs yet</p>
+                                <p className="mx-auto mt-2 max-w-lg text-sm leading-5 text-slate-500">{payrollGuidance}</p>
+                            </div>
+                        </SectionCard>
+                    ) : (
+                        <div className="grid h-full gap-3 sm:grid-cols-3">
+                            {board.processed > 0 ? (
+                                <MetricCard tone="blue" icon={Receipt} label="Processed net" value={board.processedNet} />
+                            ) : (
+                                <MetricCard tone="blue" icon={Receipt} label="Processed runs" value={String(board.processed)} />
+                            )}
+                            <MetricCard tone="orange" icon={Clock3} label="Awaiting review" value={String(board.review)} />
+                            <MetricCard tone="green" icon={CircleCheck} label="Outstanding payments" value={String(board.outstanding)} />
+                        </div>
+                    )}
+                </div>
+            </div>
+            {board.runs > 0 && (
                 <>
-                    <div className="grid gap-3 md:grid-cols-3">
-                        {board.processed > 0 ? (
-                            <MetricCard tone="blue" icon={Receipt} label="Processed net" value={board.processedNet} />
-                        ) : (
-                            <MetricCard tone="blue" icon={Receipt} label="Processed runs" value={String(board.processed)} />
-                        )}
-                        <MetricCard tone="orange" icon={Clock3} label="Awaiting review" value={String(board.review)} />
-                        <MetricCard tone="green" icon={CircleCheck} label="Outstanding payments" value={String(board.outstanding)} />
-                    </div>
-                    <p className="mt-3 text-sm leading-5 text-slate-500">{payrollGuidance}</p>
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <p className="mb-4 text-sm leading-5 text-slate-500">{payrollGuidance}</p>
+                    <div className="grid gap-4 lg:grid-cols-2">
                         <SectionCard title="Payroll" extra={<PayrollLinks />}>
                             <ul className="divide-y divide-slate-100 text-sm text-slate-700">
                                 <Count label="Draft" value={board.draft} />

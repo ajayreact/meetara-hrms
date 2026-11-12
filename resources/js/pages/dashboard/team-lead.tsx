@@ -24,43 +24,51 @@ export default function TeamLeadDashboard({ workspace, timing, attendanceRoster,
     return (
         <HrmsLayout workspace={workspace} title={workspace.roleLabel}>
             <PageIntro title={greetingName(workspace.userName)} subtitle={`${workspace.companyName ?? 'Company'} · people who report to you.`} />
-            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
-            <div className="grid gap-3 md:grid-cols-2">
-                <MetricCard tone="blue" icon={Users} label="Team members" value={String(attendanceRoster?.counts.showing ?? 0)} />
-                <MetricCard tone="green" icon={CalendarCheck} label="Clocked in today" value={String(attendanceRoster?.counts.present ?? 0)} />
-            </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <SectionCard title="Team attendance" extra={<Link href="/attendance" className="text-sm text-blue-600">Open</Link>}>
-                    {attendance.length === 0 ? (
-                        <p className="text-sm text-slate-500">No team attendance is recorded for today.</p>
-                    ) : (
-                        <ul className="divide-y divide-slate-100 text-sm">
-                            {attendance.map((row) => (
-                                <li key={row.name} className="flex items-center justify-between py-2">
-                                    <span>{row.name}</span>
-                                    <StatusBadge value={row.status} />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </SectionCard>
-                <SectionCard title="Leave waiting on you" extra={<Link href="/leave" className="text-sm text-blue-600">Review</Link>}>
-                    {waiting.length === 0 ? (
-                        <p className="text-sm text-slate-500">No leave requests are waiting for your review.</p>
-                    ) : (
-                        <ul className="divide-y divide-slate-100 text-sm">
-                            {waiting.map((request) => (
-                                <li key={request.id} className="flex items-start justify-between gap-3 py-2">
-                                    <span>
-                                        <span className="block font-medium">{request.employee ?? 'Employee'}</span>
-                                        <span className="text-xs text-slate-500">{request.type ?? 'Leave'} · {request.start} – {request.end}</span>
-                                    </span>
-                                    <StatusBadge value={request.status} />
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </SectionCard>
+            <div className={`mb-4 grid items-stretch gap-4 ${timing ? 'xl:grid-cols-12' : ''}`}>
+                {timing && (
+                    <div className="xl:col-span-5">
+                        <TimingCard className="h-full" timing={timing} />
+                    </div>
+                )}
+                <div className={`flex min-w-0 flex-col gap-4 ${timing ? 'xl:col-span-7' : ''}`}>
+                    <div className={`grid gap-3 ${timing ? 'sm:grid-cols-2' : 'md:grid-cols-2'}`}>
+                        <MetricCard tone="blue" icon={Users} label="Team members" value={String(attendanceRoster?.counts.showing ?? 0)} />
+                        <MetricCard tone="green" icon={CalendarCheck} label="Clocked in today" value={String(attendanceRoster?.counts.present ?? 0)} />
+                    </div>
+                    <div className="grid flex-1 gap-4 lg:grid-cols-2">
+                        <SectionCard className="h-full" title="Team attendance" extra={<Link href="/attendance" className="text-sm text-blue-600">Open</Link>}>
+                            {attendance.length === 0 ? (
+                                <p className="text-sm text-slate-500">No team attendance is recorded for today.</p>
+                            ) : (
+                                <ul className="divide-y divide-slate-100 text-sm">
+                                    {attendance.slice(0, 6).map((row) => (
+                                        <li key={row.name} className="flex items-center justify-between py-2">
+                                            <span>{row.name}</span>
+                                            <StatusBadge value={row.status} />
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </SectionCard>
+                        <SectionCard className="h-full" title="Leave waiting on you" extra={<Link href="/leave" className="text-sm text-blue-600">Review</Link>}>
+                            {waiting.length === 0 ? (
+                                <p className="text-sm text-slate-500">No leave requests are waiting for your review.</p>
+                            ) : (
+                                <ul className="divide-y divide-slate-100 text-sm">
+                                    {waiting.slice(0, 6).map((request) => (
+                                        <li key={request.id} className="flex items-start justify-between gap-3 py-2">
+                                            <span>
+                                                <span className="block font-medium">{request.employee ?? 'Employee'}</span>
+                                                <span className="text-xs text-slate-500">{request.type ?? 'Leave'} · {request.start} – {request.end}</span>
+                                            </span>
+                                            <StatusBadge value={request.status} />
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </SectionCard>
+                    </div>
+                </div>
             </div>
             <WorkplacePanels workplace={workplace} />
         </HrmsLayout>

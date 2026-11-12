@@ -67,6 +67,14 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
     const today = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const todayStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const company = workspace.companyName ?? 'your company';
+    const metrics = (
+        <>
+            <MetricCard tone="blue" icon={Users} label="Employees" value={String(companyStats?.headcount ?? 0)} hint="Active employees" badge={(companyStats?.headcount ?? 0) > 0 ? 'Active' : undefined} href="/employees" action="View employees" />
+            <MetricCard tone="green" icon={Building2} label="Offices" value={String(companyStats?.offices ?? 0)} hint="Recorded offices" badge={offices.length > 0 && activeOffices === offices.length ? 'Active' : undefined} href="/offices" action="Manage offices" />
+            <MetricCard tone="orange" icon={Wifi} label="Networks pending" value={String(pendingNetworks)} hint="No approved public network" badge={pendingNetworks > 0 ? 'Pending' : undefined} href="/offices" action="Review networks" />
+            <MetricCard tone="blue" icon={Receipt} label="Payroll runs" value={String(runs)} hint={runs === 0 ? 'No runs yet' : 'Saved runs'} href="/payroll" action="Open payroll" />
+        </>
+    );
 
     return (
         <HrmsLayout workspace={workspace} title="Dashboard">
@@ -88,15 +96,22 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                     </div>
                 </div>
             </section>
-            {timing && <div className="mb-4 max-w-xl"><TimingCard timing={timing} /></div>}
-            {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard tone="blue" icon={Users} label="Employees" value={String(companyStats?.headcount ?? 0)} hint="Active employees" badge={(companyStats?.headcount ?? 0) > 0 ? 'Active' : undefined} href="/employees" action="View employees" />
-                <MetricCard tone="green" icon={Building2} label="Offices" value={String(companyStats?.offices ?? 0)} hint="Recorded offices" badge={offices.length > 0 && activeOffices === offices.length ? 'Active' : undefined} href="/offices" action="Manage offices" />
-                <MetricCard tone="orange" icon={Wifi} label="Networks pending" value={String(pendingNetworks)} hint="No approved public network" badge={pendingNetworks > 0 ? 'Pending' : undefined} href="/offices" action="Review networks" />
-                <MetricCard tone="blue" icon={Receipt} label="Payroll runs" value={String(runs)} hint={runs === 0 ? 'No runs yet' : 'Saved runs'} href="/payroll" action="Open payroll" />
+            <div className={`mb-4 grid items-stretch gap-4 ${timing ? 'xl:grid-cols-12' : ''}`}>
+                {timing && (
+                    <div className="xl:col-span-5">
+                        <TimingCard className="h-full" timing={timing} />
+                    </div>
+                )}
+                <div className={`min-w-0 ${timing ? 'xl:col-span-7' : ''}`}>
+                    {offerApprovals ? (
+                        <OfferApprovals className="h-full" approvals={offerApprovals} />
+                    ) : (
+                        <div className={`grid h-full gap-3 sm:grid-cols-2 ${timing ? '' : 'xl:grid-cols-4'}`}>{metrics}</div>
+                    )}
+                </div>
             </div>
-            <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-12">
+            {offerApprovals && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics}</div>}
+            <div className="grid items-stretch gap-4 xl:grid-cols-12">
                 <SectionCard className="flex h-full flex-col xl:col-span-7" title="Office overview" extra={<Link className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline" href="/offices">Manage offices</Link>}>
                     {offices.length === 0 ? (
                         <p className="text-sm text-slate-500">No offices are recorded yet.</p>
