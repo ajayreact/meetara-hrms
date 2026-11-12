@@ -37,7 +37,7 @@ class LeadDistributionController extends Controller
 
         return Inertia::render('leads/show', [
             ...$record,
-            'canFollowUp' => in_array($section, ['retained', 'distributed'], true),
+            'canFollowUp' => in_array($section, ['pending', 'retained', 'distributed'], true),
             'followUpUrl' => '/my-leads/'.$lead.'/follow-ups',
             'statuses' => $followUps->statuses(),
             'notice' => session('status'),

@@ -45,6 +45,8 @@ class LeadDistributionTest extends TestCase
                 ->where('summary.pending', 1)
                 ->where('summary.retained', 0)
                 ->where('summary.distributed', 0)
+                ->where('summary.myTotal', 0)
+                ->where('summary.teamTotal', 0)
                 ->where('section', 'pending')
                 ->where('reports', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => (int) $row['id'] === $company->reportEmployeeId && $row['name'] === 'retainlead-REP Person')));
 
@@ -207,8 +209,70 @@ class LeadDistributionTest extends TestCase
         $this->assertSame(2, DB::table('lead_assignments')->where('lead_id', $leadId)->count());
 
         $this->actingAs($company->lead)->get('/my-leads?section=retained')
-            ->assertInertia(fn (Assert $page) => $page->where('summary.retained', 1)->where('summary.distributed', 0)->where('leads.0.id', $leadId));
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.retained', 1)
+                ->where('summary.distributed', 0)
+                ->where('summary.myTotal', 1)
+                ->where('summary.teamTotal', 1)
+                ->where('leads.0.id', $leadId));
         $this->actingAs($company->employee)->post('/my-leads/recall', ['ids' => [$leadId]])->assertForbidden();
+    }
+
+    public function test_team_lead_dashboard_separates_my_leads_from_team_totals(): void
+    {
+        $company = CompanyFixture::make('Lead Board', 'leadboard');
+        $pending = $this->lead($company, $company->leadEmployeeId, ['name' => 'Still Pending']);
+        $retained = $this->lead($company, $company->leadEmployeeId, [
+            'name' => 'Kept By Lead',
+            'assignee_employee_id' => $company->leadEmployeeId,
+            'pipeline_status' => 'contacted',
+        ]);
+        $distributed = $this->lead($company, $company->leadEmployeeId, [
+            'name' => 'With Employee',
+            'assignee_employee_id' => $company->reportEmployeeId,
+            'pipeline_status' => 'qualified',
+        ]);
+
+        $this->actingAs($company->lead)->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dashboard/team-lead')
+                ->where('leadBoard.myTotal', 1)
+                ->where('leadBoard.teamTotal', 2)
+                ->where('leadBoard.pending', 1)
+                ->where('leadBoard.distributed', 1)
+                ->where('leadBoard.myLeads.0.id', $retained)
+                ->where('leadBoard.myLeads.0.canFollowUp', true)
+                ->where('leadBoard.myPipeline', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['value'] === 'contacted' && (int) $row['count'] === 1))
+                ->where('leadBoard.employees', function ($rows) use ($company): bool {
+                    $report = collect($rows)->first(fn ($row): bool => (int) $row['id'] === $company->reportEmployeeId);
+
+                    return $report !== null && (int) $report['total'] === 1;
+                }));
+
+        $this->actingAs($company->lead)->get('/my-leads?section=retained')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.myTotal', 1)
+                ->where('summary.teamTotal', 2)
+                ->where('summary.pending', 1)
+                ->where('summary.distributed', 1)
+                ->where('leads.0.id', $retained)
+                ->where('leads.0.canFollowUp', true)
+                ->where('myPipeline', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['value'] === 'contacted' && (int) $row['count'] === 1)));
+
+        $this->actingAs($company->lead)->post("/my-leads/{$distributed}/follow-ups", [
+            'pipeline_status' => 'contacted',
+            'follow_up_on' => '2026-11-20',
+            'remarks' => 'Checked in without taking ownership',
+        ])->assertRedirect("/my-leads/{$distributed}")->assertSessionHas('status', 'Follow-up saved.');
+
+        $this->assertSame($company->reportEmployeeId, (int) DB::table('leads')->where('id', $distributed)->value('assignee_employee_id'));
+        $this->assertNull(DB::table('leads')->where('id', $pending)->value('assignee_employee_id'));
+        $this->assertSame($company->leadEmployeeId, (int) DB::table('leads')->where('id', $retained)->value('assignee_employee_id'));
+        $this->actingAs($company->employee)->get('/dashboard')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/employee')
+            ->where('leadBoard', null));
     }
 
     public function test_distribution_cannot_cross_teams_or_companies(): void

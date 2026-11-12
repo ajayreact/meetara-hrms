@@ -11,6 +11,7 @@ export interface LeadFollowUpTarget {
     status: string;
     followUpOn: string | null;
     remarks: string;
+    retainsOnSave?: boolean;
 }
 
 export function LeadFollowUpDialog({
@@ -64,7 +65,11 @@ export function LeadFollowUpDialog({
                 <DialogHeader>
                     <DialogTitle>Update status</DialogTitle>
                     <DialogDescription>
-                        {lead ? `Save a status, next-call date, or remark for ${lead.name}. Ownership does not change.` : 'Save a follow-up for this lead.'}
+                        {lead
+                            ? (lead.retainsOnSave
+                                ? `Save a status, next-call date, or remark for ${lead.name}. The first save retains this lead to you so you can keep working it.`
+                                : `Save a status, next-call date, or remark for ${lead.name}. Ownership does not change.`)
+                            : 'Save a follow-up for this lead.'}
                     </DialogDescription>
                 </DialogHeader>
                 <form

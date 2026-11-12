@@ -61,8 +61,9 @@ interface DirectReport {
 type Section = 'pending' | 'retained' | 'distributed';
 
 interface TeamPageProps extends HrmsPageProps {
-    summary: { pending: number; retained: number; distributed: number };
+    summary: { pending: number; retained: number; distributed: number; myTotal: number; teamTotal: number };
     section: Section;
+    myPipeline?: { value: string; label: string; count: number }[];
     employees: EmployeeSummary[];
     reports: DirectReport[];
     attention: { queue: 'overdue' | 'today' | 'upcoming'; overdue: number; today: number; upcoming: number; leads: AttentionLead[] };
@@ -79,14 +80,15 @@ interface TeamPageProps extends HrmsPageProps {
 
 const sectionCopy: Record<Section, string> = {
     pending: 'Not yet distributed',
-    retained: 'Retained by me',
-    distributed: 'Distributed to employees',
+    retained: 'My Leads',
+    distributed: 'Distributed to Employees',
 };
 
 export default function TeamLeadPage({
     workspace,
     summary,
     section,
+    myPipeline = [],
     employees,
     reports,
     attention,
@@ -133,13 +135,26 @@ export default function TeamLeadPage({
 
     return (
         <HrmsLayout workspace={workspace} title="My leads">
-            <PageIntro title="My leads" subtitle="Retain leads yourself or distribute them to an active employee who reports to you." actions={<Link href="/my-leads/reports" className="text-sm font-medium text-blue-700">Lead report</Link>} />
+            <PageIntro title="My leads" subtitle="My Total Leads are only leads you retained. Team Total Leads count your retained leads once plus employee-distributed leads. Follow up on any team lead without changing ownership unless you retain a pending lead." actions={<Link href="/my-leads/reports" className="text-sm font-medium text-blue-700">Lead report</Link>} />
             {(notice || error) && <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}>{error ?? notice}</p>}
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                <MetricCard tone="orange" icon={Users} label="Not yet distributed" value={String(summary.pending)} />
-                <MetricCard tone="blue" icon={UserRound} label="Retained by me" value={String(summary.retained)} />
-                <MetricCard tone="green" icon={Contact} label="Distributed" value={String(summary.distributed)} />
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard tone="blue" icon={UserRound} label="My Total Leads" value={String(summary.myTotal)} hint="Retained by you" href="/my-leads?section=retained" action="Open my leads" />
+                <MetricCard tone="green" icon={Users} label="Team Total Leads" value={String(summary.teamTotal)} hint="Yours + employees" href="/my-leads" action="Open team leads" />
+                <MetricCard tone="green" icon={Contact} label="Distributed to Employees" value={String(summary.distributed)} hint="With your reports" href="/my-leads?section=distributed" action="View distributed" />
+                <MetricCard tone="orange" icon={Users} label="Not yet distributed" value={String(summary.pending)} hint="Not counted as mine" href="/my-leads" action="Open pool" />
             </div>
+            {myPipeline.some((row) => row.count > 0) && (
+                <SectionCard className="mb-4" title="My pipeline">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {myPipeline.filter((row) => row.count > 0).map((row) => (
+                            <div key={row.value} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                                <StatusBadge value={row.label} />
+                                <span className="text-sm font-semibold tabular-nums text-slate-950">{row.count}</span>
+                            </div>
+                        ))}
+                    </div>
+                </SectionCard>
+            )}
             <SectionCard title="Follow-ups">
                 <div className="mb-3 flex flex-wrap gap-2">
                     {([
@@ -175,7 +190,7 @@ export default function TeamLeadPage({
                 )}
             </SectionCard>
             <div className="mt-4">
-            <SectionCard title="Employees">
+            <SectionCard title="Distributed to Employees">
                 {employees.length === 0 ? (
                     <p className="text-sm text-slate-500">No employees report to you yet.</p>
                 ) : (
@@ -186,7 +201,7 @@ export default function TeamLeadPage({
                                 <div className="text-slate-500">{employee.active ? 'Active' : 'Inactive'} · {employee.total} {employee.total === 1 ? 'lead' : 'leads'}</div>
                                 {employee.followUp && <div className="text-slate-500">Overdue {employee.followUp.overdue} · Due today {employee.followUp.today} · Upcoming {employee.followUp.upcoming}</div>}
                                 <div className="mt-1 text-slate-600">
-                                    {employee.statuses.length === 0 ? 'No pipeline leads' : employee.statuses.map((status) => `${status.label} ${status.count}`).join(' · ')}
+                                    {employee.statuses.length === 0 ? 'No distributed leads' : employee.statuses.map((status) => `${status.label} ${status.count}`).join(' · ')}
                                 </div>
                             </div>
                         ))}
@@ -273,6 +288,7 @@ export default function TeamLeadPage({
                                                         status: lead.status,
                                                         followUpOn: lead.followUpOn,
                                                         remarks: lead.remarks,
+                                                        retainsOnSave: section === 'pending',
                                                     })}
                                                 >
                                                     Update

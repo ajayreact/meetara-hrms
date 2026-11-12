@@ -154,11 +154,20 @@ class LeadFollowUpTest extends TestCase
                 })
                 ->where('recentFollowUps', []));
 
-        $this->actingAs($company->lead)->post("/my-leads/{$pending}/follow-ups", $this->payload())
-            ->assertRedirect("/my-leads/{$pending}")
-            ->assertSessionHas('error', 'Follow-up starts after this lead is retained or distributed.');
-        $this->assertNull(DB::table('leads')->where('id', $pending)->value('assignee_employee_id'));
-        $this->assertSame(0, DB::table('lead_activities')->count());
+        $this->actingAs($company->lead)->get('/my-leads')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('section', 'pending')
+                ->where('leads.0.id', $pending)
+                ->where('leads.0.canFollowUp', true));
+
+        $this->actingAs($company->lead)->post("/my-leads/{$pending}/follow-ups", $this->payload([
+            'remarks' => 'Calling this pending lead',
+        ]))->assertRedirect("/my-leads/{$pending}")->assertSessionHas('status', 'Follow-up saved.');
+        $pendingLead = DB::table('leads')->where('id', $pending)->first();
+        $this->assertSame($company->leadEmployeeId, (int) $pendingLead->assignee_employee_id);
+        $this->assertSame(1, DB::table('lead_assignments')->where('lead_id', $pending)->where('note', 'Retained by the Team Lead')->count());
+        $this->assertSame(1, DB::table('lead_activities')->where('lead_id', $pending)->where('body', 'Calling this pending lead')->count());
 
         $this->actingAs($company->lead)->post("/my-leads/{$distributed}/follow-ups", $this->payload([
             'remarks' => 'Checked the employee note',
@@ -172,7 +181,7 @@ class LeadFollowUpTest extends TestCase
         $this->assertSame($company->reportEmployeeId, (int) $distributedLead->assignee_employee_id);
         $retainedLead = DB::table('leads')->where('id', $retained)->first();
         $this->assertSame($company->leadEmployeeId, (int) $retainedLead->assignee_employee_id);
-        $this->assertSame(1, DB::table('lead_assignments')->count());
+        $this->assertSame(2, DB::table('lead_assignments')->count());
         $this->assertSame($company->lead->id, (int) DB::table('lead_activities')->where('lead_id', $distributed)->value('actor_id'));
 
         $this->actingAs($company->lead)->get("/my-leads/reports/{$company->reportEmployeeId}")

@@ -249,7 +249,11 @@ export default function LeadShowPage({
                                 followUp.post(followUpUrl);
                             }}
                         >
-                            <p className="text-sm leading-5 text-slate-500">Records you, the time, status, date and remark. Ownership does not change.</p>
+                            <p className="text-sm leading-5 text-slate-500">
+                                {placement?.section === 'pending'
+                                    ? 'Records you, the time, status, date and remark. The first save retains this lead to you.'
+                                    : 'Records you, the time, status, date and remark. Ownership does not change.'}
+                            </p>
                             <label className="grid gap-1 text-xs text-slate-500">
                                 Pipeline status
                                 <select aria-label="Pipeline status" className="h-10 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={followUp.data.pipeline_status} onChange={(event) => followUp.setData('pipeline_status', event.target.value)}>

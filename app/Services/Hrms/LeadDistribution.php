@@ -40,10 +40,12 @@ class LeadDistribution
             'leads.assignee_employee_id',
         ]);
         $names = $this->employeeNames($context['tenantId'], $rows->pluck('assignee_employee_id')->filter()->map(fn ($id): int => (int) $id)->all());
+        $summary = $this->summary($context['tenantId'], $context['employeeId']);
 
         return [
-            'summary' => $this->summary($context['tenantId'], $context['employeeId']),
+            'summary' => $summary,
             'section' => $section,
+            'myPipeline' => $this->pipelineCounts($context['tenantId'], $context['employeeId'], 'retained'),
             'employees' => $this->employeeSummary($context['tenantId'], $context['employeeId']),
             'reports' => $this->reports($context['tenantId'], $context['employeeId']),
             'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $names, $today, $section))->all(),
@@ -51,6 +53,54 @@ class LeadDistribution
             'page' => $page,
             'pages' => $pages,
             'selectedIds' => $this->selectedIds($context, $section, $input),
+            'statuses' => $this->statuses(),
+        ];
+    }
+
+    /**
+     * Dashboard board for a Team Lead. My totals are retained leads only.
+     * Team totals are retained + distributed once each; undistributed leads are excluded from both.
+     *
+     * @return array{
+     *     myTotal: int,
+     *     teamTotal: int,
+     *     pending: int,
+     *     distributed: int,
+     *     myPipeline: list<array{value: string, label: string, count: int}>,
+     *     myLeads: list<array<string, mixed>>,
+     *     employees: list<array{id: int, name: string, active: bool, total: int, statuses: list<array{label: string, count: int}>}>,
+     *     statuses: list<array{value: string, label: string}>
+     * }
+     */
+    public function board(User $actor): array
+    {
+        $context = $this->context($actor);
+        $summary = $this->summary($context['tenantId'], $context['employeeId']);
+        $today = $this->today($context['tenantId']);
+        $mine = $this->sectionQuery($context['tenantId'], $context['employeeId'], 'retained')
+            ->orderByDesc('leads.id')
+            ->limit(8)
+            ->get([
+                'leads.id',
+                'leads.name',
+                'leads.email',
+                'leads.phone',
+                'leads.state',
+                'leads.pipeline_status',
+                'leads.follow_up_on',
+                'leads.remarks',
+                'leads.assignee_employee_id',
+            ]);
+        $names = $this->employeeNames($context['tenantId'], [$context['employeeId']]);
+
+        return [
+            'myTotal' => $summary['myTotal'],
+            'teamTotal' => $summary['teamTotal'],
+            'pending' => $summary['pending'],
+            'distributed' => $summary['distributed'],
+            'myPipeline' => $this->pipelineCounts($context['tenantId'], $context['employeeId'], 'retained'),
+            'myLeads' => $mine->map(fn (Lead $lead): array => $this->row($lead, $names, $today, 'retained'))->all(),
+            'employees' => $this->employeeSummary($context['tenantId'], $context['employeeId']),
             'statuses' => $this->statuses(),
         ];
     }
@@ -442,15 +492,43 @@ class LeadDistribution
     }
 
     /**
-     * @return array{pending: int, retained: int, distributed: int}
+     * @return array{pending: int, retained: int, distributed: int, myTotal: int, teamTotal: int}
      */
     private function summary(int $tenantId, int $employeeId): array
     {
+        $pending = $this->sectionQuery($tenantId, $employeeId, 'pending')->count();
+        $retained = $this->sectionQuery($tenantId, $employeeId, 'retained')->count();
+        $distributed = $this->sectionQuery($tenantId, $employeeId, 'distributed')->count();
+
         return [
-            'pending' => $this->sectionQuery($tenantId, $employeeId, 'pending')->count(),
-            'retained' => $this->sectionQuery($tenantId, $employeeId, 'retained')->count(),
-            'distributed' => $this->sectionQuery($tenantId, $employeeId, 'distributed')->count(),
+            'pending' => $pending,
+            'retained' => $retained,
+            'distributed' => $distributed,
+            'myTotal' => $retained,
+            'teamTotal' => $retained + $distributed,
         ];
+    }
+
+    /**
+     * @return list<array{value: string, label: string, count: int}>
+     */
+    private function pipelineCounts(int $tenantId, int $employeeId, string $section): array
+    {
+        $rows = $this->sectionQuery($tenantId, $employeeId, $section)
+            ->groupBy('leads.pipeline_status')
+            ->selectRaw('leads.pipeline_status, COUNT(*) as total')
+            ->pluck('total', 'pipeline_status');
+        $pipeline = [];
+
+        foreach (Lead::STATUSES as $value => $label) {
+            $pipeline[] = [
+                'value' => $value,
+                'label' => $label,
+                'count' => (int) ($rows[$value] ?? 0),
+            ];
+        }
+
+        return $pipeline;
     }
 
     /**
@@ -600,7 +678,7 @@ class LeadDistribution
             'followUpOn' => $followUpOn,
             'remarks' => (string) ($lead->remarks ?? ''),
             'reminder' => $this->reminder($followUpOn, $today),
-            'canFollowUp' => in_array($section, ['retained', 'distributed'], true),
+            'canFollowUp' => in_array($section, ['pending', 'retained', 'distributed'], true),
             'assigneeName' => $assigneeId === null ? '' : (string) ($names[$assigneeId] ?? ''),
         ];
     }
