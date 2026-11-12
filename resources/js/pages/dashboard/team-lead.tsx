@@ -62,9 +62,9 @@ export default function TeamLeadDashboard({ workspace, timing, attendanceRoster,
                 <div className={`min-w-0 ${timing ? 'xl:col-span-7' : ''}`}>
                     <div className={`grid gap-3 sm:grid-cols-2 ${timing ? '' : 'xl:grid-cols-4'}`}>
                         <MetricCard tone="blue" icon={UserRound} label="My Total Leads" value={String(board.myTotal)} hint="Retained by you" href="/my-leads?section=retained" action="Open my leads" />
-                        <MetricCard tone="green" icon={Users} label="Team Total Leads" value={String(board.teamTotal)} hint="Yours + employees" href="/my-leads" action="Open team leads" />
+                        <MetricCard tone="green" icon={Users} label="Team Total Leads" value={String(board.teamTotal)} hint="My + distributed + pending" href="/my-leads" action="Open team leads" />
                         <MetricCard tone="orange" icon={Contact} label="Distributed" value={String(board.distributed)} hint="With employees" href="/my-leads?section=distributed" action="View distributed" />
-                        <MetricCard tone="blue" icon={CalendarCheck} label="Not yet distributed" value={String(board.pending)} hint="Awaiting retain or assign" href="/my-leads" action="Open pool" />
+                        <MetricCard tone="blue" icon={CalendarCheck} label="Not yet distributed" value={String(board.pending)} hint="Available to allocate" href="/my-leads" action="Open pool" />
                     </div>
                 </div>
             </div>

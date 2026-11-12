@@ -66,9 +66,7 @@ export function LeadFollowUpDialog({
                     <DialogTitle>Update status</DialogTitle>
                     <DialogDescription>
                         {lead
-                            ? (lead.retainsOnSave
-                                ? `Save a status, next-call date, or remark for ${lead.name}. The first save retains this lead to you so you can keep working it.`
-                                : `Save a status, next-call date, or remark for ${lead.name}. Ownership does not change.`)
+                            ? `Save a status, next-call date, or remark for ${lead.name}. Ownership does not change.`
                             : 'Save a follow-up for this lead.'}
                     </DialogDescription>
                 </DialogHeader>

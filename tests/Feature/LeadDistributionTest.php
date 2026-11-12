@@ -46,7 +46,7 @@ class LeadDistributionTest extends TestCase
                 ->where('summary.retained', 0)
                 ->where('summary.distributed', 0)
                 ->where('summary.myTotal', 0)
-                ->where('summary.teamTotal', 0)
+                ->where('summary.teamTotal', 1)
                 ->where('section', 'pending')
                 ->where('reports', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => (int) $row['id'] === $company->reportEmployeeId && $row['name'] === 'retainlead-REP Person')));
 
@@ -212,10 +212,109 @@ class LeadDistributionTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('summary.retained', 1)
                 ->where('summary.distributed', 0)
+                ->where('summary.pending', 1)
                 ->where('summary.myTotal', 1)
-                ->where('summary.teamTotal', 1)
+                ->where('summary.teamTotal', 2)
                 ->where('leads.0.id', $leadId));
         $this->actingAs($company->employee)->post('/my-leads/recall', ['ids' => [$leadId]])->assertForbidden();
+    }
+
+    public function test_team_lead_allocation_counts_use_the_priya_split_and_ignore_other_teams(): void
+    {
+        $company = CompanyFixture::make('Priya Split', 'priyasplit');
+        $other = CompanyFixture::make('Other Split', 'othersplit');
+        $secondLeadId = $this->employee($company, 'Manager', 'priyasplit-TWO', 'active', null);
+        $pool = $this->lead($company, null, ['name' => 'Company Pool Lead']);
+        $otherTeam = $this->lead($company, $secondLeadId, ['name' => 'Other Team Lead']);
+        $foreign = $this->lead($other, $other->leadEmployeeId, ['name' => 'Other Company Lead']);
+        $pendingIds = [];
+        $retainedIds = [];
+        $distributedIds = [];
+
+        foreach (range(1, 30) as $number) {
+            $pendingIds[] = $this->lead($company, $company->leadEmployeeId, ['name' => sprintf('Pending %02d', $number)]);
+        }
+
+        foreach (range(1, 30) as $number) {
+            $retainedIds[] = $this->lead($company, $company->leadEmployeeId, [
+                'name' => sprintf('Retained %02d', $number),
+                'assignee_employee_id' => $company->leadEmployeeId,
+            ]);
+        }
+
+        foreach (range(1, 40) as $number) {
+            $distributedIds[] = $this->lead($company, $company->leadEmployeeId, [
+                'name' => sprintf('Distributed %02d', $number),
+                'assignee_employee_id' => $company->reportEmployeeId,
+            ]);
+        }
+
+        $this->actingAs($company->lead)->get('/my-leads')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('leads/team')
+                ->where('summary.myTotal', 30)
+                ->where('summary.distributed', 40)
+                ->where('summary.pending', 30)
+                ->where('summary.retained', 30)
+                ->where('summary.teamTotal', 100)
+                ->where('matching', 30)
+                ->where('leads', fn ($rows): bool => ! collect($rows)->contains('id', $pool)
+                    && ! collect($rows)->contains('id', $otherTeam)
+                    && ! collect($rows)->contains('id', $foreign)));
+
+        $this->actingAs($company->lead)->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dashboard/team-lead')
+                ->where('leadBoard.myTotal', 30)
+                ->where('leadBoard.distributed', 40)
+                ->where('leadBoard.pending', 30)
+                ->where('leadBoard.teamTotal', 100));
+
+        $this->actingAs($company->lead)->post('/my-leads/retain', ['ids' => array_slice($pendingIds, 0, 5)])
+            ->assertRedirect(route('hrms.my-leads', ['section' => 'retained']));
+        $this->actingAs($company->lead)->get('/my-leads')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.myTotal', 35)
+                ->where('summary.distributed', 40)
+                ->where('summary.pending', 25)
+                ->where('summary.teamTotal', 100));
+
+        $this->actingAs($company->lead)->post('/my-leads/distribute', [
+            'ids' => array_slice($pendingIds, 5, 10),
+            'employee_id' => $company->reportEmployeeId,
+        ])->assertRedirect(route('hrms.my-leads', ['section' => 'distributed']));
+        $this->actingAs($company->lead)->get('/my-leads')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.myTotal', 35)
+                ->where('summary.distributed', 50)
+                ->where('summary.pending', 15)
+                ->where('summary.teamTotal', 100));
+
+        $pendingFollowUp = $pendingIds[15];
+        $this->actingAs($company->lead)->post("/my-leads/{$pendingFollowUp}/follow-ups", [
+            'pipeline_status' => 'contacted',
+            'follow_up_on' => '2026-11-20',
+            'remarks' => 'Followed up without retaining',
+        ])->assertRedirect("/my-leads/{$pendingFollowUp}")->assertSessionHas('status', 'Follow-up saved.');
+        $this->assertNull(DB::table('leads')->where('id', $pendingFollowUp)->value('assignee_employee_id'));
+        $this->assertSame('contacted', DB::table('leads')->where('id', $pendingFollowUp)->value('pipeline_status'));
+
+        $this->actingAs($company->lead)->post("/my-leads/{$distributedIds[0]}/follow-ups", [
+            'pipeline_status' => 'interested',
+            'follow_up_on' => '2026-11-21',
+            'remarks' => 'Checked employee lead',
+        ])->assertRedirect("/my-leads/{$distributedIds[0]}");
+        $this->assertSame($company->reportEmployeeId, (int) DB::table('leads')->where('id', $distributedIds[0])->value('assignee_employee_id'));
+
+        $this->assertNull(DB::table('leads')->where('id', $pool)->value('team_lead_employee_id'));
+        $this->assertSame($secondLeadId, (int) DB::table('leads')->where('id', $otherTeam)->value('team_lead_employee_id'));
+        $this->assertSame($other->leadEmployeeId, (int) DB::table('leads')->where('id', $foreign)->value('team_lead_employee_id'));
+        $this->assertCount(30, $retainedIds);
+        $this->actingAs($company->employee)->get('/my-leads')->assertForbidden();
     }
 
     public function test_team_lead_dashboard_separates_my_leads_from_team_totals(): void
@@ -238,7 +337,7 @@ class LeadDistributionTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard/team-lead')
                 ->where('leadBoard.myTotal', 1)
-                ->where('leadBoard.teamTotal', 2)
+                ->where('leadBoard.teamTotal', 3)
                 ->where('leadBoard.pending', 1)
                 ->where('leadBoard.distributed', 1)
                 ->where('leadBoard.myLeads.0.id', $retained)
@@ -254,7 +353,7 @@ class LeadDistributionTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('summary.myTotal', 1)
-                ->where('summary.teamTotal', 2)
+                ->where('summary.teamTotal', 3)
                 ->where('summary.pending', 1)
                 ->where('summary.distributed', 1)
                 ->where('leads.0.id', $retained)

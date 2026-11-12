@@ -165,8 +165,8 @@ class LeadFollowUpTest extends TestCase
             'remarks' => 'Calling this pending lead',
         ]))->assertRedirect("/my-leads/{$pending}")->assertSessionHas('status', 'Follow-up saved.');
         $pendingLead = DB::table('leads')->where('id', $pending)->first();
-        $this->assertSame($company->leadEmployeeId, (int) $pendingLead->assignee_employee_id);
-        $this->assertSame(1, DB::table('lead_assignments')->where('lead_id', $pending)->where('note', 'Retained by the Team Lead')->count());
+        $this->assertNull($pendingLead->assignee_employee_id);
+        $this->assertSame(0, DB::table('lead_assignments')->where('lead_id', $pending)->count());
         $this->assertSame(1, DB::table('lead_activities')->where('lead_id', $pending)->where('body', 'Calling this pending lead')->count());
 
         $this->actingAs($company->lead)->post("/my-leads/{$distributed}/follow-ups", $this->payload([
@@ -181,7 +181,7 @@ class LeadFollowUpTest extends TestCase
         $this->assertSame($company->reportEmployeeId, (int) $distributedLead->assignee_employee_id);
         $retainedLead = DB::table('leads')->where('id', $retained)->first();
         $this->assertSame($company->leadEmployeeId, (int) $retainedLead->assignee_employee_id);
-        $this->assertSame(2, DB::table('lead_assignments')->count());
+        $this->assertSame(1, DB::table('lead_assignments')->count());
         $this->assertSame($company->lead->id, (int) DB::table('lead_activities')->where('lead_id', $distributed)->value('actor_id'));
 
         $this->actingAs($company->lead)->get("/my-leads/reports/{$company->reportEmployeeId}")

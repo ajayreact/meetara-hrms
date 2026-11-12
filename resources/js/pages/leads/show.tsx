@@ -250,9 +250,7 @@ export default function LeadShowPage({
                             }}
                         >
                             <p className="text-sm leading-5 text-slate-500">
-                                {placement?.section === 'pending'
-                                    ? 'Records you, the time, status, date and remark. The first save retains this lead to you.'
-                                    : 'Records you, the time, status, date and remark. Ownership does not change.'}
+                                Records you, the time, status, date and remark. Ownership does not change.
                             </p>
                             <label className="grid gap-1 text-xs text-slate-500">
                                 Pipeline status

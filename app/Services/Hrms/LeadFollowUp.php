@@ -240,49 +240,8 @@ class LeadFollowUp
             $lead = Lead::query()->inCompany($context['tenantId'])->whereKey($leadId)->lockForUpdate()->first();
             abort_if($lead === null || (int) $lead->team_lead_employee_id !== $context['employeeId'], 404);
 
-            if ($lead->assignee_employee_id === null) {
-                $this->retainPendingForFollowUp($context, $lead);
-                $lead = Lead::query()->inCompany($context['tenantId'])->whereKey($leadId)->lockForUpdate()->first();
-                abort_if($lead === null || (int) $lead->assignee_employee_id !== $context['employeeId'], 404);
-            }
-
             return $this->write($context['tenantId'], $context['userId'], $lead, $status, $followUpOn, $remarks);
         });
-    }
-
-    /**
-     * @param  array{tenantId: int, employeeId: int, userId: int}  $context
-     */
-    private function retainPendingForFollowUp(array $context, Lead $lead): void
-    {
-        $now = now();
-        $updated = Lead::query()
-            ->inCompany($context['tenantId'])
-            ->whereKey($lead->id)
-            ->where('team_lead_employee_id', $context['employeeId'])
-            ->whereNull('assignee_employee_id')
-            ->update([
-                'assignee_employee_id' => $context['employeeId'],
-                'assigned_at' => $now,
-                'updated_by' => $context['userId'],
-                'updated_at' => $now,
-            ]);
-
-        if ($updated !== 1) {
-            throw new LeadFollowUpRejected('This lead changed before it could be retained. Refresh and try again.');
-        }
-
-        DB::table('lead_assignments')->insert([
-            'tenant_id' => $context['tenantId'],
-            'lead_id' => (int) $lead->id,
-            'from_team_lead_employee_id' => $context['employeeId'],
-            'to_team_lead_employee_id' => $context['employeeId'],
-            'from_assignee_employee_id' => null,
-            'to_assignee_employee_id' => $context['employeeId'],
-            'assigned_by' => $context['userId'],
-            'note' => 'Retained by the Team Lead',
-            'created_at' => $now,
-        ]);
     }
 
     /**

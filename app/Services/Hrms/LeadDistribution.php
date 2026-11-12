@@ -59,7 +59,7 @@ class LeadDistribution
 
     /**
      * Dashboard board for a Team Lead. My totals are retained leads only.
-     * Team totals are retained + distributed once each; undistributed leads are excluded from both.
+     * Team totals are retained + distributed + not-yet-distributed for this Team Lead only.
      *
      * @return array{
      *     myTotal: int,
@@ -505,7 +505,7 @@ class LeadDistribution
             'retained' => $retained,
             'distributed' => $distributed,
             'myTotal' => $retained,
-            'teamTotal' => $retained + $distributed,
+            'teamTotal' => $retained + $distributed + $pending,
         ];
     }
 
