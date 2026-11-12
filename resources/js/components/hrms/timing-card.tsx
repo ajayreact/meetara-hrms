@@ -192,13 +192,6 @@ export function TimingCard({ timing, notice, className = '' }: { timing: TimingS
                 <InfoRow icon={AlarmClock} label="Break In" value={timing.breakIn ?? '—'} />
             </div>
             {timing.shiftNotice ? <p className="mt-3 text-xs text-slate-600">{timing.shiftNotice}</p> : null}
-            <p className="mt-3 text-xs text-slate-500">
-                {timing.officeName ? `Clock-in and clock-out are checked against the approved public network for ${timing.officeName}.` : 'Clock-in and clock-out are recorded only after the server verifies an approved office network.'}
-                {timing.gpsRequired ? ' This office also requires a browser location inside the saved radius. The server checks that distance, and GPS alone is not enough. The browser can share that location from http://localhost, http://127.0.0.1, or HTTPS. An http LAN address cannot.' : ''}
-                {timing.gpsCapture ? ' Optional GPS capture is on, so a browser location may be saved with this attendance action after the network check.' : ''}
-                {timing.gpsNoticePending ? ' GPS capture is enabled, but it is not requested until the Route Map notice is acknowledged.' : ''}
-                {' '}A Wi-Fi name is not detected.
-            </p>
             {messages.map((item) => <p key={item} className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{item}</p>)}
             <Dialog open={confirmOut} onOpenChange={setConfirmOut}>
                 <DialogContent>
