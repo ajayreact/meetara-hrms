@@ -184,7 +184,7 @@ export default function LeadIndexPage({
                                 <th className={`${headCell} w-[16%]`}>University</th>
                                 <th className={`${headCell} w-[10%]`}>Graduation term</th>
                                 <th className={`${headCell} w-[9%]`}>Status</th>
-                                <th className={`${headCell} w-[9%]`}>Reminder</th>
+                                <th className={`${headCell} w-[9%]`}>Call on</th>
                                 <th className={`${headCell} w-[8%]`}>Pool</th>
                                 {canFollowUp && <th className={`${headCell} w-[8%]`}>Action</th>}
                             </tr>
@@ -208,7 +208,7 @@ export default function LeadIndexPage({
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
                                         <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
                                         <td className={bodyCell}>
-                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder)}</span>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder, lead.followUpOn)}</span>
                                         </td>
                                         <td className={bodyCell}>
                                             <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${lead.unassigned ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>

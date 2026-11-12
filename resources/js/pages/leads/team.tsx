@@ -239,7 +239,7 @@ export default function TeamLeadPage({
                                     <th className={headCell}>Phone</th>
                                     <th className={headCell}>State</th>
                                     <th className={headCell}>Status</th>
-                                    <th className={headCell}>Reminder</th>
+                                    <th className={headCell}>Call on</th>
                                     <th className={headCell}>Assignee</th>
                                     <th className={headCell}>Action</th>
                                 </tr>
@@ -258,7 +258,7 @@ export default function TeamLeadPage({
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
                                         <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
                                         <td className={bodyCell}>
-                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder)}</span>
+                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder, lead.followUpOn)}</span>
                                         </td>
                                         <td className={`${bodyCell} max-w-0 truncate`} title={lead.assigneeName || undefined}>{lead.assigneeName || '—'}</td>
                                         <td className={bodyCell}>

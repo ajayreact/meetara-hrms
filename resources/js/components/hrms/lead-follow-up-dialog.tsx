@@ -128,20 +128,20 @@ export function LeadFollowUpDialog({
     );
 }
 
-export function reminderLabel(reminder: string): string {
+export function reminderLabel(reminder: string, followUpOn: string | null = null): string {
+    if (followUpOn === null || followUpOn === '') {
+        return '—';
+    }
+
     if (reminder === 'overdue') {
-        return 'Overdue';
+        return `Overdue · ${followUpOn}`;
     }
 
     if (reminder === 'due_today') {
-        return 'Due today';
+        return `Due today · ${followUpOn}`;
     }
 
-    if (reminder === 'upcoming') {
-        return 'Upcoming';
-    }
-
-    return '—';
+    return `Call on ${followUpOn}`;
 }
 
 export function reminderTone(reminder: string): string {

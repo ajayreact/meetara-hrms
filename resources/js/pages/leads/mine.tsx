@@ -75,7 +75,7 @@ export default function MyAssignedLeadsPage({ workspace, queue, counts, leads, m
                                 <th className={headCell}>University</th>
                                 <th className={headCell}>Graduation term</th>
                                 <th className={headCell}>Status</th>
-                                <th className={headCell}>Reminder</th>
+                                <th className={headCell}>Call on</th>
                                 <th className={headCell}>Action</th>
                             </tr>
                         </thead>
@@ -89,7 +89,7 @@ export default function MyAssignedLeadsPage({ workspace, queue, counts, leads, m
                                     <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
                                     <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
                                     <td className={bodyCell}>
-                                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder)}</span>
+                                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${reminderTone(lead.reminder)}`}>{reminderLabel(lead.reminder, lead.followUpOn)}</span>
                                     </td>
                                     <td className={bodyCell}>
                                         <Button
