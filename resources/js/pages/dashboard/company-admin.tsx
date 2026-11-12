@@ -102,50 +102,47 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                         <TimingCard className="h-full" timing={timing} />
                     </div>
                 )}
-                <div className={`min-w-0 ${timing ? 'xl:col-span-7' : ''}`}>
-                    {offerApprovals ? (
-                        <OfferApprovals className="h-full" approvals={offerApprovals} />
-                    ) : (
-                        <div className={`grid h-full gap-3 sm:grid-cols-2 ${timing ? '' : 'xl:grid-cols-4'}`}>{metrics}</div>
-                    )}
+                <div className={`flex min-w-0 flex-col gap-4 ${timing ? 'xl:col-span-7' : ''}`}>
+                    {offerApprovals && <OfferApprovals approvals={offerApprovals} />}
+                    <SectionCard className="flex flex-1 flex-col" title="Manage offices" extra={<Link className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline" href="/offices">Open offices</Link>}>
+                        {offices.length === 0 ? (
+                            <p className="text-sm text-slate-500">No offices are recorded yet.</p>
+                        ) : (
+                            <ul className="flex flex-1 flex-col gap-3">
+                                {offices.map((office) => (
+                                    <li key={office.id} className="grid items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/90 to-sky-50/60 p-3 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
+                                        <span className="flex size-14 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/30" aria-hidden="true">
+                                            <Building2 className="size-6" />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <p className="text-base font-semibold text-slate-950">{office.name}</p>
+                                                <StatusBadge value={office.status} />
+                                            </div>
+                                            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                                                <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+                                                {office.timezone}
+                                            </p>
+                                            <Link href="/offices" className="mt-2 inline-flex text-sm font-medium text-blue-700 hover:underline">Manage {office.name}</Link>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        {pendingNetworks > 0 && (
+                            <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                                <Wifi className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                <span>{pendingNetworks === 1 ? '1 office has no approved public network. Clock-in there stays blocked until a network is saved.' : `${pendingNetworks} offices have no approved public network. Clock-in at those offices stays blocked until a network is saved.`}</span>
+                            </p>
+                        )}
+                    </SectionCard>
                 </div>
             </div>
-            {offerApprovals && <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics}</div>}
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics}</div>
             <div className="grid items-stretch gap-4 xl:grid-cols-12">
-                <SectionCard className="flex h-full flex-col xl:col-span-7" title="Office overview" extra={<Link className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline" href="/offices">Manage offices</Link>}>
-                    {offices.length === 0 ? (
-                        <p className="text-sm text-slate-500">No offices are recorded yet.</p>
-                    ) : (
-                        <ul className="flex flex-col gap-3">
-                            {offices.map((office) => (
-                                <li key={office.id} className="grid items-center gap-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/90 to-sky-50/60 p-3 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
-                                    <span className="flex size-[4.5rem] items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/30" aria-hidden="true">
-                                        <Building2 className="size-7" />
-                                    </span>
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <p className="text-base font-semibold text-slate-950">{office.name}</p>
-                                            <StatusBadge value={office.status} />
-                                        </div>
-                                        <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                                            <Globe className="size-3.5 shrink-0" aria-hidden="true" />
-                                            {office.timezone}
-                                        </p>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    {pendingNetworks > 0 && (
-                        <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                            <Wifi className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                            <span>{pendingNetworks === 1 ? '1 office has no approved public network. Clock-in there stays blocked until a network is saved.' : `${pendingNetworks} offices have no approved public network. Clock-in at those offices stays blocked until a network is saved.`}</span>
-                        </p>
-                    )}
-                </SectionCard>
                 <SectionCard className="flex h-full flex-col xl:col-span-5" title="Payroll status" extra={<Link className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline" href="/payroll">Open payroll</Link>}>
                     {runs === 0 ? (
-                        <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                        <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
                             <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-slate-800 text-white shadow-sm shadow-slate-800/30" aria-hidden="true">
                                 <Receipt className="size-5" />
                             </span>
@@ -162,6 +159,20 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                         </ul>
                     )}
                 </SectionCard>
+                <SectionCard className="flex h-full flex-col xl:col-span-7" title="Quick actions">
+                    <ul className="grid flex-1 content-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {shortcuts.map((item) => (
+                            <li key={item.href}>
+                                <Link href={item.href} className="flex h-full items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/80 px-2.5 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:border-blue-100 hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none">
+                                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${item.tone}`}>
+                                        <item.icon className="size-4" aria-hidden="true" />
+                                    </span>
+                                    {item.label}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </SectionCard>
             </div>
             <div className="mt-4">
                 <SectionCard title="Roles and responsibilities">
@@ -170,22 +181,6 @@ export default function CompanyAdminDashboard({ workspace, timing, companyStats,
                             <li key={role.title} className={`rounded-xl border px-3 py-2.5 ${role.tone}`}>
                                 <p className="text-sm font-medium text-slate-950">{role.title}</p>
                                 <p className="mt-0.5 text-xs leading-5 text-slate-600">{role.detail}</p>
-                            </li>
-                        ))}
-                    </ul>
-                </SectionCard>
-            </div>
-            <div className="mt-4">
-                <SectionCard title="Quick actions">
-                    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                        {shortcuts.map((item) => (
-                            <li key={item.href}>
-                                <Link href={item.href} className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-sm font-medium text-slate-800 transition-colors hover:border-blue-100 hover:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none">
-                                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${item.tone}`}>
-                                        <item.icon className="size-4" aria-hidden="true" />
-                                    </span>
-                                    {item.label}
-                                </Link>
                             </li>
                         ))}
                     </ul>
