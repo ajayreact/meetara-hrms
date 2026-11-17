@@ -26,6 +26,12 @@ class MigrationInventoryTest extends TestCase
             '2026_11_11_120000_add_lead_management_tables',
             '2026_11_11_130000_enforce_lead_tenant_relationships',
             '2026_11_12_070000_add_lead_follow_up_reminded_on',
+            '2026_11_13_120000_add_employee_id_card_tables',
+            '2026_11_13_130000_enforce_id_card_tenant_relationships',
+            '2026_11_14_120000_add_standalone_id_card_tables',
+            '2026_11_14_130000_enforce_standalone_id_card_tenant_relationships',
+            '2026_11_14_140000_add_standalone_id_card_import_batches',
+            '2026_11_14_150000_enforce_standalone_id_card_import_tenant_relationships',
         ], $inventory->filesAfterDump());
     }
 
@@ -89,6 +95,12 @@ class MigrationInventoryTest extends TestCase
             '2026_11_11_120000_add_lead_management_tables',
             '2026_11_11_130000_enforce_lead_tenant_relationships',
             '2026_11_12_070000_add_lead_follow_up_reminded_on',
+            '2026_11_13_120000_add_employee_id_card_tables',
+            '2026_11_13_130000_enforce_id_card_tenant_relationships',
+            '2026_11_14_120000_add_standalone_id_card_tables',
+            '2026_11_14_130000_enforce_standalone_id_card_tenant_relationships',
+            '2026_11_14_140000_add_standalone_id_card_import_batches',
+            '2026_11_14_150000_enforce_standalone_id_card_import_tenant_relationships',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());

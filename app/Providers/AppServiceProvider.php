@@ -9,6 +9,8 @@ use App\Models\AttendanceLog;
 use App\Models\Department;
 use App\Models\Designation;
 use App\Models\Employee;
+use App\Models\EmployeeIdCard;
+use App\Models\StandaloneIdCard;
 use App\Models\Holiday;
 use App\Models\LeavePolicy;
 use App\Models\LeaveRequest;
@@ -98,6 +100,38 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $employee;
+        });
+
+        Route::bind('idCard', function (string $value) {
+            $user = auth()->user();
+
+            if (! $user instanceof User || ! ctype_digit($value) || $user->companyId() === null) {
+                abort(404);
+            }
+
+            $card = EmployeeIdCard::query()->inCompany($user->companyId())->whereKey($value)->first();
+
+            if ($card === null) {
+                abort(404);
+            }
+
+            return $card;
+        });
+
+        Route::bind('standaloneIdCard', function (string $value) {
+            $user = auth()->user();
+
+            if (! $user instanceof User || ! ctype_digit($value) || $user->companyId() === null) {
+                abort(404);
+            }
+
+            $card = StandaloneIdCard::query()->inCompany($user->companyId())->whereKey($value)->first();
+
+            if ($card === null) {
+                abort(404);
+            }
+
+            return $card;
         });
 
         Route::bind('department', function (string $value) {

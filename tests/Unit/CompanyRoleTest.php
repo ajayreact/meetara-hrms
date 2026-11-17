@@ -97,6 +97,19 @@ class CompanyRoleTest extends TestCase
         $this->assertTrue(CompanyRole::permissions('super_admin')['companies']);
     }
 
+    public function test_id_card_permissions_are_limited_to_head_of_operations_and_hr(): void
+    {
+        foreach (['company_admin', 'hr'] as $role) {
+            $this->assertTrue(CompanyRole::permissions($role)['idCardsManage'], $role.' idCardsManage');
+            $this->assertTrue(CompanyRole::permissions($role)['idCardsIssue'], $role.' idCardsIssue');
+        }
+
+        foreach (['team_lead', 'employee', 'accounts', 'super_admin'] as $role) {
+            $this->assertFalse(CompanyRole::permissions($role)['idCardsManage'], $role.' idCardsManage');
+            $this->assertFalse(CompanyRole::permissions($role)['idCardsIssue'], $role.' idCardsIssue');
+        }
+    }
+
     public function test_unknown_role_stays_an_employee(): void
     {
         $resolved = CompanyRole::highest(['Custom'], false);

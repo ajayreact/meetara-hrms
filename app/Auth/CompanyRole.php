@@ -77,6 +77,8 @@ class CompanyRole
             'leadsFollowUpTeam' => false,
             'leadsFollowUpOwn' => false,
             'leadsReport' => false,
+            'idCardsManage' => false,
+            'idCardsIssue' => false,
         ];
 
         return match ($role) {
@@ -108,6 +110,8 @@ class CompanyRole
                 'leadsFollowUpTeam' => true,
                 'leadsFollowUpOwn' => true,
                 'leadsReport' => true,
+                'idCardsManage' => true,
+                'idCardsIssue' => true,
             ]),
             'hr' => array_merge($none, [
                 'employees' => true,
@@ -128,6 +132,8 @@ class CompanyRole
                 'leadsFollowUpTeam' => true,
                 'leadsFollowUpOwn' => true,
                 'leadsReport' => true,
+                'idCardsManage' => true,
+                'idCardsIssue' => true,
             ]),
             'accounts' => array_merge($none, [
                 'payroll' => true,

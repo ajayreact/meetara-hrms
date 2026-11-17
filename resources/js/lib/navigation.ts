@@ -16,6 +16,7 @@ import {
     Receipt,
     ClipboardList,
     FileText,
+    IdCard,
     ScrollText,
     Wallet,
     Settings,
@@ -77,6 +78,18 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         items.push({ label: 'USA offers', href: '/usa-offers', icon: ScrollText, section: 'People' });
         items.push({ label: 'STEM I-983', href: '/i983', icon: ClipboardList, section: 'People' });
         items.push({ label: 'Candidate forms', href: '/candidates', icon: ClipboardList, section: 'People' });
+    }
+
+    if (workspace.permissions.idCardsManage) {
+        items.push({ label: 'ID cards', href: '/id-cards', icon: IdCard, section: 'People' });
+        items.push({ label: 'Standalone ID cards', href: '/id-cards/standalone', icon: IdCard, section: 'People' });
+        items.push({ label: 'Standalone ID import', href: '/id-cards/standalone/import', icon: IdCard, section: 'People' });
+        items.push({ label: 'ID card settings', href: '/id-cards/settings', icon: IdCard, section: 'People' });
+    }
+
+    if (workspace.permissions.idCardsIssue) {
+        items.push({ label: 'Bulk ID cards', href: '/id-cards/bulk', icon: IdCard, section: 'People' });
+        items.push({ label: 'Bulk standalone ID cards', href: '/id-cards/standalone/bulk', icon: IdCard, section: 'People' });
     }
 
     items.push({

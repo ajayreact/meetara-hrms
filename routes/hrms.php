@@ -14,6 +14,11 @@ use App\Http\Controllers\Hrms\FollowUpController;
 use App\Http\Controllers\Hrms\HelpDeskController;
 use App\Http\Controllers\Hrms\HolidayController;
 use App\Http\Controllers\Hrms\HrmsPageController;
+use App\Http\Controllers\Hrms\EmployeeIdCardController;
+use App\Http\Controllers\Hrms\EmployeeIdCardVerifyController;
+use App\Http\Controllers\Hrms\IdCardCompanyProfileController;
+use App\Http\Controllers\Hrms\StandaloneIdCardController;
+use App\Http\Controllers\Hrms\StandaloneIdCardImportController;
 use App\Http\Controllers\Hrms\I983CaseController;
 use App\Http\Controllers\Hrms\I983EmployerProfileController;
 use App\Http\Controllers\Hrms\I983SubmissionController;
@@ -55,6 +60,8 @@ Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->g
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final', [I983SubmissionController::class, 'preview'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final');
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final/download', [I983SubmissionController::class, 'download'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final.download');
 Route::middleware([PublicFormHeaders::class, 'throttle:20,1,i983-form-save'])->post('/i983/s/{token}', [I983SubmissionController::class, 'update'])->where('token', '[a-f0-9]{64}')->name('i983.submit.update');
+
+Route::middleware([PublicFormHeaders::class, 'throttle:60,1,id-card-verify'])->get('/id-cards/verify/{token}', [EmployeeIdCardVerifyController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('id-cards.verify');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HrmsPageController::class, 'dashboard'])->name('dashboard');
@@ -177,6 +184,37 @@ Route::middleware('auth')->group(function () {
     Route::post('/offer-letters/{letter}/revise', [OfferLetterController::class, 'revise'])->whereNumber('letter')->name('hrms.offer-letters.revise');
     Route::get('/offer-letters/{letter}/preview-pdf', [OfferLetterController::class, 'previewPdf'])->whereNumber('letter')->name('hrms.offer-letters.preview-pdf');
     Route::get('/offer-letters/{letter}/pdf', [OfferLetterController::class, 'download'])->whereNumber('letter')->name('hrms.offer-letters.pdf');
+    Route::get('/id-cards', [EmployeeIdCardController::class, 'manage'])->name('hrms.id-cards');
+    Route::post('/id-cards', [EmployeeIdCardController::class, 'save'])->name('hrms.id-cards.save');
+    Route::get('/id-cards/bulk', [EmployeeIdCardController::class, 'bulk'])->name('hrms.id-cards.bulk');
+    Route::post('/id-cards/bulk/preview', [EmployeeIdCardController::class, 'bulkPreview'])->name('hrms.id-cards.bulk.preview');
+    Route::post('/id-cards/bulk', [EmployeeIdCardController::class, 'bulkIssue'])->name('hrms.id-cards.bulk.issue');
+    Route::get('/id-cards/bulk/download/{token}', [EmployeeIdCardController::class, 'bulkDownload'])->where('token', '[a-f0-9]{64}')->name('hrms.id-cards.bulk.download');
+    Route::get('/id-cards/standalone', [StandaloneIdCardController::class, 'index'])->name('hrms.id-cards.standalone');
+    Route::post('/id-cards/standalone', [StandaloneIdCardController::class, 'store'])->name('hrms.id-cards.standalone.store');
+    Route::get('/id-cards/standalone/import', [StandaloneIdCardImportController::class, 'index'])->name('hrms.id-cards.standalone.import');
+    Route::get('/id-cards/standalone/import/template', [StandaloneIdCardImportController::class, 'template'])->name('hrms.id-cards.standalone.import.template');
+    Route::post('/id-cards/standalone/import', [StandaloneIdCardImportController::class, 'store'])->name('hrms.id-cards.standalone.import.store');
+    Route::get('/id-cards/standalone/import/{batch}', [StandaloneIdCardImportController::class, 'show'])->whereNumber('batch')->name('hrms.id-cards.standalone.import.show');
+    Route::post('/id-cards/standalone/import/{batch}/confirm', [StandaloneIdCardImportController::class, 'confirm'])->whereNumber('batch')->name('hrms.id-cards.standalone.import.confirm');
+    Route::get('/id-cards/standalone/bulk', [StandaloneIdCardController::class, 'bulk'])->name('hrms.id-cards.standalone.bulk');
+    Route::post('/id-cards/standalone/bulk/preview', [StandaloneIdCardController::class, 'bulkPreview'])->name('hrms.id-cards.standalone.bulk.preview');
+    Route::post('/id-cards/standalone/bulk', [StandaloneIdCardController::class, 'bulkIssue'])->name('hrms.id-cards.standalone.bulk.issue');
+    Route::get('/id-cards/standalone/bulk/download/{token}', [StandaloneIdCardController::class, 'bulkDownload'])->where('token', '[a-f0-9]{64}')->name('hrms.id-cards.standalone.bulk.download');
+    Route::post('/id-cards/standalone/{standaloneIdCard}', [StandaloneIdCardController::class, 'update'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.update');
+    Route::post('/id-cards/standalone/{standaloneIdCard}/issue', [StandaloneIdCardController::class, 'issue'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.issue');
+    Route::post('/id-cards/standalone/{standaloneIdCard}/reissue', [StandaloneIdCardController::class, 'reissue'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.reissue');
+    Route::post('/id-cards/standalone/{standaloneIdCard}/deactivate', [StandaloneIdCardController::class, 'deactivate'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.deactivate');
+    Route::get('/id-cards/standalone/{standaloneIdCard}/pdf', [StandaloneIdCardController::class, 'pdf'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.pdf');
+    Route::get('/id-cards/standalone/{standaloneIdCard}/photo', [StandaloneIdCardController::class, 'photo'])->whereNumber('standaloneIdCard')->name('hrms.id-cards.standalone.photo');
+    Route::post('/id-cards/{idCard}/issue', [EmployeeIdCardController::class, 'issue'])->whereNumber('idCard')->name('hrms.id-cards.issue');
+    Route::post('/id-cards/{idCard}/reissue', [EmployeeIdCardController::class, 'reissue'])->whereNumber('idCard')->name('hrms.id-cards.reissue');
+    Route::post('/id-cards/{idCard}/deactivate', [EmployeeIdCardController::class, 'deactivate'])->whereNumber('idCard')->name('hrms.id-cards.deactivate');
+    Route::get('/id-cards/{idCard}/pdf', [EmployeeIdCardController::class, 'pdf'])->whereNumber('idCard')->name('hrms.id-cards.pdf');
+    Route::get('/id-cards/{idCard}/photo', [EmployeeIdCardController::class, 'photo'])->whereNumber('idCard')->name('hrms.id-cards.photo');
+    Route::get('/id-cards/settings', [IdCardCompanyProfileController::class, 'settings'])->name('hrms.id-cards.settings');
+    Route::post('/id-cards/settings', [IdCardCompanyProfileController::class, 'save'])->name('hrms.id-cards.settings.save');
+    Route::get('/id-cards/settings/logo', [IdCardCompanyProfileController::class, 'logo'])->name('hrms.id-cards.settings.logo');
     Route::get('/usa-offers', [UsaOfferController::class, 'index'])->name('hrms.usa-offers');
     Route::get('/usa-offers/create', [UsaOfferController::class, 'create'])->name('hrms.usa-offers.create');
     Route::get('/usa-offers/settings', [UsaOfferController::class, 'settings'])->name('hrms.usa-offers.settings');
