@@ -141,7 +141,7 @@ class EmployeeIdCardIssuer
                 );
                 $photoCopy = $photoPath;
 
-                return (int) DB::table('employee_id_cards')->insertGetId([
+                $insert = [
                     'tenant_id' => $context['tenantId'],
                     'employee_id' => $locked->employee_id,
                     'country' => $locked->country,
@@ -160,7 +160,17 @@ class EmployeeIdCardIssuer
                     'updated_by' => $context['userId'],
                     'created_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ];
+
+                if (Schema::hasColumn('employee_id_cards', 'designation')) {
+                    $insert['designation'] = $locked->designation;
+                }
+
+                if (Schema::hasColumn('employee_id_cards', 'department')) {
+                    $insert['department'] = $locked->department;
+                }
+
+                return (int) DB::table('employee_id_cards')->insertGetId($insert);
             });
 
             $newCard = $this->ownedCard($context['tenantId'], $newId);
@@ -319,27 +329,18 @@ class EmployeeIdCardIssuer
             ];
         }
 
-        $employee = Employee::query()
-            ->inCompany((int) $card->tenant_id)
-            ->with(['department', 'designation'])
-            ->whereKey($card->employee_id)
-            ->first();
-
-        $profile = IdCardCompanyProfile::query()
-            ->inCompany((int) $card->tenant_id)
-            ->whereKey($card->company_profile_id)
-            ->first();
+        $snapshot = $this->snapshot((int) $card->tenant_id, $card, false);
 
         return [
             'valid' => true,
             'status' => 'active',
-            'name' => $employee ? trim($employee->first_name.' '.$employee->last_name) : 'Unavailable',
-            'employeeCode' => $employee ? (string) $employee->employee_code : '',
-            'designation' => (string) ($employee?->designation?->name ?? ''),
-            'department' => (string) ($employee?->department?->name ?? ''),
-            'companyName' => (string) ($profile?->display_name ?? ''),
+            'name' => (string) ($snapshot['name'] !== '' ? $snapshot['name'] : 'Unavailable'),
+            'employeeCode' => (string) ($snapshot['employeeCode'] ?? ''),
+            'designation' => (string) ($snapshot['designation'] ?? ''),
+            'department' => (string) ($snapshot['department'] ?? ''),
+            'companyName' => (string) ($snapshot['companyDisplayName'] ?? ''),
             'country' => (string) $card->country,
-            'cardNumber' => (string) ($card->card_number ?? ''),
+            'cardNumber' => (string) ($snapshot['cardNumber'] ?? $card->card_number ?? ''),
             'message' => 'This employee ID card is active.',
         ];
     }
@@ -469,16 +470,37 @@ class EmployeeIdCardIssuer
 
         $logoPath = $profile && $this->privateLogo($tenantId, $profile->logo_path)
             ? Storage::disk('local')->path((string) $profile->logo_path)
-            : null;
+            : $this->officialLogoPath();
         $photoPath = $this->privatePhoto($tenantId, $card->photo_path)
             ? Storage::disk('local')->path((string) $card->photo_path)
             : null;
 
+        $designation = '';
+        $department = '';
+
+        if (Schema::hasColumn('employee_id_cards', 'designation')) {
+            $designation = trim((string) ($card->designation ?? ''));
+        }
+
+        if (Schema::hasColumn('employee_id_cards', 'department')) {
+            $department = trim((string) ($card->department ?? ''));
+        }
+
+        if ($designation === '') {
+            $designation = (string) ($employee?->designation?->name ?? '');
+        }
+
+        if ($department === '') {
+            $department = (string) ($employee?->department?->name ?? '');
+        }
+
+        $hasCompanyLogo = $profile && $this->privateLogo($tenantId, $profile->logo_path);
+
         return [
             'name' => $employee ? trim($employee->first_name.' '.$employee->last_name) : '',
             'employeeCode' => $employee ? (string) $employee->employee_code : '',
-            'designation' => (string) ($employee?->designation?->name ?? ''),
-            'department' => (string) ($employee?->department?->name ?? ''),
+            'designation' => $designation,
+            'department' => $department,
             'email' => (string) ($employee?->email ?? ''),
             'bloodGroup' => (string) ($card->blood_group ?? ''),
             'emergencyContactNumber' => (string) ($card->emergency_contact_number ?? ''),
@@ -489,14 +511,53 @@ class EmployeeIdCardIssuer
             'footerAddress' => (string) ($profile?->footer_address ?? ''),
             'logoPath' => $logoPath,
             'photoPath' => $photoPath,
-            'logoUrl' => $profile && $this->privateLogo($tenantId, $profile->logo_path)
+            'logoUrl' => $hasCompanyLogo
                 ? '/id-cards/settings/logo?country='.$card->country
-                : null,
+                : ($logoPath !== null ? '/brand/veltrix-logo.png' : null),
             'photoUrl' => $photoPath !== null ? '/id-cards/'.$card->id.'/photo' : null,
             'verifyUrl' => $this->verifyUrl((string) $card->qr_token),
             'cardNumber' => (string) ($card->card_number ?? ''),
             'issuedAt' => $card->issued_at?->toDateTimeString(),
         ];
+    }
+
+    /**
+     * Refresh the latest issued PDF in place after card-only edits.
+     * Keeps the same QR token and issue history row.
+     */
+    public function refreshIssuedPdf(int $tenantId, EmployeeIdCard $card): void
+    {
+        if ($card->status !== 'active') {
+            return;
+        }
+
+        $issue = EmployeeIdCardIssue::query()
+            ->inCompany($tenantId)
+            ->where('id_card_id', $card->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($issue === null || ! $this->privatePdf($tenantId, $issue->pdf_path)) {
+            return;
+        }
+
+        $payload = $this->snapshot($tenantId, $card, false);
+        $bytes = $this->pdf->render($payload);
+        Storage::disk('local')->put((string) $issue->pdf_path, $bytes);
+
+        DB::table('employee_id_card_issues')
+            ->where('tenant_id', $tenantId)
+            ->where('id', $issue->id)
+            ->update([
+                'payload_json' => json_encode($this->storedPayload($payload), JSON_THROW_ON_ERROR),
+            ]);
+    }
+
+    private function officialLogoPath(): ?string
+    {
+        $path = public_path('images/logo/veltrix-logo.png');
+
+        return is_file($path) ? $path : null;
     }
 
     /**

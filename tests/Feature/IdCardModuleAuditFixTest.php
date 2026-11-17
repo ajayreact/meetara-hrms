@@ -168,6 +168,8 @@ class IdCardModuleAuditFixTest extends TestCase
             'country' => 'india',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-1',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('a.png', 120, 140),
         ])->assertRedirect();
 
@@ -179,6 +181,8 @@ class IdCardModuleAuditFixTest extends TestCase
             'country' => 'india',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-2',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('b.png', 120, 140),
         ])->assertSessionHasErrors('card_number');
 
@@ -193,6 +197,8 @@ class IdCardModuleAuditFixTest extends TestCase
             'country' => $country,
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-9000000999',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('badge.png', 180, 220),
         ])->assertRedirect();
     }
@@ -210,6 +216,8 @@ class IdCardModuleAuditFixTest extends TestCase
             'country' => $country,
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-9000000001',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image($cardNumber.'.png', 160, 200),
         ])->assertRedirect();
 

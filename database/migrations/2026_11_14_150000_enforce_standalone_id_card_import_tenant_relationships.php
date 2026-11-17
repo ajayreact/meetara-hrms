@@ -91,13 +91,32 @@ return new class extends Migration
      */
     private function dropColumnsForeign(string $table, array $columns): void
     {
-        if (! Schema::hasTable($table) || ! $this->hasForeign($table, '', $columns)) {
+        if (! Schema::hasTable($table)) {
             return;
         }
 
-        $this->change($table, function () use ($table, $columns): void {
-            Schema::table($table, function (Blueprint $blueprint) use ($columns): void {
-                $blueprint->dropForeign($columns);
+        $foreign = null;
+
+        foreach (Schema::getForeignKeys($table) as $candidate) {
+            if (($candidate['columns'] ?? []) === $columns) {
+                $foreign = $candidate;
+                break;
+            }
+        }
+
+        if ($foreign === null) {
+            return;
+        }
+
+        $name = (string) ($foreign['name'] ?? '');
+
+        if ($name === '') {
+            return;
+        }
+
+        $this->change($table, function () use ($table, $name): void {
+            Schema::table($table, function (Blueprint $blueprint) use ($name): void {
+                $blueprint->dropForeign($name);
             });
         });
     }

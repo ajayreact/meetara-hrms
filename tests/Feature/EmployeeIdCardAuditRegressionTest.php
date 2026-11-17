@@ -90,6 +90,8 @@ class EmployeeIdCardAuditRegressionTest extends TestCase
             'country' => 'india',
             'blood_group' => 'B+',
             'emergency_contact_number' => '+91-9000000303',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('face.png', 160, 200),
         ])->assertRedirect();
 
@@ -129,6 +131,8 @@ class EmployeeIdCardAuditRegressionTest extends TestCase
             'country' => 'usa',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+1-555-0400',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('replacement.png', 160, 200),
         ])->assertRedirect();
 
@@ -161,6 +165,8 @@ class EmployeeIdCardAuditRegressionTest extends TestCase
             'country' => $country,
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-9000000400',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('badge.png', 160, 200),
         ])->assertRedirect();
     }

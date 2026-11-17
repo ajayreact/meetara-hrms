@@ -497,10 +497,11 @@ class StandaloneIdCardIssuer
 
         $logoPath = $profile && $this->privateLogo($tenantId, $profile->logo_path)
             ? Storage::disk('local')->path((string) $profile->logo_path)
-            : null;
+            : $this->officialLogoPath();
         $photoPath = $this->privatePhoto($tenantId, $card->photo_path)
             ? Storage::disk('local')->path((string) $card->photo_path)
             : null;
+        $hasCompanyLogo = $profile && $this->privateLogo($tenantId, $profile->logo_path);
 
         return [
             'name' => (string) $card->full_name,
@@ -517,14 +518,21 @@ class StandaloneIdCardIssuer
             'footerAddress' => (string) ($profile?->footer_address ?? ''),
             'logoPath' => $logoPath,
             'photoPath' => $photoPath,
-            'logoUrl' => $profile && $this->privateLogo($tenantId, $profile->logo_path)
+            'logoUrl' => $hasCompanyLogo
                 ? '/id-cards/settings/logo?country='.$card->country
-                : null,
+                : ($logoPath !== null ? '/brand/veltrix-logo.png' : null),
             'photoUrl' => $photoPath !== null ? '/id-cards/standalone/'.$card->id.'/photo' : null,
             'verifyUrl' => $this->verifyUrl((string) $card->qr_token),
             'cardNumber' => (string) $card->card_number,
             'issuedAt' => $card->issued_at?->toDateTimeString(),
         ];
+    }
+
+    private function officialLogoPath(): ?string
+    {
+        $path = public_path('images/logo/veltrix-logo.png');
+
+        return is_file($path) ? $path : null;
     }
 
     /**

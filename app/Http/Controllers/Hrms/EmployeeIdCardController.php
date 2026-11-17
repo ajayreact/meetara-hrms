@@ -49,6 +49,8 @@ class EmployeeIdCardController extends Controller
             'country' => ['required', 'string', Rule::in(IdCardCompanyProfile::COUNTRIES)],
             'blood_group' => ['nullable', 'string', Rule::in(EmployeeIdCard::BLOOD_GROUPS)],
             'emergency_contact_number' => ['nullable', 'string', 'max:40'],
+            'designation' => ['required', 'string', 'max:120'],
+            'department' => ['required', 'string', 'max:120'],
             'photo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
 

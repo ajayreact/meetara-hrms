@@ -33,6 +33,8 @@ class EmployeeIdCardBulkIssueTest extends TestCase
             'country' => 'india',
             'blood_group' => 'A+',
             'emergency_contact_number' => '',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
         ])->assertRedirect();
 
         $issuedId = $company->leadEmployeeId;
@@ -86,6 +88,8 @@ class EmployeeIdCardBulkIssueTest extends TestCase
             'employee_id' => $incomplete,
             'country' => 'india',
             'blood_group' => 'AB+',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
         ])->assertRedirect();
 
         $tokenBefore = DB::table('employee_id_cards')->where('tenant_id', $company->id)->pluck('qr_token');
@@ -225,6 +229,8 @@ class EmployeeIdCardBulkIssueTest extends TestCase
             'country' => $country,
             'blood_group' => $blood,
             'emergency_contact_number' => $emergency,
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('badge-'.$employeeId.'.png', 180, 220),
         ])->assertRedirect();
     }

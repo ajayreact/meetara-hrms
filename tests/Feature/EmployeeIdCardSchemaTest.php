@@ -43,6 +43,8 @@ class EmployeeIdCardSchemaTest extends TestCase
             'company_profile_id',
             'blood_group',
             'emergency_contact_number',
+            'designation',
+            'department',
             'photo_path',
             'photo_mime',
             'status',

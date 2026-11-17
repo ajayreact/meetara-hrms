@@ -79,6 +79,7 @@ class EmployeeIdCards
         $employeeId = (int) ($input['employee_id'] ?? 0);
         $employee = Employee::query()
             ->inCompany($context['tenantId'])
+            ->with(['department', 'designation'])
             ->whereKey($employeeId)
             ->first();
 
@@ -92,7 +93,7 @@ class EmployeeIdCards
             ->where('country', $country)
             ->value('id');
 
-        return DB::transaction(function () use ($context, $employeeId, $country, $profileId, $input, $photo): array {
+        return DB::transaction(function () use ($context, $employee, $employeeId, $country, $profileId, $input, $photo): array {
             // Lock the employee row so two concurrent first-saves cannot both insert open drafts.
             Employee::query()
                 ->inCompany($context['tenantId'])
@@ -147,6 +148,22 @@ class EmployeeIdCards
                 'updated_at' => now(),
             ];
 
+            if ($this->hasCardRoleColumns()) {
+                $designation = $this->requiredRoleField($input['designation'] ?? null, 'designation');
+                $department = $this->requiredRoleField($input['department'] ?? null, 'department');
+
+                // First save can seed from the employee profile when the form omits values.
+                if ($row === null) {
+                    $designation = $designation !== '' ? $designation : (string) ($employee->designation?->name ?? '');
+                    $department = $department !== '' ? $department : (string) ($employee->department?->name ?? '');
+                    $designation = $this->requiredRoleField($designation, 'designation');
+                    $department = $this->requiredRoleField($department, 'department');
+                }
+
+                $payload['designation'] = $designation;
+                $payload['department'] = $department;
+            }
+
             if ($row === null) {
                 $payload['tenant_id'] = $context['tenantId'];
                 $payload['employee_id'] = $employeeId;
@@ -166,9 +183,13 @@ class EmployeeIdCards
                 $message = 'Employee ID card details updated.';
             }
 
+            if ($row->status === 'active' && $this->hasCardRoleColumns()) {
+                $this->issuer->refreshIssuedPdf($context['tenantId'], $row);
+            }
+
             return [
                 'message' => $message,
-                'card' => $this->presentCard($context['tenantId'], $row),
+                'card' => $this->presentCard($context['tenantId'], $row, $employee),
             ];
         });
     }
@@ -206,6 +227,7 @@ class EmployeeIdCards
             ->map(function (Employee $employee) use ($tenantId, $cards): array {
                 $name = trim($employee->first_name.' '.$employee->last_name);
                 $card = $cards->get($employee->id)?->first();
+                $presented = $this->presentCard($tenantId, $card, $employee);
 
                 return [
                     'id' => (int) $employee->id,
@@ -214,7 +236,7 @@ class EmployeeIdCards
                     'email' => (string) ($employee->email ?? ''),
                     'department' => (string) ($employee->department?->name ?? ''),
                     'designation' => (string) ($employee->designation?->name ?? ''),
-                    'card' => $this->presentCard($tenantId, $card),
+                    'card' => $presented,
                 ];
             })
             ->values()
@@ -234,19 +256,22 @@ class EmployeeIdCards
     /**
      * @return array<string, mixed>
      */
-    private function presentCard(int $tenantId, ?EmployeeIdCard $row): array
+    private function presentCard(int $tenantId, ?EmployeeIdCard $row, ?Employee $employee = null): array
     {
         if ($row === null) {
-            return $this->emptyCard();
+            return $this->emptyCard($employee);
         }
 
         $hasPhoto = $this->privatePhoto($tenantId, $row->photo_path);
+        [$designation, $department] = $this->cardRoleLabels($row, $employee);
 
         return [
             'id' => (int) $row->id,
             'country' => (string) $row->country,
             'bloodGroup' => (string) ($row->blood_group ?? ''),
             'emergencyContactNumber' => (string) ($row->emergency_contact_number ?? ''),
+            'designation' => $designation,
+            'department' => $department,
             'hasPhoto' => $hasPhoto,
             'photoUrl' => $hasPhoto ? '/id-cards/'.$row->id.'/photo' : null,
             'status' => (string) $row->status,
@@ -257,18 +282,69 @@ class EmployeeIdCards
     /**
      * @return array<string, mixed>
      */
-    private function emptyCard(): array
+    private function emptyCard(?Employee $employee = null): array
     {
         return [
             'id' => null,
             'country' => 'india',
             'bloodGroup' => '',
             'emergencyContactNumber' => '',
+            'designation' => (string) ($employee?->designation?->name ?? ''),
+            'department' => (string) ($employee?->department?->name ?? ''),
             'hasPhoto' => false,
             'photoUrl' => null,
             'status' => 'draft',
             'updatedAt' => null,
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function cardRoleLabels(EmployeeIdCard $row, ?Employee $employee = null): array
+    {
+        $designation = '';
+        $department = '';
+
+        if ($this->hasCardRoleColumns()) {
+            $designation = trim((string) ($row->designation ?? ''));
+            $department = trim((string) ($row->department ?? ''));
+        }
+
+        if ($designation === '') {
+            $designation = (string) ($employee?->designation?->name ?? '');
+        }
+
+        if ($department === '') {
+            $department = (string) ($employee?->department?->name ?? '');
+        }
+
+        return [$designation, $department];
+    }
+
+    private function hasCardRoleColumns(): bool
+    {
+        return Schema::hasColumn('employee_id_cards', 'designation')
+            && Schema::hasColumn('employee_id_cards', 'department');
+    }
+
+    private function requiredRoleField(mixed $value, string $field): string
+    {
+        $trimmed = trim((string) ($value ?? ''));
+
+        if ($trimmed === '') {
+            throw ValidationException::withMessages([
+                $field => ucfirst($field).' is required for the ID card.',
+            ]);
+        }
+
+        if (mb_strlen($trimmed) > 120) {
+            throw ValidationException::withMessages([
+                $field => ucfirst($field).' may not be greater than 120 characters.',
+            ]);
+        }
+
+        return $trimmed;
     }
 
     /**

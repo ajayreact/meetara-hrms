@@ -163,6 +163,8 @@ class EmployeeIdCardIssueTest extends TestCase
             'country' => 'india',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-9000000002',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
         ])->assertRedirect();
         $cardId = (int) DB::table('employee_id_cards')->where('tenant_id', $company->id)->value('id');
 
@@ -177,6 +179,8 @@ class EmployeeIdCardIssueTest extends TestCase
             'country' => 'india',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-9000000002',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('face.png', 160, 200),
         ])->assertRedirect();
 
@@ -242,6 +246,8 @@ class EmployeeIdCardIssueTest extends TestCase
             'country' => $country,
             'blood_group' => $blood,
             'emergency_contact_number' => $emergency,
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('badge.png', 180, 220),
         ])->assertRedirect();
     }

@@ -37,6 +37,8 @@ class EmployeeIdCardDetailsTest extends TestCase
             'country' => 'india',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-9000000000',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('badge.png', 200, 240),
         ])->assertRedirect('/id-cards?employee='.$employeeId);
 
@@ -48,6 +50,8 @@ class EmployeeIdCardDetailsTest extends TestCase
         $this->assertSame('draft', $card->status);
         $this->assertSame('O+', $card->blood_group);
         $this->assertSame('+91-9000000000', $card->emergency_contact_number);
+        $this->assertSame('Software Engineer', $card->designation);
+        $this->assertSame('Engineering', $card->department);
         $this->assertSame('india', $card->country);
         $this->assertNotEmpty($card->qr_token);
         $this->assertStringStartsWith('id-cards/'.$company->id.'/photos/', (string) $card->photo_path);
@@ -62,6 +66,8 @@ class EmployeeIdCardDetailsTest extends TestCase
             ->where('card.bloodGroup', 'O+')
             ->where('card.hasPhoto', true)
             ->where('card.emergencyContactNumber', '+91-9000000000')
+            ->where('card.designation', 'Software Engineer')
+            ->where('card.department', 'Engineering')
         );
 
         $previousPhoto = (string) $card->photo_path;
@@ -70,6 +76,8 @@ class EmployeeIdCardDetailsTest extends TestCase
             'country' => 'usa',
             'blood_group' => 'B-',
             'emergency_contact_number' => '+1-555-0100',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('replacement.jpg', 180, 220),
         ])->assertRedirect('/id-cards?employee='.$employeeId);
 
@@ -104,9 +112,11 @@ class EmployeeIdCardDetailsTest extends TestCase
                 'country' => 'india',
                 'blood_group' => 'Z+',
                 'emergency_contact_number' => str_repeat('9', 50),
+                'designation' => '',
+                'department' => '',
                 'photo' => UploadedFile::fake()->create('notes.txt', 10, 'text/plain'),
             ])
-            ->assertSessionHasErrors(['blood_group', 'emergency_contact_number', 'photo']);
+            ->assertSessionHasErrors(['blood_group', 'emergency_contact_number', 'designation', 'department', 'photo']);
 
         $this->from('/id-cards')
             ->actingAs($company->hr)
@@ -114,6 +124,8 @@ class EmployeeIdCardDetailsTest extends TestCase
                 'employee_id' => $other->reportEmployeeId,
                 'country' => 'india',
                 'blood_group' => 'A+',
+                'designation' => 'Software Engineer',
+                'department' => 'Engineering',
             ])
             ->assertSessionHasErrors('employee_id');
 
@@ -137,6 +149,8 @@ class EmployeeIdCardDetailsTest extends TestCase
             'country' => 'india',
             'blood_group' => 'AB+',
             'emergency_contact_number' => '+91-9111111111',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
             'photo' => UploadedFile::fake()->image('face.png', 120, 140),
         ])->assertRedirect();
 
@@ -149,6 +163,8 @@ class EmployeeIdCardDetailsTest extends TestCase
                 'employee_id' => $company->reportEmployeeId,
                 'country' => 'india',
                 'blood_group' => 'O-',
+                'designation' => 'Software Engineer',
+                'department' => 'Engineering',
             ])->assertForbidden();
             $this->actingAs($user)->get('/id-cards/'.$cardId.'/photo')->assertForbidden();
         }
@@ -163,6 +179,8 @@ class EmployeeIdCardDetailsTest extends TestCase
             'employee_id' => $company->reportEmployeeId,
             'country' => 'usa',
             'blood_group' => 'O+',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
         ])->assertSessionHasErrors('employee_id');
 
         $stolenPath = (string) DB::table('employee_id_cards')->where('id', $cardId)->value('photo_path');
@@ -185,6 +203,84 @@ class EmployeeIdCardDetailsTest extends TestCase
         $this->actingAs($other->hr)->get('/id-cards?employee='.$other->reportEmployeeId)->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('card.hasPhoto', false)
         );
+    }
+
+    public function test_hr_can_edit_designation_and_department_without_changing_employee_or_qr(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('ID Card Role Edit Co', 'idcard-role-edit');
+        $employeeId = $company->reportEmployeeId;
+        $snapshot = $this->employeeSnapshot($employeeId);
+
+        $this->actingAs($company->hr)->post('/id-cards/settings', [
+            'country' => 'india',
+            'legal_name' => 'Veltrix Digital Solutions Private Limited',
+            'display_name' => 'Veltrix India',
+            'office_address' => 'Hyderabad',
+            'contact_number' => '+91-40-00000000',
+            'email' => 'india@veltrix.test',
+            'website' => 'https://veltrix.test',
+            'footer_address' => 'Hyderabad, India',
+            'logo' => UploadedFile::fake()->image('logo.png', 240, 80),
+        ])->assertRedirect();
+
+        $this->actingAs($company->hr)->post('/id-cards', [
+            'employee_id' => $employeeId,
+            'country' => 'india',
+            'blood_group' => 'B+',
+            'emergency_contact_number' => '+91-98765-43210',
+            'designation' => 'Software Engineer',
+            'department' => 'Engineering',
+            'photo' => UploadedFile::fake()->image('badge.png', 200, 240),
+        ])->assertRedirect('/id-cards?employee='.$employeeId);
+
+        $cardId = (int) DB::table('employee_id_cards')->where('tenant_id', $company->id)->where('employee_id', $employeeId)->value('id');
+        $token = (string) DB::table('employee_id_cards')->where('id', $cardId)->value('qr_token');
+        $this->actingAs($company->hr)->post('/id-cards/'.$cardId.'/issue')->assertRedirect();
+
+        $issueBefore = DB::table('employee_id_card_issues')->where('id_card_id', $cardId)->orderByDesc('id')->first();
+        $this->assertNotNull($issueBefore);
+        $pdfBefore = (string) Storage::disk('local')->get((string) $issueBefore->pdf_path);
+        $payloadBefore = json_decode((string) $issueBefore->payload_json, true);
+        $this->assertSame('Software Engineer', $payloadBefore['designation'] ?? null);
+        $this->assertSame('Engineering', $payloadBefore['department'] ?? null);
+
+        $this->actingAs($company->hr)->post('/id-cards', [
+            'employee_id' => $employeeId,
+            'country' => 'india',
+            'blood_group' => 'B+',
+            'emergency_contact_number' => '+91-98765-43210',
+            'designation' => 'Operations Manager',
+            'department' => 'Operations',
+        ])->assertRedirect('/id-cards?employee='.$employeeId)->assertSessionHas('status');
+
+        $updated = DB::table('employee_id_cards')->where('id', $cardId)->first();
+        $this->assertSame('Operations Manager', $updated->designation);
+        $this->assertSame('Operations', $updated->department);
+        $this->assertSame($token, $updated->qr_token);
+        $this->assertSame('active', $updated->status);
+        $this->assertSame(1, DB::table('employee_id_card_issues')->where('id_card_id', $cardId)->count());
+        $this->assertSame($snapshot, $this->employeeSnapshot($employeeId));
+
+        $this->actingAs($company->hr)->get('/id-cards?employee='.$employeeId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('card.designation', 'Operations Manager')
+            ->where('card.department', 'Operations')
+            ->where('issue.preview.front.designation', 'Operations Manager')
+            ->where('issue.preview.front.department', 'Operations')
+        );
+
+        $issueAfter = DB::table('employee_id_card_issues')->where('id_card_id', $cardId)->orderByDesc('id')->first();
+        $this->assertSame((int) $issueBefore->id, (int) $issueAfter->id);
+        $this->assertSame((string) $issueBefore->pdf_path, (string) $issueAfter->pdf_path);
+        $payloadAfter = json_decode((string) $issueAfter->payload_json, true);
+        $this->assertSame('Operations Manager', $payloadAfter['designation'] ?? null);
+        $this->assertSame('Operations', $payloadAfter['department'] ?? null);
+
+        $pdfAfter = (string) Storage::disk('local')->get((string) $issueAfter->pdf_path);
+        $this->assertStringStartsWith('%PDF', $pdfAfter);
+        $this->assertNotSame($pdfBefore, $pdfAfter);
+        $this->assertSame($pdfAfter, $this->actingAs($company->hr)->get('/id-cards/'.$cardId.'/pdf')->streamedContent());
     }
 
     /**

@@ -1,9 +1,17 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm } from '@inertiajs/react';
-import { IdCard, UserRound } from 'lucide-react';
+import { IdCard, Pencil, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 interface CardDetails {
@@ -11,6 +19,8 @@ interface CardDetails {
     country: string;
     bloodGroup: string;
     emergencyContactNumber: string;
+    designation: string;
+    department: string;
     hasPhoto: boolean;
     photoUrl: string | null;
     status: string;
@@ -86,11 +96,23 @@ export default function IdCardManage({
     const canIssue = workspace.permissions.idCardsIssue;
     const [query, setQuery] = useState('');
     const [selected, setSelected] = useState<EmployeeChoice | null>(employee ?? null);
+    const [editOpen, setEditOpen] = useState(false);
     const form = useForm({
         employee_id: selectedEmployeeId ? String(selectedEmployeeId) : '',
         country: card.country || 'india',
         blood_group: card.bloodGroup || '',
         emergency_contact_number: card.emergencyContactNumber || '',
+        designation: card.designation || employee?.designation || '',
+        department: card.department || employee?.department || '',
+        photo: null as File | null,
+    });
+    const editForm = useForm({
+        employee_id: selectedEmployeeId ? String(selectedEmployeeId) : '',
+        country: card.country || 'india',
+        blood_group: card.bloodGroup || '',
+        emergency_contact_number: card.emergencyContactNumber || '',
+        designation: card.designation || employee?.designation || '',
+        department: card.department || employee?.department || '',
         photo: null as File | null,
     });
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -105,14 +127,19 @@ export default function IdCardManage({
 
     useEffect(() => {
         setSelected(employee ?? null);
-        form.setData({
+        const next = {
             employee_id: selectedEmployeeId ? String(selectedEmployeeId) : '',
             country: card.country || 'india',
             blood_group: card.bloodGroup || '',
             emergency_contact_number: card.emergencyContactNumber || '',
-            photo: null,
-        });
+            designation: card.designation || employee?.designation || '',
+            department: card.department || employee?.department || '',
+            photo: null as File | null,
+        };
+        form.setData(next);
+        editForm.setData(next);
         setPhotoPreview(null);
+        setEditOpen(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedEmployeeId, card.id, card.updatedAt]);
 
@@ -138,12 +165,37 @@ export default function IdCardManage({
         form.post(route('hrms.id-cards.save'), { forceFormData: true });
     }
 
+    function openEdit() {
+        editForm.setData({
+            employee_id: form.data.employee_id,
+            country: form.data.country,
+            blood_group: form.data.blood_group,
+            emergency_contact_number: form.data.emergency_contact_number,
+            designation: form.data.designation,
+            department: form.data.department,
+            photo: null,
+        });
+        editForm.clearErrors();
+        setEditOpen(true);
+    }
+
+    function submitEdit(event: FormEvent) {
+        event.preventDefault();
+        editForm.post(route('hrms.id-cards.save'), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => setEditOpen(false),
+        });
+    }
+
     const preview = issue.preview;
     const livePhoto = photoPreview
         ?? (preview?.front.photoUrl ? `${preview.front.photoUrl}?t=${encodeURIComponent(card.updatedAt ?? '')}` : null);
     const liveLogo = preview?.front.logoUrl
         ? `${preview.front.logoUrl}${preview.front.logoUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(card.updatedAt ?? '')}`
         : null;
+    const shownDesignation = form.data.designation || preview?.front.designation || '—';
+    const shownDepartment = form.data.department || preview?.front.department || '—';
 
     return (
         <HrmsLayout workspace={workspace} title="Employee ID cards">
@@ -193,8 +245,6 @@ export default function IdCardManage({
                                 {[
                                     ['Name', selected.name],
                                     ['Employee ID', selected.code],
-                                    ['Designation', selected.designation || '—'],
-                                    ['Department', selected.department || '—'],
                                     ['Email', selected.email || '—'],
                                 ].map(([label, value]) => (
                                     <div key={label}>
@@ -202,7 +252,24 @@ export default function IdCardManage({
                                         <dd className={readonly}>{value}</dd>
                                     </div>
                                 ))}
+                                <div>
+                                    <dt className="text-xs text-slate-400">ID card designation</dt>
+                                    <dd className={readonly}>{shownDesignation}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-xs text-slate-400">ID card department</dt>
+                                    <dd className={readonly}>{shownDepartment}</dd>
+                                </div>
                             </dl>
+                        )}
+
+                        {selected && card.id && (
+                            <div className="mt-4">
+                                <Button type="button" variant="outline" onClick={openEdit}>
+                                    <Pencil className="mr-2 size-4" aria-hidden="true" />
+                                    Edit ID Card
+                                </Button>
+                            </div>
                         )}
                     </SectionCard>
 
@@ -230,6 +297,26 @@ export default function IdCardManage({
                                         ))}
                                     </select>
                                     {form.errors.blood_group && <span className="text-rose-700">{form.errors.blood_group}</span>}
+                                </label>
+                                <label className="grid gap-1 text-xs text-slate-500">
+                                    Designation
+                                    <input
+                                        className={field}
+                                        value={form.data.designation}
+                                        onChange={(event) => form.setData('designation', event.target.value)}
+                                    />
+                                    <span className="text-[11px] text-slate-400">Stored on the ID card only — does not change the HR profile.</span>
+                                    {form.errors.designation && <span className="text-rose-700">{form.errors.designation}</span>}
+                                </label>
+                                <label className="grid gap-1 text-xs text-slate-500">
+                                    Department
+                                    <input
+                                        className={field}
+                                        value={form.data.department}
+                                        onChange={(event) => form.setData('department', event.target.value)}
+                                    />
+                                    <span className="text-[11px] text-slate-400">Stored on the ID card only — does not change the HR profile.</span>
+                                    {form.errors.department && <span className="text-rose-700">{form.errors.department}</span>}
                                 </label>
                                 <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
                                     Emergency contact number
@@ -303,9 +390,9 @@ export default function IdCardManage({
                                 <div className="mx-auto aspect-[54/86] w-full max-w-[13.5rem] overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white shadow-sm">
                                     <div className="flex h-full flex-col items-center bg-gradient-to-b from-slate-50 to-white px-3 py-3 text-center">
                                         {liveLogo ? (
-                                            <img src={liveLogo} alt="" className="h-10 w-10 rounded-md object-contain" />
+                                            <img src={liveLogo} alt="" className="h-8 w-auto max-w-[9rem] rounded-sm bg-white object-contain p-0.5" />
                                         ) : (
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">Logo</div>
+                                            <div className="flex h-8 w-28 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">Logo</div>
                                         )}
                                         <p className="mt-2 text-xs font-semibold text-slate-900">{preview.front.companyDisplayName || 'Company'}</p>
                                         {livePhoto ? (
@@ -315,8 +402,8 @@ export default function IdCardManage({
                                         )}
                                         <p className="mt-3 text-sm font-semibold text-slate-950">{preview.front.name}</p>
                                         <p className="mt-1 text-[11px] text-slate-500">{preview.front.employeeCode}</p>
-                                        <p className="text-[11px] text-slate-500">{preview.front.designation || '—'}</p>
-                                        <p className="text-[11px] text-slate-500">{preview.front.department || '—'}</p>
+                                        <p className="text-[11px] text-slate-500">{shownDesignation}</p>
+                                        <p className="text-[11px] text-slate-500">{shownDepartment}</p>
                                     </div>
                                 </div>
                             </div>
@@ -340,6 +427,43 @@ export default function IdCardManage({
                     )}
                 </SectionCard>
             </div>
+
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit ID Card</DialogTitle>
+                        <DialogDescription>
+                            Update designation and department for this ID card only. Employee HR profile values stay unchanged.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form className="grid gap-4" onSubmit={submitEdit}>
+                        <label className="grid gap-1 text-xs text-slate-500">
+                            Designation
+                            <input
+                                className={field}
+                                value={editForm.data.designation}
+                                onChange={(event) => editForm.setData('designation', event.target.value)}
+                                autoFocus
+                            />
+                            {editForm.errors.designation && <span className="text-rose-700">{editForm.errors.designation}</span>}
+                        </label>
+                        <label className="grid gap-1 text-xs text-slate-500">
+                            Department
+                            <input
+                                className={field}
+                                value={editForm.data.department}
+                                onChange={(event) => editForm.setData('department', event.target.value)}
+                            />
+                            {editForm.errors.department && <span className="text-rose-700">{editForm.errors.department}</span>}
+                        </label>
+                        {editForm.errors.card && <p className="text-sm text-rose-700">{editForm.errors.card}</p>}
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={editForm.processing}>Save designation & department</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </HrmsLayout>
     );
 }
