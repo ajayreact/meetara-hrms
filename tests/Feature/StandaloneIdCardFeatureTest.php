@@ -41,6 +41,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'email' => 'priya.standalone@example.test',
             'phone' => '+91-9000000100',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-9000000101',
             'photo' => UploadedFile::fake()->image('guest.png', 160, 200),
@@ -68,6 +69,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'email' => 'priya.standalone@example.test',
             'phone' => '+91-9000000100',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-9000000101',
         ])->assertRedirect('/id-cards/standalone?card='.$cardId);
@@ -226,6 +228,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'designation' => 'X',
             'department' => 'Y',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-1',
             'photo' => UploadedFile::fake()->image('dup.png', 120, 140),
@@ -242,6 +245,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'full_name' => 'Not Ready',
             'card_number' => 'STC-400',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
         ])->assertRedirect();
         $cardId = (int) DB::table('standalone_id_cards')->where('tenant_id', $company->id)->value('id');
 
@@ -257,6 +261,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'designation' => 'Temp',
             'department' => 'Ops',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'AB+',
             'emergency_contact_number' => '+91-9000000400',
             'photo' => UploadedFile::fake()->image('ready.png', 140, 180),
@@ -281,6 +286,7 @@ class StandaloneIdCardFeatureTest extends TestCase
             'email' => strtolower($cardNumber).'@example.test',
             'phone' => '+91-9000000000',
             'country' => $country,
+            'date_of_birth' => '1994-06-15',
             'blood_group' => $blood,
             'emergency_contact_number' => $emergency,
             'photo' => UploadedFile::fake()->image($cardNumber.'.png', 160, 200),
@@ -375,4 +381,3 @@ class StandaloneIdCardFeatureTest extends TestCase
         return $user->refresh();
     }
 }
-

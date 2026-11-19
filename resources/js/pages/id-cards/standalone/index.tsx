@@ -17,6 +17,7 @@ interface CardDetails {
     country: string;
     bloodGroup: string;
     emergencyContactNumber: string;
+    dateOfBirth: string;
     hasPhoto: boolean;
     photoUrl: string | null;
     status: string;
@@ -45,6 +46,7 @@ interface IssueState {
             employeeCode: string;
             designation: string;
             department: string;
+            dateOfBirth: string;
         };
         back: {
             email: string;
@@ -52,6 +54,8 @@ interface IssueState {
             emergencyContactNumber: string;
             footerAddress: string;
             verifyUrl: string;
+            hasSignature: boolean;
+            signatureUrl: string | null;
         };
     } | null;
 }
@@ -90,6 +94,7 @@ export default function StandaloneIdCardsPage({
         country: card.country || 'india',
         blood_group: card.bloodGroup || '',
         emergency_contact_number: card.emergencyContactNumber || '',
+        date_of_birth: card.dateOfBirth || '',
         photo: null as File | null,
     });
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -106,6 +111,7 @@ export default function StandaloneIdCardsPage({
             country: card.country || 'india',
             blood_group: card.bloodGroup || '',
             emergency_contact_number: card.emergencyContactNumber || '',
+            date_of_birth: card.dateOfBirth || '',
             photo: null,
         });
         setPhotoPreview(null);
@@ -254,6 +260,18 @@ export default function StandaloneIdCardsPage({
                                 {form.errors.blood_group && <span className="text-rose-700">{form.errors.blood_group}</span>}
                             </label>
                             <label className="grid gap-1 text-xs text-slate-500">
+                                Date of birth
+                                <input
+                                    className={field}
+                                    type="date"
+                                    required
+                                    value={form.data.date_of_birth}
+                                    onChange={(event) => form.setData('date_of_birth', event.target.value)}
+                                />
+                                <span className="text-[11px] text-slate-400">Required. Printed on the card. Standalone cards are not linked to an employee profile.</span>
+                                {form.errors.date_of_birth && <span className="text-rose-700">{form.errors.date_of_birth}</span>}
+                            </label>
+                            <label className="grid gap-1 text-xs text-slate-500">
                                 Emergency contact
                                 <input className={field} value={form.data.emergency_contact_number} onChange={(event) => form.setData('emergency_contact_number', event.target.value)} />
                                 {form.errors.emergency_contact_number && <span className="text-rose-700">{form.errors.emergency_contact_number}</span>}
@@ -334,6 +352,7 @@ export default function StandaloneIdCardsPage({
                                         <p className="mt-1 text-[11px] text-slate-500">{form.data.card_number || preview.front.employeeCode}</p>
                                         <p className="text-[11px] text-slate-500">{form.data.designation || preview.front.designation || '—'}</p>
                                         <p className="text-[11px] text-slate-500">{form.data.department || preview.front.department || '—'}</p>
+                                        <p className="mt-2 text-[11px] text-slate-700">DOB {form.data.date_of_birth || preview.front.dateOfBirth || '—'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -349,6 +368,14 @@ export default function StandaloneIdCardsPage({
                                         </div>
                                         <div className="mx-auto mt-4 flex h-20 w-20 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400">QR</div>
                                         <p className="mt-2 text-center text-[10px] text-slate-400">Scan to verify</p>
+                                        <div className="mt-3 text-center">
+                                            {preview.back.hasSignature && preview.back.signatureUrl ? (
+                                                <img src={`${preview.back.signatureUrl}${preview.back.signatureUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(card.updatedAt ?? '')}`} alt="HR authorized signature" className="mx-auto h-8 w-auto max-w-[7rem] object-contain" />
+                                            ) : (
+                                                <div className="mx-auto flex h-8 w-28 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">HR signature</div>
+                                            )}
+                                            <p className="mt-1 text-[10px] text-slate-400">Authorized Signatory (HR)</p>
+                                        </div>
                                         <p className="mt-auto border-t border-slate-100 pt-2 text-center text-[10px] leading-4 text-slate-500 whitespace-pre-wrap">{preview.back.footerAddress || 'Company footer address'}</p>
                                     </div>
                                 </div>

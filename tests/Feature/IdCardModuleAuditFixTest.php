@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmployeeIdCard;
+use App\Models\StandaloneIdCard;
 use App\Services\Hrms\EmployeeIdCardIssuer;
 use App\Services\Hrms\EmployeeIdCardPdf;
 use App\Services\Hrms\StandaloneIdCardIssuer;
@@ -47,7 +49,7 @@ class IdCardModuleAuditFixTest extends TestCase
         try {
             $this->app->make(EmployeeIdCardIssuer::class)->reissue(
                 $company->hr,
-                \App\Models\EmployeeIdCard::query()->findOrFail($cardId),
+                EmployeeIdCard::query()->findOrFail($cardId),
             );
             $this->fail('Expected reissue to fail after archive when PDF rendering fails.');
         } catch (ValidationException $exception) {
@@ -84,7 +86,7 @@ class IdCardModuleAuditFixTest extends TestCase
         try {
             $this->app->make(StandaloneIdCardIssuer::class)->reissue(
                 $company->hr,
-                \App\Models\StandaloneIdCard::query()->findOrFail($cardId),
+                StandaloneIdCard::query()->findOrFail($cardId),
             );
             $this->fail('Expected standalone reissue to fail after archive when PDF rendering fails.');
         } catch (ValidationException $exception) {
@@ -166,6 +168,7 @@ class IdCardModuleAuditFixTest extends TestCase
             'designation' => 'Guest',
             'department' => 'Ops',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-1',
             'designation' => 'Software Engineer',
@@ -179,6 +182,7 @@ class IdCardModuleAuditFixTest extends TestCase
             'designation' => 'Guest',
             'department' => 'Ops',
             'country' => 'india',
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'A+',
             'emergency_contact_number' => '+91-2',
             'designation' => 'Software Engineer',
@@ -214,6 +218,7 @@ class IdCardModuleAuditFixTest extends TestCase
             'email' => strtolower($cardNumber).'@example.test',
             'phone' => '+91-9000000000',
             'country' => $country,
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+91-9000000001',
             'designation' => 'Software Engineer',

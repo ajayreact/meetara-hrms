@@ -230,6 +230,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/id-cards/settings', [IdCardCompanyProfileController::class, 'settings'])->name('hrms.id-cards.settings');
     Route::post('/id-cards/settings', [IdCardCompanyProfileController::class, 'save'])->name('hrms.id-cards.settings.save');
     Route::get('/id-cards/settings/logo', [IdCardCompanyProfileController::class, 'logo'])->name('hrms.id-cards.settings.logo');
+    Route::get('/id-cards/settings/signature', [IdCardCompanyProfileController::class, 'signature'])->name('hrms.id-cards.settings.signature');
     Route::get('/usa-offers', [UsaOfferController::class, 'index'])->name('hrms.usa-offers');
     Route::get('/usa-offers/create', [UsaOfferController::class, 'create'])->name('hrms.usa-offers.create');
     Route::get('/usa-offers/settings', [UsaOfferController::class, 'settings'])->name('hrms.usa-offers.settings');

@@ -43,6 +43,7 @@ class IdCardCompanyProfileController extends Controller
             'website' => ['nullable', 'string', 'max:191'],
             'footer_address' => ['required', 'string', 'max:2000'],
             'logo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'signature' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
 
         $result = $this->profiles->save(
@@ -50,6 +51,7 @@ class IdCardCompanyProfileController extends Controller
             (string) $data['country'],
             $data,
             $request->file('logo'),
+            $request->file('signature'),
         );
 
         return redirect()
@@ -60,6 +62,14 @@ class IdCardCompanyProfileController extends Controller
     public function logo(Request $request): StreamedResponse
     {
         return $this->profiles->logoResponse(
+            $this->manager($request),
+            (string) $request->query('country', 'india'),
+        );
+    }
+
+    public function signature(Request $request): StreamedResponse
+    {
+        return $this->profiles->signatureResponse(
             $this->manager($request),
             (string) $request->query('country', 'india'),
         );

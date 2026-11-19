@@ -33,6 +33,7 @@ class MigrationInventoryTest extends TestCase
             '2026_11_14_140000_add_standalone_id_card_import_batches',
             '2026_11_14_150000_enforce_standalone_id_card_import_tenant_relationships',
             '2026_11_17_180000_add_designation_department_to_employee_id_cards',
+            '2026_11_19_160000_add_id_card_hr_signature_and_standalone_dob',
             '2026_11_19_180000_add_candidate_management_tables',
         ], $inventory->filesAfterDump());
     }
@@ -104,6 +105,7 @@ class MigrationInventoryTest extends TestCase
             '2026_11_14_140000_add_standalone_id_card_import_batches',
             '2026_11_14_150000_enforce_standalone_id_card_import_tenant_relationships',
             '2026_11_17_180000_add_designation_department_to_employee_id_cards',
+            '2026_11_19_160000_add_id_card_hr_signature_and_standalone_dob',
             '2026_11_19_180000_add_candidate_management_tables',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());

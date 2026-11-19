@@ -7,7 +7,9 @@ use App\Models\IdCardCompanyProfile;
 use App\Models\StandaloneIdCard;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -114,6 +116,7 @@ class StandaloneIdCards
                     'department' => $this->nullableString($input['department'] ?? null),
                     'email' => $this->nullableString($input['email'] ?? null),
                     'phone' => $this->nullableString($input['phone'] ?? null),
+                    'date_of_birth' => $this->dateOfBirth($input['date_of_birth'] ?? null),
                     'blood_group' => $this->nullableString($input['blood_group'] ?? null),
                     'emergency_contact_number' => $this->nullableString($input['emergency_contact_number'] ?? null),
                     'photo_path' => $photoPath,
@@ -146,7 +149,7 @@ class StandaloneIdCards
                     'card' => $this->presentCard($context['tenantId'], $row),
                 ];
             });
-        } catch (\Illuminate\Database\QueryException $exception) {
+        } catch (QueryException $exception) {
             if ($this->isUniqueCardNumberViolation($exception)) {
                 throw ValidationException::withMessages([
                     'card_number' => 'This card number is already used for another standalone ID card.',
@@ -233,6 +236,9 @@ class StandaloneIdCards
             'department' => (string) ($row->department ?? ''),
             'email' => (string) ($row->email ?? ''),
             'phone' => (string) ($row->phone ?? ''),
+            'dateOfBirth' => $row->date_of_birth instanceof \DateTimeInterface
+                ? $row->date_of_birth->format('Y-m-d')
+                : trim((string) ($row->date_of_birth ?? '')),
             'country' => (string) $row->country,
             'bloodGroup' => (string) ($row->blood_group ?? ''),
             'emergencyContactNumber' => (string) ($row->emergency_contact_number ?? ''),
@@ -256,6 +262,7 @@ class StandaloneIdCards
             'department' => '',
             'email' => '',
             'phone' => '',
+            'dateOfBirth' => '',
             'country' => 'india',
             'bloodGroup' => '',
             'emergencyContactNumber' => '',
@@ -333,12 +340,31 @@ class StandaloneIdCards
         }
     }
 
-    private function isUniqueCardNumberViolation(\Illuminate\Database\QueryException $exception): bool
+    private function isUniqueCardNumberViolation(QueryException $exception): bool
     {
         $message = strtolower($exception->getMessage());
 
         return str_contains($message, 'standalone_id_cards_tenant_card_number_unique')
             || (str_contains($message, 'unique') && str_contains($message, 'card_number'));
+    }
+
+    private function dateOfBirth(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            throw ValidationException::withMessages(['date_of_birth' => 'Date of birth is required.']);
+        }
+
+        try {
+            $date = Carbon::parse(trim($value))->startOfDay();
+        } catch (\Throwable) {
+            throw ValidationException::withMessages(['date_of_birth' => 'Enter a valid date of birth.']);
+        }
+
+        if ($date->year < 1900 || $date->isFuture()) {
+            throw ValidationException::withMessages(['date_of_birth' => 'Enter a valid date of birth.']);
+        }
+
+        return $date->toDateString();
     }
 
     /**

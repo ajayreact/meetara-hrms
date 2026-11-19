@@ -191,6 +191,7 @@ class CompanyFixture
             'work_mode' => 'office',
             'holiday_calendar' => 'india',
             'date_of_joining' => '2026-01-15',
+            'date_of_birth' => '1994-06-15',
             'status' => 'active',
             'created_at' => $now,
             'updated_at' => $now,

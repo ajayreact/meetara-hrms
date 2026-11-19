@@ -18,6 +18,8 @@ interface Profile {
     footerAddress: string;
     hasLogo: boolean;
     logoUrl: string | null;
+    hasSignature: boolean;
+    signatureUrl: string | null;
     status: string;
     updatedAt: string | null;
 }
@@ -27,6 +29,8 @@ interface Preview {
     legalName: string;
     hasLogo: boolean;
     logoUrl: string | null;
+    hasSignature: boolean;
+    signatureUrl: string | null;
     footerAddress: string;
     officeAddress: string;
     contactNumber: string;
@@ -61,8 +65,10 @@ export default function IdCardSettings({
         website: profile.website,
         footer_address: profile.footerAddress,
         logo: null as File | null,
+        signature: null as File | null,
     });
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
 
     useEffect(() => {
         form.setData({
@@ -75,8 +81,10 @@ export default function IdCardSettings({
             website: profile.website,
             footer_address: profile.footerAddress,
             logo: null,
+            signature: null,
         });
         setLogoPreview(null);
+        setSignaturePreview(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [country, profile.id, profile.updatedAt]);
 
@@ -93,6 +101,19 @@ export default function IdCardSettings({
         return () => URL.revokeObjectURL(url);
     }, [form.data.logo]);
 
+    useEffect(() => {
+        if (form.data.signature === null) {
+            setSignaturePreview(null);
+
+            return;
+        }
+
+        const url = URL.createObjectURL(form.data.signature);
+        setSignaturePreview(url);
+
+        return () => URL.revokeObjectURL(url);
+    }, [form.data.signature]);
+
     function submit(event: FormEvent) {
         event.preventDefault();
         form.post(route('hrms.id-cards.settings.save'), { forceFormData: true });
@@ -107,6 +128,7 @@ export default function IdCardSettings({
         email: form.data.email || preview.email,
         website: form.data.website || preview.website,
         logoSrc: logoPreview ?? (profile.hasLogo ? `${profile.logoUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
+        signatureSrc: signaturePreview ?? (profile.hasSignature && profile.signatureUrl ? `${profile.signatureUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
     };
 
     return (
@@ -183,6 +205,17 @@ export default function IdCardSettings({
                             <span className="text-[11px] text-slate-400">PNG or JPEG up to 2 MB. Stored privately for this company.</span>
                             {form.errors.logo && <span className="text-rose-700">{form.errors.logo}</span>}
                         </label>
+                        <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                            HR authorized signature
+                            <input
+                                className="mt-1.5 block w-full text-sm text-slate-600"
+                                type="file"
+                                accept="image/png,image/jpeg"
+                                onChange={(event) => form.setData('signature', event.target.files?.[0] ?? null)}
+                            />
+                            <span className="text-[11px] text-slate-400">PNG or JPEG up to 2 MB. Stored privately for this company and printed above Authorized Signatory (HR).</span>
+                            {form.errors.signature && <span className="text-rose-700">{form.errors.signature}</span>}
+                        </label>
                         <div className="sm:col-span-2">
                             <Button type="submit" disabled={form.processing}>{profile.id ? 'Save changes' : 'Save company details'}</Button>
                         </div>
@@ -215,6 +248,14 @@ export default function IdCardSettings({
                                 <div className="space-y-2 px-4 py-4 text-xs text-slate-600">
                                     <p><span className="font-medium text-slate-900">Back footer</span></p>
                                     <p className="whitespace-pre-wrap leading-5">{livePreview.footerAddress}</p>
+                                    <div className="border-t border-slate-100 pt-3 text-center">
+                                        {livePreview.signatureSrc ? (
+                                            <img src={livePreview.signatureSrc} alt="HR authorized signature" className="mx-auto h-10 w-auto max-w-[8rem] object-contain" />
+                                        ) : (
+                                            <div className="mx-auto flex h-10 w-32 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">HR signature</div>
+                                        )}
+                                        <p className="mt-1 text-[10px] text-slate-400">Authorized Signatory (HR)</p>
+                                    </div>
                                     {(livePreview.contactNumber || livePreview.email || livePreview.website) && (
                                         <p className="border-t border-slate-100 pt-2 text-[11px] text-slate-500">
                                             {[livePreview.contactNumber, livePreview.email, livePreview.website].filter(Boolean).join(' · ')}

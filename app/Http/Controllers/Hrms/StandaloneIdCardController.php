@@ -179,6 +179,7 @@ class StandaloneIdCardController extends Controller
             'department' => ['nullable', 'string', 'max:120'],
             'email' => ['nullable', 'email', 'max:120'],
             'phone' => ['nullable', 'string', 'max:40'],
+            'date_of_birth' => ['required', 'date', 'before_or_equal:today', 'after:1900-01-01'],
             'country' => ['required', 'string', Rule::in(IdCardCompanyProfile::COUNTRIES)],
             'blood_group' => ['nullable', 'string', Rule::in(StandaloneIdCard::BLOOD_GROUPS)],
             'emergency_contact_number' => ['nullable', 'string', 'max:40'],

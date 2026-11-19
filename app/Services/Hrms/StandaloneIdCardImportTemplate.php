@@ -16,6 +16,7 @@ class StandaloneIdCardImportTemplate
         'Department',
         'Email',
         'Phone Number',
+        'Date of Birth',
         'Blood Group',
         'Emergency Contact',
         'Country',
@@ -95,7 +96,7 @@ class StandaloneIdCardImportTemplate
             $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>');
             $zip->addFromString('xl/styles.xml', $this->styles());
             $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'.count($strings).'" uniqueCount="'.count($strings).'">'.$shared.'</sst>');
-            $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="9" width="22" customWidth="1"/></cols><sheetData>'.$sheetRows.'</sheetData><autoFilter ref="A1:I3"/></worksheet>');
+            $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="10" width="22" customWidth="1"/></cols><sheetData>'.$sheetRows.'</sheetData><autoFilter ref="A1:J3"/></worksheet>');
             $zip->addFromString('xl/worksheets/sheet2.xml', '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="120" customWidth="1"/></cols><sheetData>'.$instructionRows.'</sheetData></worksheet>');
             $zip->close();
             $body = file_get_contents($path);
@@ -116,8 +117,8 @@ class StandaloneIdCardImportTemplate
     private function samples(): array
     {
         return [
-            ['Priya Sample', 'STC-SAMPLE-01', 'Consultant', 'Operations', 'priya.sample@example.test', '+91-9000000100', 'O+', '+91-9000000101', 'India'],
-            ['Alex Sample', '', 'Contractor', 'Facilities', 'alex.sample@example.test', '+1-555-0100', 'B+', '+1-555-0101', 'USA'],
+            ['Priya Sample', 'STC-SAMPLE-01', 'Consultant', 'Operations', 'priya.sample@example.test', '+91-9000000100', '1994-06-15', 'O+', '+91-9000000101', 'India'],
+            ['Alex Sample', '', 'Contractor', 'Facilities', 'alex.sample@example.test', '+1-555-0100', '1990-01-20', 'B+', '+1-555-0101', 'USA'],
         ];
     }
 
@@ -131,6 +132,7 @@ class StandaloneIdCardImportTemplate
             'Remove both sample rows on Sheet1 before uploading a real file.',
             'Required columns: Full Name, Designation, Department, Blood Group, Emergency Contact, Country.',
             'Card Number is optional. Leave it blank to auto-generate a unique card number for this company.',
+            'Date of Birth is optional in the sheet. Use YYYY-MM-DD. A card cannot be issued until a date of birth is saved.',
             'Country must be India or USA. The matching company profile must already be saved under ID card settings.',
             'Blood Group must be one of: A+, A-, B+, B-, AB+, AB-, O+, O-, Unknown.',
             'Photos are not imported. After confirmation, open each draft card and upload a photo before issuing.',

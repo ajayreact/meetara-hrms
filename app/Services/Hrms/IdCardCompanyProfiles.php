@@ -45,7 +45,7 @@ class IdCardCompanyProfiles
      * @param  array<string, mixed>  $input
      * @return array{message: string, profile: array<string, mixed>}
      */
-    public function save(User $actor, string $country, array $input, ?UploadedFile $logo = null): array
+    public function save(User $actor, string $country, array $input, ?UploadedFile $logo = null, ?UploadedFile $signature = null): array
     {
         $context = $this->context($actor);
         $country = $this->country($country);
@@ -62,10 +62,17 @@ class IdCardCompanyProfiles
         $logoPath = $row?->logo_path;
         $logoMime = $row?->logo_mime;
         $previousLogo = is_string($logoPath) ? $logoPath : null;
+        $signaturePath = $row?->signature_path;
+        $signatureMime = $row?->signature_mime;
+        $previousSignature = is_string($signaturePath) ? $signaturePath : null;
 
         if ($logo !== null) {
             // Store the new logo first; delete the previous file only after the DB write succeeds.
             [$logoPath, $logoMime] = $this->storeLogo($context['tenantId'], $country, $logo, null);
+        }
+
+        if ($signature !== null) {
+            [$signaturePath, $signatureMime] = $this->storeSignature($context['tenantId'], $country, $signature, null);
         }
 
         $payload = [
@@ -78,6 +85,8 @@ class IdCardCompanyProfiles
             'footer_address' => trim((string) ($input['footer_address'] ?? '')),
             'logo_path' => $logoPath,
             'logo_mime' => $logoMime,
+            'signature_path' => $signaturePath,
+            'signature_mime' => $signatureMime,
             'status' => 'active',
             'updated_by' => $context['userId'],
             'updated_at' => now(),
@@ -104,11 +113,19 @@ class IdCardCompanyProfiles
                 Storage::disk('local')->delete($logoPath);
             }
 
+            if ($signature !== null && is_string($signaturePath) && $signaturePath !== $previousSignature && $this->privateSignature($context['tenantId'], $signaturePath)) {
+                Storage::disk('local')->delete($signaturePath);
+            }
+
             throw $exception;
         }
 
         if ($logo !== null && is_string($previousLogo) && $previousLogo !== '' && $previousLogo !== $logoPath && $this->privateLogo($context['tenantId'], $previousLogo)) {
             Storage::disk('local')->delete($previousLogo);
+        }
+
+        if ($signature !== null && is_string($previousSignature) && $previousSignature !== '' && $previousSignature !== $signaturePath && $this->privateSignature($context['tenantId'], $previousSignature)) {
+            Storage::disk('local')->delete($previousSignature);
         }
 
         $profile = $this->present($context['tenantId'], $country, $row);
@@ -136,6 +153,23 @@ class IdCardCompanyProfiles
         ]);
     }
 
+    public function signatureResponse(User $actor, string $country): StreamedResponse
+    {
+        $context = $this->context($actor);
+        $country = $this->country($country);
+        $row = IdCardCompanyProfile::query()
+            ->inCompany($context['tenantId'])
+            ->where('country', $country)
+            ->first();
+        abort_unless($row !== null && $this->privateSignature($context['tenantId'], $row->signature_path), 404);
+
+        return Storage::disk('local')->response((string) $row->signature_path, basename((string) $row->signature_path), [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Type' => (string) ($row->signature_mime ?: 'application/octet-stream'),
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -157,12 +191,15 @@ class IdCardCompanyProfiles
                 'footerAddress' => '',
                 'hasLogo' => false,
                 'logoUrl' => null,
+                'hasSignature' => false,
+                'signatureUrl' => null,
                 'status' => 'active',
                 'updatedAt' => null,
             ];
         }
 
         $hasLogo = $this->privateLogo($tenantId, $row->logo_path);
+        $hasSignature = $this->privateSignature($tenantId, $row->signature_path ?? null);
 
         return [
             'id' => (int) $row->id,
@@ -176,6 +213,8 @@ class IdCardCompanyProfiles
             'footerAddress' => (string) $row->footer_address,
             'hasLogo' => $hasLogo,
             'logoUrl' => $hasLogo ? '/id-cards/settings/logo?country='.$country : null,
+            'hasSignature' => $hasSignature,
+            'signatureUrl' => $hasSignature ? '/id-cards/settings/signature?country='.$country : null,
             'status' => (string) $row->status,
             'updatedAt' => $row->updated_at?->toDateTimeString(),
         ];
@@ -192,6 +231,8 @@ class IdCardCompanyProfiles
             'legalName' => (string) ($profile['legalName'] ?? ''),
             'hasLogo' => (bool) ($profile['hasLogo'] ?? false),
             'logoUrl' => $profile['logoUrl'] ?? null,
+            'hasSignature' => (bool) ($profile['hasSignature'] ?? false),
+            'signatureUrl' => $profile['signatureUrl'] ?? null,
             'footerAddress' => (string) ($profile['footerAddress'] ?? ''),
             'officeAddress' => (string) ($profile['officeAddress'] ?? ''),
             'contactNumber' => (string) ($profile['contactNumber'] ?? ''),
@@ -232,6 +273,37 @@ class IdCardCompanyProfiles
         return [$path, $allowed[$extension]];
     }
 
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function storeSignature(int $tenantId, string $country, UploadedFile $signature, ?string $previous): array
+    {
+        $extension = strtolower((string) $signature->getClientOriginalExtension());
+        $mime = (string) ($signature->getMimeType() ?: '');
+        $allowed = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+
+        if (! array_key_exists($extension, $allowed) || ! in_array($mime, ['image/jpeg', 'image/png'], true)) {
+            throw ValidationException::withMessages([
+                'signature' => 'Upload a PNG or JPEG signature up to 2 MB.',
+            ]);
+        }
+
+        $contents = file_get_contents($signature->getRealPath());
+
+        if (! is_string($contents) || $contents === '') {
+            throw ValidationException::withMessages(['signature' => 'The signature file could not be read.']);
+        }
+
+        $path = 'id-cards/'.$tenantId.'/signatures/'.$country.'-'.Str::uuid()->toString().'.'.$extension;
+        Storage::disk('local')->put($path, $contents);
+
+        if (is_string($previous) && $previous !== '' && $previous !== $path && $this->privateSignature($tenantId, $previous)) {
+            Storage::disk('local')->delete($previous);
+        }
+
+        return [$path, $allowed[$extension]];
+    }
+
     private function privateLogo(int $tenantId, mixed $path): bool
     {
         if (! is_string($path) || $path === '' || str_contains($path, '..')) {
@@ -239,6 +311,19 @@ class IdCardCompanyProfiles
         }
 
         if (! str_starts_with($path, 'id-cards/'.$tenantId.'/logos/')) {
+            return false;
+        }
+
+        return Storage::disk('local')->exists($path);
+    }
+
+    private function privateSignature(int $tenantId, mixed $path): bool
+    {
+        if (! is_string($path) || $path === '' || str_contains($path, '..')) {
+            return false;
+        }
+
+        if (! str_starts_with($path, 'id-cards/'.$tenantId.'/signatures/')) {
             return false;
         }
 

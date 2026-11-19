@@ -6,6 +6,7 @@ use App\Models\StandaloneIdCard;
 use App\Models\StandaloneIdCardIssue;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
@@ -30,6 +31,7 @@ class StandaloneIdCardSchemaTest extends TestCase
             'department',
             'email',
             'phone',
+            'date_of_birth',
             'blood_group',
             'emergency_contact_number',
             'photo_path',
@@ -55,7 +57,7 @@ class StandaloneIdCardSchemaTest extends TestCase
 
         $company = CompanyFixture::make('Standalone Schema Co', 'standalone-schema');
         $other = CompanyFixture::make('Other Standalone Schema Co', 'other-standalone-schema');
-        $employeeCount = (int) \Illuminate\Support\Facades\DB::table('employees')->where('tenant_id', $company->id)->count();
+        $employeeCount = (int) DB::table('employees')->where('tenant_id', $company->id)->count();
 
         $relationships = require base_path('database/migrations/2026_11_14_130000_enforce_standalone_id_card_tenant_relationships.php');
         $relationships->up();
@@ -64,7 +66,7 @@ class StandaloneIdCardSchemaTest extends TestCase
         $this->assertTenantForeign('standalone_id_card_issues', 'id_card_id', 'standalone_id_cards');
         $this->assertTenantForeign('standalone_id_card_issues', 'issued_by', 'users');
 
-        $profileId = \Illuminate\Support\Facades\DB::table('id_card_company_profiles')->insertGetId([
+        $profileId = DB::table('id_card_company_profiles')->insertGetId([
             'tenant_id' => $company->id,
             'country' => 'india',
             'legal_name' => 'Veltrix India',
@@ -115,7 +117,7 @@ class StandaloneIdCardSchemaTest extends TestCase
         $this->assertSame(1, StandaloneIdCard::query()->inCompany($company->id)->count());
         $this->assertSame(0, StandaloneIdCard::query()->inCompany($other->id)->count());
         $this->assertCount(1, $card->issues);
-        $this->assertSame($employeeCount, (int) \Illuminate\Support\Facades\DB::table('employees')->where('tenant_id', $company->id)->count());
+        $this->assertSame($employeeCount, (int) DB::table('employees')->where('tenant_id', $company->id)->count());
 
         $this->rejectCrossTenant(fn () => (new StandaloneIdCard)->forceFill([
             'tenant_id' => $company->id,
@@ -168,7 +170,7 @@ class StandaloneIdCardSchemaTest extends TestCase
 
     private function foreignProfile(CompanyFixture $company): int
     {
-        return (int) \Illuminate\Support\Facades\DB::table('id_card_company_profiles')->insertGetId([
+        return (int) DB::table('id_card_company_profiles')->insertGetId([
             'tenant_id' => $company->id,
             'country' => 'usa',
             'legal_name' => 'Foreign',

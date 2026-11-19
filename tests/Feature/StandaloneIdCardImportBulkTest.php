@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Services\Hrms\EmployeeIdCardPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -187,6 +186,7 @@ class StandaloneIdCardImportBulkTest extends TestCase
                 'email' => $card->email,
                 'phone' => $card->phone,
                 'country' => $card->country,
+                'date_of_birth' => '1994-06-15',
                 'blood_group' => $card->blood_group,
                 'emergency_contact_number' => $card->emergency_contact_number,
                 'photo' => UploadedFile::fake()->image('face-'.$cardId.'.png', 160, 200),
@@ -317,6 +317,7 @@ class StandaloneIdCardImportBulkTest extends TestCase
             'email' => strtolower($cardNumber).'@example.test',
             'phone' => '+1-555-0000',
             'country' => $country,
+            'date_of_birth' => '1994-06-15',
             'blood_group' => 'O+',
             'emergency_contact_number' => '+1-555-0001',
             'photo' => UploadedFile::fake()->image($cardNumber.'.png', 160, 200),

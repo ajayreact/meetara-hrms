@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Hrms\EmployeeIdCardPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -143,6 +144,60 @@ class IdCardCompanyProfileTest extends TestCase
         $this->assertSame('image/jpeg', $updated->logo_mime);
     }
 
+    public function test_hr_signature_is_private_to_the_company_and_prints_above_the_signatory(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('ID Card Signature Co', 'idcard-signature');
+        $other = CompanyFixture::make('Other ID Card Signature Co', 'other-idcard-signature');
+
+        $this->actingAs($company->hr)->post('/id-cards/settings', array_merge($this->profile('india'), [
+            'signature' => UploadedFile::fake()->image('hr-sign.png', 320, 80),
+        ]))->assertRedirect('/id-cards/settings?country=india');
+
+        $row = DB::table('id_card_company_profiles')->where('tenant_id', $company->id)->where('country', 'india')->first();
+        $this->assertNotNull($row);
+        $this->assertStringStartsWith('id-cards/'.$company->id.'/signatures/', (string) $row->signature_path);
+        $this->assertSame('image/png', $row->signature_mime);
+        Storage::disk('local')->assertExists((string) $row->signature_path);
+
+        $this->actingAs($company->hr)->get('/id-cards/settings?country=india')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('profile.hasSignature', true)
+            ->where('profile.signatureUrl', '/id-cards/settings/signature?country=india')
+            ->where('preview.hasSignature', true)
+        );
+
+        $signature = $this->actingAs($company->hr)->get('/id-cards/settings/signature?country=india');
+        $signature->assertOk();
+        $signature->assertHeader('Cache-Control', 'no-store, private');
+        $signature->assertHeader('Content-Type', 'image/png');
+        $this->actingAs($other->hr)->get('/id-cards/settings/signature?country=india')->assertNotFound();
+        $this->actingAs($company->employee)->get('/id-cards/settings/signature?country=india')->assertForbidden();
+
+        $placeholder = $this->pdfText((new EmployeeIdCardPdf)->render($this->cardPayload(null)));
+        $this->assertStringContainsString('(HR signature)', $placeholder);
+        $this->assertStringContainsString('Authorized Signatory', $placeholder);
+
+        $printed = $this->pdfText((new EmployeeIdCardPdf)->render($this->cardPayload(
+            Storage::disk('local')->path((string) $row->signature_path),
+        )));
+        $this->assertStringNotContainsString('(HR signature)', $printed);
+        $this->assertStringContainsString('Authorized Signatory', $printed);
+
+        $previous = (string) $row->signature_path;
+        $this->actingAs($company->hr)->post('/id-cards/settings', array_merge($this->profile('india'), [
+            'signature' => UploadedFile::fake()->image('replacement-sign.jpg', 300, 70),
+        ]))->assertRedirect();
+        $updated = DB::table('id_card_company_profiles')->where('id', $row->id)->first();
+        $this->assertNotSame($previous, (string) $updated->signature_path);
+        $this->assertStringStartsWith('id-cards/'.$company->id.'/signatures/', (string) $updated->signature_path);
+        Storage::disk('local')->assertMissing($previous);
+        Storage::disk('local')->assertExists((string) $updated->signature_path);
+
+        $usa = DB::table('id_card_company_profiles')->where('tenant_id', $company->id)->where('country', 'usa')->first();
+        $this->assertNull($usa);
+    }
+
     public function test_validation_rejects_missing_fields_and_bad_logo(): void
     {
         $this->withoutVite();
@@ -225,6 +280,43 @@ class IdCardCompanyProfileTest extends TestCase
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
      */
+    private function pdfText(string $pdf): string
+    {
+        $text = '';
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $matches);
+
+        foreach ($matches[1] ?? [] as $stream) {
+            $decoded = @gzuncompress($stream);
+
+            if (is_string($decoded)) {
+                $text .= $decoded;
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cardPayload(?string $signaturePath): array
+    {
+        return [
+            'name' => 'Ajay Oguri',
+            'employeeCode' => 'VEL-01',
+            'designation' => 'Engineer',
+            'email' => 'ajay@veltrixds.com',
+            'dateOfBirth' => '1994-06-15',
+            'bloodGroup' => 'B+',
+            'companyDisplayName' => 'Veltrix India',
+            'footerAddress' => 'Hyderabad, Telangana, India',
+            'verifyUrl' => 'https://hrms.veltrixds.com/id-cards/verify/'.str_repeat('a', 64),
+            'cardNumber' => 'IDC-000001',
+            'issuedAt' => '2026-11-19 00:00:00',
+            'signaturePath' => $signaturePath,
+        ];
+    }
+
     private function profile(string $country = 'india', array $overrides = []): array
     {
         return array_merge([

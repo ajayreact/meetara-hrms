@@ -7,6 +7,7 @@ use App\Models\EmployeeIdCardIssue;
 use App\Models\IdCardCompanyProfile;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\CompanyFixture;
 use Tests\TestCase;
@@ -28,6 +29,8 @@ class EmployeeIdCardSchemaTest extends TestCase
             'display_name',
             'logo_path',
             'logo_mime',
+            'signature_path',
+            'signature_mime',
             'office_address',
             'contact_number',
             'email',
@@ -274,7 +277,7 @@ class EmployeeIdCardSchemaTest extends TestCase
      */
     private function employeeSnapshot(int $employeeId): array
     {
-        return (array) \Illuminate\Support\Facades\DB::table('employees')->where('id', $employeeId)->first();
+        return (array) DB::table('employees')->where('id', $employeeId)->first();
     }
 
     private function assertTenantForeign(string $table, string $column, string $references): void

@@ -151,6 +151,9 @@ class StandaloneIdCardIssuer
                     'department' => $locked->department,
                     'email' => $locked->email,
                     'phone' => $locked->phone,
+                    'date_of_birth' => $locked->date_of_birth instanceof \DateTimeInterface
+                        ? $locked->date_of_birth->format('Y-m-d')
+                        : ($locked->date_of_birth ?: null),
                     'blood_group' => $locked->blood_group,
                     'emergency_contact_number' => $locked->emergency_contact_number,
                     'photo_path' => $photoPath,
@@ -332,6 +335,10 @@ class StandaloneIdCardIssuer
             $blockers[] = 'Department is required.';
         }
 
+        if ($card->date_of_birth === null || trim((string) $card->date_of_birth) === '') {
+            $blockers[] = 'Date of birth is required.';
+        }
+
         if (trim((string) ($card->blood_group ?? '')) === '') {
             $blockers[] = 'Blood group is required.';
         }
@@ -406,6 +413,7 @@ class StandaloneIdCardIssuer
                     'employeeCode' => $snapshot['employeeCode'],
                     'designation' => $snapshot['designation'],
                     'department' => $snapshot['department'],
+                    'dateOfBirth' => $snapshot['dateOfBirth'],
                 ],
                 'back' => [
                     'email' => $snapshot['email'],
@@ -413,6 +421,8 @@ class StandaloneIdCardIssuer
                     'emergencyContactNumber' => $snapshot['emergencyContactNumber'],
                     'footerAddress' => $snapshot['footerAddress'],
                     'verifyUrl' => $snapshot['verifyUrl'],
+                    'hasSignature' => $snapshot['signaturePath'] !== null,
+                    'signatureUrl' => $snapshot['signatureUrl'],
                 ],
             ],
         ];
@@ -502,6 +512,10 @@ class StandaloneIdCardIssuer
             ? Storage::disk('local')->path((string) $card->photo_path)
             : null;
         $hasCompanyLogo = $profile && $this->privateLogo($tenantId, $profile->logo_path);
+        [$signaturePath, $signatureUrl] = $this->signatureAsset($tenantId, $profile, (string) $card->country);
+        $dateOfBirth = $card->date_of_birth instanceof \DateTimeInterface
+            ? $card->date_of_birth->format('Y-m-d')
+            : trim((string) ($card->date_of_birth ?? ''));
 
         return [
             'name' => (string) $card->full_name,
@@ -509,15 +523,18 @@ class StandaloneIdCardIssuer
             'designation' => (string) ($card->designation ?? ''),
             'department' => (string) ($card->department ?? ''),
             'email' => (string) ($card->email ?? ''),
+            'dateOfBirth' => $dateOfBirth,
             'bloodGroup' => (string) ($card->blood_group ?? ''),
             'emergencyContactNumber' => (string) ($card->emergency_contact_number ?? ''),
             'country' => (string) $card->country,
             'companyProfileId' => $profile !== null ? (int) $profile->id : ($card->company_profile_id ? (int) $card->company_profile_id : null),
             'companyDisplayName' => (string) ($profile?->display_name ?? ''),
             'companyLegalName' => (string) ($profile?->legal_name ?? ''),
-            'footerAddress' => (string) ($profile?->footer_address ?? ''),
+            'footerAddress' => $this->cardOfficeAddress($profile),
             'logoPath' => $logoPath,
             'photoPath' => $photoPath,
+            'signaturePath' => $signaturePath,
+            'signatureUrl' => $signatureUrl,
             'logoUrl' => $hasCompanyLogo
                 ? '/id-cards/settings/logo?country='.$card->country
                 : ($logoPath !== null ? '/brand/veltrix-logo.png' : null),
@@ -526,6 +543,22 @@ class StandaloneIdCardIssuer
             'cardNumber' => (string) $card->card_number,
             'issuedAt' => $card->issued_at?->toDateTimeString(),
         ];
+    }
+
+    private function cardOfficeAddress(?IdCardCompanyProfile $profile): string
+    {
+        $office = trim((string) ($profile?->office_address ?? ''));
+        $footer = trim((string) ($profile?->footer_address ?? ''));
+
+        if ($office === '') {
+            return $footer;
+        }
+
+        if ($footer === '' || str_contains($office, $footer) || str_contains($footer, $office)) {
+            return strlen($office) >= strlen($footer) ? $office : $footer;
+        }
+
+        return $office.', '.$footer;
     }
 
     private function officialLogoPath(): ?string
@@ -541,7 +574,7 @@ class StandaloneIdCardIssuer
      */
     private function storedPayload(array $payload): array
     {
-        unset($payload['logoPath'], $payload['photoPath'], $payload['companyProfileId']);
+        unset($payload['logoPath'], $payload['photoPath'], $payload['signaturePath'], $payload['companyProfileId']);
 
         return $payload;
     }
@@ -654,6 +687,38 @@ class StandaloneIdCardIssuer
         }
 
         return Storage::disk('local')->exists($path);
+    }
+
+    private function privateSignature(int $tenantId, mixed $path): bool
+    {
+        if (! is_string($path) || $path === '' || str_contains($path, '..')) {
+            return false;
+        }
+
+        if (! str_starts_with($path, 'id-cards/'.$tenantId.'/signatures/')) {
+            return false;
+        }
+
+        return Storage::disk('local')->exists($path);
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function signatureAsset(int $tenantId, ?IdCardCompanyProfile $profile, string $country): array
+    {
+        if ($profile === null || ! Schema::hasColumn('id_card_company_profiles', 'signature_path')) {
+            return [null, null];
+        }
+
+        if (! $this->privateSignature($tenantId, $profile->signature_path)) {
+            return [null, null];
+        }
+
+        return [
+            Storage::disk('local')->path((string) $profile->signature_path),
+            '/id-cards/settings/signature?country='.$country,
+        ];
     }
 
     private function privatePdf(int $tenantId, mixed $path): bool

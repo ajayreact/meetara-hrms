@@ -51,6 +51,7 @@ class EmployeeIdCardController extends Controller
             'emergency_contact_number' => ['nullable', 'string', 'max:40'],
             'designation' => ['required', 'string', 'max:120'],
             'department' => ['required', 'string', 'max:120'],
+            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today', 'after:1900-01-01'],
             'photo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
 

@@ -8,6 +8,7 @@ use App\Models\StandaloneIdCard;
 use App\Models\StandaloneIdCardImportBatch;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -32,6 +33,8 @@ class StandaloneIdCardImport
         'email' => 'email',
         'phone number' => 'phone',
         'phone' => 'phone',
+        'date of birth' => 'date_of_birth',
+        'dob' => 'date_of_birth',
         'blood group' => 'blood_group',
         'emergency contact' => 'emergency_contact_number',
         'emergency contact number' => 'emergency_contact_number',
@@ -253,6 +256,7 @@ class StandaloneIdCardImport
                         'department' => $row['department'] !== '' ? $row['department'] : null,
                         'email' => $row['email'] !== '' ? $row['email'] : null,
                         'phone' => $row['phone'] !== '' ? $row['phone'] : null,
+                        'date_of_birth' => ($row['dateOfBirth'] ?? '') !== '' ? $row['dateOfBirth'] : null,
                         'blood_group' => $row['bloodGroup'] !== '' ? $row['bloodGroup'] : null,
                         'emergency_contact_number' => $row['emergencyContactNumber'] !== '' ? $row['emergencyContactNumber'] : null,
                         'photo_path' => null,
@@ -278,7 +282,7 @@ class StandaloneIdCardImport
                     'failed_count' => $preview['failedCount'],
                 ])->save();
             });
-        } catch (\Illuminate\Database\QueryException $exception) {
+        } catch (QueryException $exception) {
             $message = strtolower($exception->getMessage());
 
             if (str_contains($message, 'standalone_id_cards_tenant_card_number_unique')
@@ -398,6 +402,7 @@ class StandaloneIdCardImport
         $department = $value('department');
         $email = $value('email');
         $phone = $value('phone');
+        $dateOfBirth = $this->importedDate($value('date_of_birth'));
         $bloodGroup = $value('blood_group');
         $emergency = $value('emergency_contact_number');
         $countryRaw = $value('country');
@@ -432,6 +437,8 @@ class StandaloneIdCardImport
             $problem = 'Email is invalid.';
         } elseif ($phone !== '' && mb_strlen($phone) > 40) {
             $problem = 'Phone number is too long.';
+        } elseif ($dateOfBirth === false) {
+            $problem = 'Date of birth must be a valid date in YYYY-MM-DD form.';
         }
 
         return [
@@ -443,6 +450,7 @@ class StandaloneIdCardImport
             'department' => $department,
             'email' => $email,
             'phone' => $phone,
+            'dateOfBirth' => is_string($dateOfBirth) ? $dateOfBirth : '',
             'bloodGroup' => $bloodGroup,
             'emergencyContactNumber' => $emergency,
             'country' => $country ?? strtolower($countryRaw),
@@ -492,6 +500,31 @@ class StandaloneIdCardImport
         } while ($exists);
 
         return $candidate;
+    }
+
+    private function importedDate(string $value): string|false|null
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        $errors = \DateTimeImmutable::getLastErrors();
+        $clean = $errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0);
+
+        if (! $date instanceof \DateTimeImmutable || ! $clean || $date->format('Y-m-d') !== $value) {
+            return false;
+        }
+
+        $ymd = $date->format('Y-m-d');
+
+        if ($ymd < '1900-01-01' || $ymd > date('Y-m-d')) {
+            return false;
+        }
+
+        return $ymd;
     }
 
     private function country(string $value): ?string

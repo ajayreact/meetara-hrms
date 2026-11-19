@@ -19,6 +19,7 @@ interface CardDetails {
     country: string;
     bloodGroup: string;
     emergencyContactNumber: string;
+    dateOfBirth: string;
     designation: string;
     department: string;
     hasPhoto: boolean;
@@ -59,6 +60,7 @@ interface IssueState {
             employeeCode: string;
             designation: string;
             department: string;
+            dateOfBirth: string;
         };
         back: {
             email: string;
@@ -66,6 +68,8 @@ interface IssueState {
             emergencyContactNumber: string;
             footerAddress: string;
             verifyUrl: string;
+            hasSignature: boolean;
+            signatureUrl: string | null;
         };
     } | null;
 }
@@ -104,6 +108,7 @@ export default function IdCardManage({
         emergency_contact_number: card.emergencyContactNumber || '',
         designation: card.designation || employee?.designation || '',
         department: card.department || employee?.department || '',
+        date_of_birth: card.dateOfBirth || '',
         photo: null as File | null,
     });
     const editForm = useForm({
@@ -113,6 +118,7 @@ export default function IdCardManage({
         emergency_contact_number: card.emergencyContactNumber || '',
         designation: card.designation || employee?.designation || '',
         department: card.department || employee?.department || '',
+        date_of_birth: card.dateOfBirth || '',
         photo: null as File | null,
     });
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -134,6 +140,7 @@ export default function IdCardManage({
             emergency_contact_number: card.emergencyContactNumber || '',
             designation: card.designation || employee?.designation || '',
             department: card.department || employee?.department || '',
+            date_of_birth: card.dateOfBirth || '',
             photo: null as File | null,
         };
         form.setData(next);
@@ -173,6 +180,7 @@ export default function IdCardManage({
             emergency_contact_number: form.data.emergency_contact_number,
             designation: form.data.designation,
             department: form.data.department,
+            date_of_birth: form.data.date_of_birth,
             photo: null,
         });
         editForm.clearErrors();
@@ -275,7 +283,7 @@ export default function IdCardManage({
 
                     <SectionCard title="Card-only details" extra={<IdCard className="size-4 text-slate-400" aria-hidden="true" />}>
                         {!selected ? (
-                            <p className="text-sm text-slate-500">Choose an employee to add or update ID card details. The employee master record is never changed.</p>
+                            <p className="text-sm text-slate-500">Choose an employee to add or update ID card details. Date of birth is saved on the employee profile. Other card fields stay on the ID card.</p>
                         ) : (
                             <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
                                 <input type="hidden" value={form.data.employee_id} readOnly />
@@ -297,6 +305,18 @@ export default function IdCardManage({
                                         ))}
                                     </select>
                                     {form.errors.blood_group && <span className="text-rose-700">{form.errors.blood_group}</span>}
+                                </label>
+                                <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                                    Date of birth
+                                    <input
+                                        className={field}
+                                        type="date"
+                                        required
+                                        value={form.data.date_of_birth}
+                                        onChange={(event) => form.setData('date_of_birth', event.target.value)}
+                                    />
+                                    <span className="text-[11px] text-slate-400">Required. Saved on the employee profile and printed on the card. An existing date is filled in automatically.</span>
+                                    {form.errors.date_of_birth && <span className="text-rose-700">{form.errors.date_of_birth}</span>}
                                 </label>
                                 <label className="grid gap-1 text-xs text-slate-500">
                                     Designation
@@ -404,6 +424,7 @@ export default function IdCardManage({
                                         <p className="mt-1 text-[11px] text-slate-500">{preview.front.employeeCode}</p>
                                         <p className="text-[11px] text-slate-500">{shownDesignation}</p>
                                         <p className="text-[11px] text-slate-500">{shownDepartment}</p>
+                                        <p className="mt-2 text-[11px] text-slate-700">DOB {form.data.date_of_birth || preview.front.dateOfBirth || '—'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -419,6 +440,14 @@ export default function IdCardManage({
                                         </div>
                                         <div className="mx-auto mt-4 flex h-20 w-20 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400">QR</div>
                                         <p className="mt-2 text-center text-[10px] text-slate-400">Scan to verify</p>
+                                        <div className="mt-3 text-center">
+                                            {preview.back.hasSignature && preview.back.signatureUrl ? (
+                                                <img src={`${preview.back.signatureUrl}${preview.back.signatureUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(card.updatedAt ?? '')}`} alt="HR authorized signature" className="mx-auto h-8 w-auto max-w-[7rem] object-contain" />
+                                            ) : (
+                                                <div className="mx-auto flex h-8 w-28 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">HR signature</div>
+                                            )}
+                                            <p className="mt-1 text-[10px] text-slate-400">Authorized Signatory (HR)</p>
+                                        </div>
                                         <p className="mt-auto border-t border-slate-100 pt-2 text-center text-[10px] leading-4 text-slate-500 whitespace-pre-wrap">{preview.back.footerAddress || 'Company footer address'}</p>
                                     </div>
                                 </div>

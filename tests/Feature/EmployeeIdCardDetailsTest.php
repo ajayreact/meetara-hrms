@@ -283,6 +283,63 @@ class EmployeeIdCardDetailsTest extends TestCase
         $this->assertSame($pdfAfter, $this->actingAs($company->hr)->get('/id-cards/'.$cardId.'/pdf')->streamedContent());
     }
 
+    public function test_date_of_birth_is_required_prefilled_and_saved_on_the_employee(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('ID Card DOB Co', 'idcard-dob');
+        $employeeId = $company->reportEmployeeId;
+        DB::table('employees')->where('id', $employeeId)->update(['date_of_birth' => null]);
+
+        $this->from('/id-cards?employee='.$employeeId)
+            ->actingAs($company->hr)
+            ->post('/id-cards', [
+                'employee_id' => $employeeId,
+                'country' => 'india',
+                'blood_group' => 'B+',
+                'emergency_contact_number' => '+91-9000000002',
+                'designation' => 'Analyst',
+                'department' => 'Engineering',
+                'photo' => UploadedFile::fake()->image('badge.png', 180, 220),
+            ])
+            ->assertSessionHasErrors('date_of_birth');
+        $this->assertNull(DB::table('employees')->where('id', $employeeId)->value('date_of_birth'));
+        $this->assertSame(0, DB::table('employee_id_cards')->where('employee_id', $employeeId)->count());
+
+        $this->actingAs($company->hr)->post('/id-cards', [
+            'employee_id' => $employeeId,
+            'country' => 'india',
+            'blood_group' => 'B+',
+            'emergency_contact_number' => '+91-9000000002',
+            'designation' => 'Analyst',
+            'department' => 'Engineering',
+            'date_of_birth' => '1992-03-14',
+            'photo' => UploadedFile::fake()->image('badge.png', 180, 220),
+        ])->assertRedirect('/id-cards?employee='.$employeeId);
+
+        $this->assertStringStartsWith('1992-03-14', (string) DB::table('employees')->where('id', $employeeId)->value('date_of_birth'));
+
+        $this->actingAs($company->hr)->get('/id-cards?employee='.$employeeId)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('card.dateOfBirth', '1992-03-14')
+                ->where('issue.preview.front.dateOfBirth', '1992-03-14')
+            );
+
+        $this->actingAs($company->hr)->post('/id-cards/settings', [
+            'country' => 'india',
+            'legal_name' => 'Veltrix India Pvt Ltd',
+            'display_name' => 'Veltrix India',
+            'office_address' => 'Hyderabad',
+            'footer_address' => 'Hyderabad, India',
+        ])->assertRedirect();
+
+        $cardId = (int) DB::table('employee_id_cards')->where('employee_id', $employeeId)->value('id');
+        $this->actingAs($company->hr)->post('/id-cards/'.$cardId.'/issue')->assertRedirect();
+        $payload = json_decode((string) DB::table('employee_id_card_issues')->where('id_card_id', $cardId)->value('payload_json'), true);
+        $this->assertSame('1992-03-14', $payload['dateOfBirth'] ?? null);
+    }
+
     /**
      * @return array<string, mixed>
      */

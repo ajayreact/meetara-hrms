@@ -87,6 +87,8 @@ class EmployeeIdCards
             throw ValidationException::withMessages(['employee_id' => 'Select an employee from this company.']);
         }
 
+        $this->persistDateOfBirth($employee, $input);
+
         $country = $this->country((string) ($input['country'] ?? 'india'));
         $profileId = IdCardCompanyProfile::query()
             ->inCompany($context['tenantId'])
@@ -234,6 +236,7 @@ class EmployeeIdCards
                     'code' => (string) $employee->employee_code,
                     'name' => $name,
                     'email' => (string) ($employee->email ?? ''),
+                    'dateOfBirth' => $employee->date_of_birth?->format('Y-m-d') ?? '',
                     'department' => (string) ($employee->department?->name ?? ''),
                     'designation' => (string) ($employee->designation?->name ?? ''),
                     'card' => $presented,
@@ -270,6 +273,7 @@ class EmployeeIdCards
             'country' => (string) $row->country,
             'bloodGroup' => (string) ($row->blood_group ?? ''),
             'emergencyContactNumber' => (string) ($row->emergency_contact_number ?? ''),
+            'dateOfBirth' => $employee?->date_of_birth?->format('Y-m-d') ?? '',
             'designation' => $designation,
             'department' => $department,
             'hasPhoto' => $hasPhoto,
@@ -289,6 +293,7 @@ class EmployeeIdCards
             'country' => 'india',
             'bloodGroup' => '',
             'emergencyContactNumber' => '',
+            'dateOfBirth' => $employee?->date_of_birth?->format('Y-m-d') ?? '',
             'designation' => (string) ($employee?->designation?->name ?? ''),
             'department' => (string) ($employee?->department?->name ?? ''),
             'hasPhoto' => false,
@@ -442,6 +447,31 @@ class EmployeeIdCards
         }
 
         return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function persistDateOfBirth(Employee $employee, array $input): void
+    {
+        $existing = $employee->date_of_birth?->format('Y-m-d');
+        $raw = $input['date_of_birth'] ?? null;
+        $dob = is_string($raw) ? trim($raw) : '';
+
+        if ($dob === '') {
+            if ($existing === null) {
+                throw ValidationException::withMessages(['date_of_birth' => 'Date of birth is required.']);
+            }
+
+            return;
+        }
+
+        if ($dob === $existing) {
+            return;
+        }
+
+        $employee->date_of_birth = $dob;
+        $employee->save();
     }
 
     private function nullableString(mixed $value): ?string
