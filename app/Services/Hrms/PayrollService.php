@@ -380,7 +380,7 @@ class PayrollService
             ->where('tenant_id', $run->tenant_id)
             ->where('employee_id', $employee->id)
             ->whereBetween('work_date', [$start, $end])
-            ->get(['work_mode']);
+            ->get(['work_date', 'work_mode']);
         $leaveDays = 0.0;
 
         foreach (LeaveRequest::query()->where('tenant_id', $run->tenant_id)->where('employee_id', $employee->id)->where('status', 'approved')->where('start_date', '<=', $end)->where('end_date', '>=', $start)->get() as $leave) {
@@ -401,7 +401,7 @@ class PayrollService
             'working_days' => $working,
             'present_days' => number_format($logs->count(), 1, '.', ''),
             'leave_days' => number_format($leaveDays, 1, '.', ''),
-            'wfh_days' => number_format($logs->where('work_mode', 'wfh')->count(), 1, '.', ''),
+            'wfh_days' => number_format($logs->whereIn('work_mode', ['wfh', 'work_from_home', 'remote'])->map(fn (AttendanceLog $log): string => (string) $log->work_date?->toDateString())->unique()->count(), 1, '.', ''),
             'lop_days' => '0.0',
             'overtime_amount' => $zero,
             'reimbursement' => $zero,

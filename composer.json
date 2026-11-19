@@ -14,6 +14,7 @@
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "phpoffice/phpspreadsheet": "^5.11",
         "setasign/fpdf": "1.8.6",
         "setasign/fpdi": "2.6.9",
         "tightenco/ziggy": "^2.4"

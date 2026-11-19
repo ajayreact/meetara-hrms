@@ -663,28 +663,73 @@ class OfficeNetworkAttendanceTest extends TestCase
         $this->assertNotNull(DB::table('attendance_logs')->where('id', $log->id)->value('check_out'));
     }
 
-    public function test_an_unassigned_employee_is_not_given_an_office_when_several_are_active(): void
+    public function test_an_unassigned_office_employee_clocks_in_only_when_one_office_network_matches(): void
     {
         $company = $this->prepare(CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix'));
-        DB::table('employees')->where('id', $company->reportEmployeeId)->update(['location_id' => null]);
-        DB::table('locations')->insert([
+        DB::table('employees')->where('tenant_id', $company->id)->update([
+            'location_id' => null,
+            'work_mode' => 'office',
+        ]);
+        $second = DB::table('locations')->insertGetId([
             'tenant_id' => $company->id,
             'name' => 'Second office',
             'status' => 'active',
+            'timezone' => 'UTC',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('location_networks')->insert([
+            'tenant_id' => $company->id,
+            'location_id' => $second,
+            'cidr' => '203.0.113.0/24',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $owner = $this->owner($company);
+        $ownerEmployeeId = $this->copyEmployee($company->reportEmployeeId, $owner, 'veltrix-owner@example.test', 'VELTRIX-OWNER');
         $before = DB::table('attendance_logs')->count();
 
         $this->actingAs($company->employee)->get('/my-attendance')->assertInertia(fn (Assert $page) => $page
             ->where('timing.officeName', null)
             ->where('timing.gpsRequired', false)
+            ->where('timing.canClockIn', true)
         );
         $this->actingAs($company->employee)
             ->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
-            ->post('/attendance/clock-in', ['latitude' => 17.458894, 'longitude' => 78.363567])
-            ->assertSessionHasErrors(['attendance' => 'You are not assigned to an office. Contact HR.']);
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors(['attendance' => 'This connection matches more than one office network. Contact HR so your office can be assigned.']);
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors(['attendance' => 'You are not connected through an approved office network. Clock-in is blocked.']);
         $this->assertSame($before, DB::table('attendance_logs')->count());
+        $this->assertNull(DB::table('employees')->where('id', $company->reportEmployeeId)->value('location_id'));
+
+        DB::table('location_networks')->where('location_id', $second)->delete();
+
+        foreach ([
+            [$company->employee, $company->reportEmployeeId],
+            [$company->lead, $company->leadEmployeeId],
+            [$owner, $ownerEmployeeId],
+        ] as [$user, $employeeId]) {
+            $this->actingAs($user)
+                ->withServerVariables(['REMOTE_ADDR' => '203.0.113.10'])
+                ->post('/attendance/clock-in')
+                ->assertSessionHasNoErrors();
+            $log = DB::table('attendance_logs')->where('employee_id', $employeeId)->whereDate('work_date', '2026-10-19')->first();
+            $this->assertNotNull($log);
+            $this->assertSame($company->officeId, (int) $log->location_id);
+            $this->assertSame('203.0.113.10', $log->check_in_ip);
+            $this->assertSame('2026-10-19 09:00:00', $log->check_in);
+            $this->assertSame('office', $log->work_mode);
+            $this->assertNull(DB::table('employees')->where('id', $employeeId)->value('location_id'));
+        }
+
+        $this->actingAs($company->employee)
+            ->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->post('/attendance/clock-in')
+            ->assertSessionHasErrors('attendance');
+        $this->assertSame(1, DB::table('attendance_logs')->where('employee_id', $company->reportEmployeeId)->whereDate('work_date', '2026-10-19')->count());
     }
 
     public function test_an_assigned_office_keeps_clock_actions_available_without_writing_attendance(): void
@@ -736,6 +781,23 @@ class OfficeNetworkAttendanceTest extends TestCase
         $this->actingAs($company->employee)->get('/my-attendance')->assertOk();
 
         $this->assertSame($before, DB::table('attendance_logs')->count());
+    }
+
+    private function copyEmployee(int $sourceId, User $user, string $email, string $code): int
+    {
+        $source = (array) DB::table('employees')->where('id', $sourceId)->first();
+        unset($source['id']);
+        $source['user_id'] = $user->id;
+        $source['email'] = $email;
+        $source['employee_code'] = $code;
+        $source['first_name'] = 'Owner';
+        $source['location_id'] = null;
+        $source['work_mode'] = 'office';
+        $source['status'] = 'active';
+        $source['created_at'] = now();
+        $source['updated_at'] = now();
+
+        return (int) DB::table('employees')->insertGetId($source);
     }
 
     private function owner(CompanyFixture $company): User

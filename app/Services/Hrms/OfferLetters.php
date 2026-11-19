@@ -734,6 +734,7 @@ class OfferLetters
                         'office' => 'Office',
                         'hybrid' => 'Hybrid',
                         'remote' => 'Remote',
+                        'work_from_home' => 'Work From Home',
                     ]),
                     'salary' => $salaries[$employee->id] ?? null,
                     'workingHours' => $this->recordedHours($employee),
@@ -1310,6 +1311,7 @@ class OfferLetters
             'office' => 'Work From Office',
             'hybrid' => 'Hybrid',
             'remote' => 'Remote',
+            'work_from_home' => 'Work From Home',
             default => (string) $value,
         };
     }

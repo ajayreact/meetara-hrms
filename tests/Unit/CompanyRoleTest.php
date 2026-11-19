@@ -110,6 +110,19 @@ class CompanyRoleTest extends TestCase
         }
     }
 
+    public function test_candidate_management_permissions_follow_the_approved_roles(): void
+    {
+        $this->assertTrue(CompanyRole::permissions('company_admin')['candidatesManage']);
+        $this->assertTrue(CompanyRole::permissions('company_admin')['candidatesExport']);
+        $this->assertTrue(CompanyRole::permissions('hr')['candidatesManage']);
+        $this->assertFalse(CompanyRole::permissions('hr')['candidatesExport']);
+
+        foreach (['team_lead', 'employee', 'accounts', 'super_admin'] as $role) {
+            $this->assertFalse(CompanyRole::permissions($role)['candidatesManage'], $role.' candidatesManage');
+            $this->assertFalse(CompanyRole::permissions($role)['candidatesExport'], $role.' candidatesExport');
+        }
+    }
+
     public function test_unknown_role_stays_an_employee(): void
     {
         $resolved = CompanyRole::highest(['Custom'], false);

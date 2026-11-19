@@ -28,6 +28,7 @@ interface AttendanceRow {
     clockOutDistance: number | null;
     verification: string | null;
     networkStatus: string;
+    workMode?: string;
     recoverable: boolean;
 }
 
@@ -59,13 +60,23 @@ interface Correction {
 interface Person { id: number; name: string; code: string }
 interface Authorization { id: number; employee: string; code: string; date: string; kind: string; reason: string | null }
 
-export default function AttendanceManagePage({ workspace, timing, roster, filters, canCorrect, canExport, corrections = [], authorizations = [], people = [], notice }: HrmsPageProps & {
+interface HomeRequest {
+    id: number;
+    date: string;
+    reason: string;
+    status: string;
+    employee: string;
+}
+
+export default function AttendanceManagePage({ workspace, timing, roster, filters, canCorrect, canExport, canReviewHome = false, corrections = [], wfhRequests = [], authorizations = [], people = [], notice }: HrmsPageProps & {
     timing?: TimingState;
     roster: Roster;
     filters: { date: string; office: string; status: string; employee: string };
     canCorrect: boolean;
     canExport: boolean;
+    canReviewHome?: boolean;
     corrections?: Correction[];
+    wfhRequests?: HomeRequest[];
     authorizations?: Authorization[];
     people?: Person[];
     notice?: string | null;
@@ -130,7 +141,7 @@ export default function AttendanceManagePage({ workspace, timing, roster, filter
                             <tbody>
                                 {roster.rows.map((row) => (
                                     <tr key={`${row.date}-${row.name}`} className={`cursor-pointer border-t border-slate-100 hover:bg-blue-50/60 ${selectedId === row.id ? 'bg-blue-50' : ''}`} onClick={() => setSelectedId(row.id)}>
-                                        <td className="px-3 py-3 font-medium">{row.name}<span className="block text-xs font-normal text-slate-500">{row.office ?? 'No office'}{row.holidayName ? ` · ${row.holidayName}` : ''}</span></td>
+                                        <td className="px-3 py-3 font-medium">{row.name}<span className="block text-xs font-normal text-slate-500">{row.office ?? 'No office'}{row.workMode ? ` · ${row.workMode}` : ''}{row.holidayName ? ` · ${row.holidayName}` : ''}</span></td>
                                         <td className="px-3 py-3">{row.clockIn ?? '—'}</td>
                                         <td className="px-3 py-3">{row.clockOut ?? '—'}</td>
                                         <td className="px-3 py-3">{row.breakLabel}</td>
@@ -162,11 +173,30 @@ export default function AttendanceManagePage({ workspace, timing, roster, filter
                     )}
                 </div>
             </SectionCard>
+                {wfhRequests.length > 0 && (
+                    <SectionCard title="Work-from-home requests">
+                        <div className="grid gap-2">
+                            {wfhRequests.map((item) => (
+                                <div key={item.id} className="rounded-xl border border-slate-100 px-3 py-2 text-sm">
+                                    <p className="font-medium">{item.employee} · {item.date} · {item.status}</p>
+                                    <p className="text-slate-600">{item.reason}</p>
+                                    {canReviewHome && item.status === 'pending' && (
+                                        <div className="mt-2 flex gap-2">
+                                            <button type="button" className="text-xs font-medium text-emerald-700" onClick={() => router.post(route('hrms.attendance.wfh.review', item.id), { decision: 'approved' }, { preserveScroll: true })}>Approve</button>
+                                            <button type="button" className="text-xs font-medium text-rose-700" onClick={() => router.post(route('hrms.attendance.wfh.review', item.id), { decision: 'rejected' }, { preserveScroll: true })}>Reject</button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </SectionCard>
+                )}
                 <SectionCard title="Attendance detail">
                     {selected ? (
                         <dl className="grid gap-3 text-sm">
                             <Item label="Date" value={selected.date} />
                             <Item label="Employee" value={selected.name} />
+                            <Item label="Work mode" value={selected.workMode ?? 'Office'} />
                             <Item label="Clock in" value={selected.clockIn ?? '—'} />
                             <Item label="Clock out" value={selected.clockOut ?? '—'} />
                             <Item label="Break" value={selected.breakLabel} />

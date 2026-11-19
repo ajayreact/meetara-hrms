@@ -4,6 +4,7 @@ import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadF
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router } from '@inertiajs/react';
 import { Contact, UserRound, Users } from 'lucide-react';
@@ -71,6 +72,7 @@ interface TeamPageProps extends HrmsPageProps {
     attention: { queue: 'overdue' | 'today' | 'upcoming'; overdue: number; today: number; upcoming: number; leads: AttentionLead[] };
     recentFollowUps: RecentFollowUp[];
     leads: TeamLeadRow[];
+    q?: string;
     matching: number;
     page: number;
     pages: number;
@@ -98,6 +100,7 @@ export default function TeamLeadPage({
     attention,
     recentFollowUps,
     leads,
+    q = '',
     matching,
     page,
     pages,
@@ -111,6 +114,7 @@ export default function TeamLeadPage({
     ];
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
+    const [term, setTerm] = useState(q);
     const [assigneeId, setAssigneeId] = useState(assignmentDestinations[0]?.id ?? 0);
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
     const pageIds = leads.map((lead) => lead.id);
@@ -134,12 +138,14 @@ export default function TeamLeadPage({
         }
     }, [assignmentDestinations, assigneeId]);
 
-    function visit(next: { section?: Section; page?: number; selection?: string }) {
+    function visit(next: { section?: Section; page?: number; selection?: string; q?: string }) {
         const nextSection = next.section ?? section;
+        const search = (next.q !== undefined ? next.q : q).trim();
         router.get('/my-leads', {
             section: nextSection === 'pending' ? undefined : nextSection,
             page: next.page && next.page > 1 ? next.page : undefined,
             selection: next.selection,
+            q: search !== '' ? search : undefined,
         }, { preserveState: true, preserveScroll: true });
     }
 
@@ -186,6 +192,15 @@ export default function TeamLeadPage({
                         <Button key={item} type="button" variant={section === item ? 'default' : 'outline'} onClick={() => { setSelected([]); visit({ section: item, page: 1 }); }}>{sectionCopy[item]}</Button>
                     ))}
                 </div>
+                <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); setSelected([]); visit({ q: term, page: 1 }); }}>
+                    <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-slate-500">
+                        Search
+                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
+                    </label>
+                    <Button type="submit" variant="outline">Search</Button>
+                    {q !== '' && <Button type="button" variant="ghost" onClick={() => { setTerm(''); setSelected([]); visit({ q: '', page: 1 }); }}>Clear</Button>}
+                </form>
+                <p className="mb-3 text-sm text-slate-500">{matching} in this section · page {page} of {pages}</p>
                 {canSelect && (
                     <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                         <span>{selected.length} selected</span>
@@ -204,7 +219,6 @@ export default function TeamLeadPage({
                         {section === 'distributed' && selected.length > 0 && (
                             <Button type="button" onClick={() => router.post('/my-leads/recall/review', { ids: selected })}>Take back</Button>
                         )}
-                        <span>{matching} in this section · page {page} of {pages}</span>
                     </div>
                 )}
                 {leads.length === 0 ? (

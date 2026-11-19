@@ -1,3 +1,4 @@
+import { LeadReminderBoard, type LeadReminders } from '@/components/hrms/lead-reminder-board';
 import { TimingCard, type TimingState } from '@/components/hrms/timing-card';
 import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
@@ -38,12 +39,13 @@ interface LeadBoard {
     statuses: { value: string; label: string }[];
 }
 
-export default function TeamLeadDashboard({ workspace, timing, attendanceRoster, leaveBoard, workplace, leadBoard = null }: HrmsPageProps & {
+export default function TeamLeadDashboard({ workspace, timing, attendanceRoster, leaveBoard, workplace, leadBoard = null, leadReminders = null }: HrmsPageProps & {
     timing?: TimingState;
     workplace?: WorkplacePayload;
     attendanceRoster?: Roster | null;
     leaveBoard?: { queue: { id: number; employee: string | null; type: string | null; start: string; end: string; status: string }[] };
     leadBoard?: LeadBoard | null;
+    leadReminders?: LeadReminders | null;
 }) {
     const attendance = attendanceRoster?.rows ?? [];
     const waiting = leaveBoard?.queue ?? [];
@@ -179,6 +181,7 @@ export default function TeamLeadDashboard({ workspace, timing, attendanceRoster,
                     )}
                 </SectionCard>
             </div>
+            {leadReminders && <LeadReminderBoard reminders={leadReminders} />}
             <WorkplacePanels workplace={workplace} />
             <LeadFollowUpDialog
                 open={editing !== null}

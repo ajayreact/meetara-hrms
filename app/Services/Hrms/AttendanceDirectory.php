@@ -98,6 +98,9 @@ class AttendanceDirectory
             $breakSeconds = max(0, $now->getTimestamp() - Carbon::parse((string) $openBreak->started_at, $timezone)->getTimestamp());
         }
 
+        $openHome = $log !== null && $log->check_out === null && in_array((string) $log->work_mode, ['wfh', 'work_from_home'], true);
+        $home = $openHome || ($shiftDate !== null && ($log === null || $log->check_out !== null) && app(WorkFromHome::class)->allows($employee, $shiftDate->toDateString()));
+
         return [
             'state' => $state,
             'clockIn' => $this->clockLabel($log?->check_in, $timezone, $log?->work_date?->toDateString()),
@@ -109,11 +112,32 @@ class AttendanceDirectory
             'canStartBreak' => $state === 'in',
             'canEndBreak' => $state === 'break',
             'canClockOut' => $state === 'in',
-            'gpsRequired' => (bool) $office?->gps_verification_enabled,
+            'workMode' => $home ? 'work_from_home' : 'office',
+            'workModeLabel' => $home ? 'Work From Home' : 'Office',
+            'assignedModeLabel' => app(WorkFromHome::class)->label((string) $employee->work_mode),
+            'canRequestHome' => (string) $employee->work_mode === 'hybrid',
+            'gpsRequired' => $home ? false : $this->gpsRequired($office, $employee),
             'gpsCapture' => app(GpsCapture::class)->shouldRequest($user),
             'gpsNoticePending' => app(GpsCapture::class)->noticePending($user),
             'shiftNotice' => $shiftNotice,
         ];
+    }
+
+    private function gpsRequired(?Office $office, Employee $employee): bool
+    {
+        if ($office !== null) {
+            return (bool) $office->gps_verification_enabled;
+        }
+
+        if (! Schema::hasColumn('locations', 'gps_verification_enabled')) {
+            return false;
+        }
+
+        return Office::query()
+            ->where('tenant_id', $employee->tenant_id)
+            ->where('status', 'active')
+            ->where('gps_verification_enabled', true)
+            ->exists();
     }
 
     /**
@@ -354,11 +378,12 @@ class AttendanceDirectory
                 'clockOut' => $this->clockLabel($log?->check_out, $timezone, $cursor->toDateString()),
                 'clockInIp' => $log?->check_in_ip,
                 'clockOutIp' => $log?->check_out_ip,
-                'clockInDistance' => $this->distanceMeters($log, 'check_in_distance_meters'),
-                'clockOutDistance' => $this->distanceMeters($log, 'check_out_distance_meters'),
-                'verification' => $this->verificationLabel($log?->verified_as),
-                'networkStatus' => $this->networkVerified($log?->verified_as) ? 'verified' : 'not_recorded',
-            ];
+            'clockInDistance' => $this->distanceMeters($log, 'check_in_distance_meters'),
+            'clockOutDistance' => $this->distanceMeters($log, 'check_out_distance_meters'),
+            'verification' => $this->verificationLabel($log?->verified_as),
+            'networkStatus' => $this->networkVerified($log?->verified_as) ? 'verified' : 'not_recorded',
+            'workMode' => $this->shownMode($log?->work_mode, $employee->work_mode),
+        ];
             $cursor->addDay();
         }
 
@@ -500,6 +525,7 @@ class AttendanceDirectory
             'clockOutDistance' => $this->distanceMeters($log, 'check_out_distance_meters'),
             'verification' => $this->verificationLabel($log?->verified_as),
             'networkStatus' => $this->networkVerified($log?->verified_as) ? 'Verified' : 'Not recorded',
+            'workMode' => $this->shownMode($log?->work_mode, $person->work_mode),
             'recoverable' => $log !== null && $log->check_out === null,
             'expected' => $schedule->expected,
         ];
@@ -539,6 +565,17 @@ class AttendanceDirectory
         ];
     }
 
+    private function shownMode(mixed $recorded, mixed $assigned): string
+    {
+        $labels = app(WorkFromHome::class);
+
+        if (is_string($recorded) && $recorded !== '') {
+            return $labels->label($recorded);
+        }
+
+        return $labels->label(is_string($assigned) ? $assigned : null);
+    }
+
     private function networkVerified(mixed $verifiedAs): bool
     {
         return in_array($verifiedAs, ['public_ip', 'public_ip_and_gps'], true);
@@ -549,6 +586,7 @@ class AttendanceDirectory
         return match ($verifiedAs) {
             'public_ip' => 'Approved public network',
             'public_ip_and_gps' => 'Approved public network and office GPS',
+            'wfh_authorized', 'work_from_home' => 'Authorized work from home',
             default => null,
         };
     }

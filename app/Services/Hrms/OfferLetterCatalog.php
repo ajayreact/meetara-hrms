@@ -2049,10 +2049,45 @@ class OfferLetterCatalog
 
             return true;
         } finally {
-            if (is_string($limit) && $limit !== '') {
-                ini_set('memory_limit', $limit);
-            }
+            $this->restoreMemoryLimit($limit);
         }
+    }
+
+    private function restoreMemoryLimit(string|false $limit): void
+    {
+        if (! is_string($limit) || $limit === '') {
+            return;
+        }
+
+        if ($limit === '-1') {
+            ini_set('memory_limit', '-1');
+
+            return;
+        }
+
+        $bytes = $this->memoryLimitBytes($limit);
+
+        if ($bytes !== null && $bytes <= memory_get_usage(true)) {
+            return;
+        }
+
+        ini_set('memory_limit', $limit);
+    }
+
+    private function memoryLimitBytes(string $limit): ?int
+    {
+        if (! preg_match('/^\s*(\d+)\s*([KMG])?\s*$/i', $limit, $match)) {
+            return null;
+        }
+
+        $value = (int) $match[1];
+
+        return match (strtoupper($match[2] ?? '')) {
+            'G' => $value * 1024 * 1024 * 1024,
+            'M' => $value * 1024 * 1024,
+            'K' => $value * 1024,
+            default => $value,
+        };
     }
 
     /**

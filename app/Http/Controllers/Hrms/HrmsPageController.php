@@ -16,6 +16,7 @@ use App\Services\Hrms\I983EmployerProfile;
 use App\Services\Hrms\I983Signatory;
 use App\Services\Hrms\HelpDeskService;
 use App\Services\Hrms\LeadDistribution;
+use App\Services\Hrms\LeadFollowUp;
 use App\Services\Hrms\LeaveDirectory;
 use App\Services\Hrms\OfferLetterCatalog;
 use App\Services\Hrms\OvertimeService;
@@ -77,6 +78,9 @@ class HrmsPageController extends Controller
             'workplace' => app(WorkplaceBoard::class)->present($user),
             'ess' => $workspace['role'] === 'employee' ? app(EmployeeEss::class)->present($user) : null,
             'leadBoard' => $workspace['role'] === 'team_lead' ? app(LeadDistribution::class)->board($user) : null,
+            'leadReminders' => in_array($workspace['role'], ['team_lead', 'employee'], true)
+                ? app(LeadFollowUp::class)->dashboardReminders($user)
+                : null,
             'notice' => $request->session()->get('status'),
             'offerApprovals' => in_array($workspace['role'], ['company_admin', 'hr'], true)
                 ? app(OfferLetterCatalog::class)->pendingApprovals($user)

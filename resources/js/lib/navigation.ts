@@ -80,6 +80,10 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         items.push({ label: 'Candidate forms', href: '/candidates', icon: ClipboardList, section: 'People' });
     }
 
+    if (workspace.permissions.candidatesManage) {
+        items.push({ label: 'Candidate Management', href: '/candidate-records', icon: Contact, section: 'People' });
+    }
+
     if (workspace.permissions.idCardsManage) {
         items.push({ label: 'ID cards', href: '/id-cards', icon: IdCard, section: 'People' });
         items.push({ label: 'Standalone ID cards', href: '/id-cards/standalone', icon: IdCard, section: 'People' });

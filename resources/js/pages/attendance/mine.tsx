@@ -25,6 +25,7 @@ interface HistoryDay {
     clockOutDistance: number | null;
     verification: string | null;
     networkStatus: 'verified' | 'not_recorded';
+    workMode?: string;
     status?: string;
     holidayName?: string | null;
     pending?: boolean;
@@ -51,10 +52,13 @@ interface Correction {
     submitted: string | null;
 }
 
-export default function MyAttendancePage({ workspace, timing, history, corrections = [], notice }: HrmsPageProps & { timing: TimingState; history: History; corrections?: Correction[]; notice?: string | null }) {
+interface HomeRequest { id: number; date: string; reason: string; status: string; employee: string }
+
+export default function MyAttendancePage({ workspace, timing, history, corrections = [], wfhRequests = [], notice }: HrmsPageProps & { timing: TimingState; history: History; corrections?: Correction[]; wfhRequests?: HomeRequest[]; notice?: string | null }) {
     const days = history.days.filter((day) => day.occurred && (day.clockIn || day.missing || day.status === 'Holiday' || day.status === 'Weekly Off' || day.status === 'Holiday Work'));
     const [requestOpen, setRequestOpen] = useState(false);
     const form = useForm({ work_date: '', type: 'missing_clock_in', check_in: '', check_out: '', reason: '' });
+    const homeForm = useForm({ work_date: '', reason: '' });
     const [selectedDate, setSelectedDate] = useState(days[0]?.date ?? null);
     const selected = days.find((day) => day.date === selectedDate) ?? null;
 
@@ -72,7 +76,25 @@ export default function MyAttendancePage({ workspace, timing, history, correctio
                 </div>
             )}
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+                <div className="grid content-start gap-4">
                 <TimingCard timing={timing} notice={notice} />
+                {timing.canRequestHome && (
+                    <SectionCard title="Hybrid work from home">
+                        <p className="mb-3 text-sm text-slate-600">A request does not change attendance. Home clock-in is available only after HR or Head of Operations approves that date. Other days still use the office network.</p>
+                        <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); homeForm.post(route('hrms.attendance.wfh.request'), { preserveScroll: true }); }}>
+                            <input className="h-10 rounded-md border border-input bg-background px-3 text-sm" type="date" aria-label="Work from home date" value={homeForm.data.work_date} onChange={(event) => homeForm.setData('work_date', event.target.value)} />
+                            <input className="h-10 rounded-md border border-input bg-background px-3 text-sm" aria-label="Work from home reason" placeholder="Reason" value={homeForm.data.reason} onChange={(event) => homeForm.setData('reason', event.target.value)} />
+                            {(homeForm.errors.work_date || homeForm.errors.reason || homeForm.errors.attendance) && <p className="text-sm text-rose-600">{homeForm.errors.attendance ?? homeForm.errors.reason ?? homeForm.errors.work_date}</p>}
+                            <button type="submit" className="h-10 rounded-md bg-slate-900 text-sm font-medium text-white" disabled={homeForm.processing}>Request approval</button>
+                        </form>
+                        <div className="mt-3 grid gap-2">
+                            {wfhRequests.length === 0 ? <p className="text-sm text-slate-500">No work-from-home requests yet.</p> : wfhRequests.map((item) => (
+                                <p key={item.id} className="text-sm text-slate-700">{item.date} · {item.status} · {item.reason}</p>
+                            ))}
+                        </div>
+                    </SectionCard>
+                )}
+                </div>
                 <div className="grid content-start gap-4">
                 <SectionCard
                     title="History"
@@ -158,6 +180,7 @@ export default function MyAttendancePage({ workspace, timing, history, correctio
                     {selected ? (
                         <dl className="space-y-2 text-sm">
                             <Row label="Date" value={selected.dateLabel} />
+                            <Row label="Work mode" value={selected.workMode ?? '—'} />
                             <Row label="Clock in" value={selected.clockIn ?? '—'} />
                             <Row label="Clock out" value={selected.clockOut ?? '—'} />
                             <Row label="Break" value={formatDuration(selected.breakMinutes)} />

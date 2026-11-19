@@ -152,6 +152,7 @@ const labels: Record<string, string> = {
     office: 'Office',
     hybrid: 'Hybrid',
     remote: 'Remote',
+    work_from_home: 'Work From Home',
     india: 'India',
     usa: 'United States',
 };
@@ -418,8 +419,9 @@ function EditEmployee({ employee, options, workspaceRole, onInvalid }: { employe
                         <Field label="Work mode" error={form.errors.work_mode}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.work_mode} onChange={(event) => form.setData('work_mode', event.target.value)}>
                                 <option value="office">Office</option>
-                                <option value="hybrid">Hybrid</option>
                                 <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
+                                {form.data.work_mode === 'work_from_home' ? <option value="work_from_home">Work From Home</option> : null}
                             </select>
                         </Field>
                         <Field label="Holiday calendar" error={form.errors.holiday_calendar}>

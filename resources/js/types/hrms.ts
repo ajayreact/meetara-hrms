@@ -27,6 +27,8 @@ export interface WorkspacePermissions {
     leadsReport: boolean;
     idCardsManage: boolean;
     idCardsIssue: boolean;
+    candidatesManage: boolean;
+    candidatesExport: boolean;
 }
 
 export interface Workspace {

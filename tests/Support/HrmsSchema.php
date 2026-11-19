@@ -179,6 +179,21 @@ class HrmsSchema
             });
         }
 
+        if (! Schema::hasTable('wfh_requests')) {
+            Schema::create('wfh_requests', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('tenant_id');
+                $table->unsignedBigInteger('employee_id');
+                $table->date('work_date');
+                $table->string('reason')->nullable();
+                $table->string('status')->default('pending');
+                $table->unsignedBigInteger('reviewed_by')->nullable();
+                $table->timestamp('reviewed_at')->nullable();
+                $table->timestamps();
+                $table->unique(['employee_id', 'work_date']);
+            });
+        }
+
         if (Schema::hasTable('attendance_logs') && ! Schema::hasColumn('attendance_logs', 'check_in_latitude')) {
             Schema::table('attendance_logs', function (Blueprint $table) {
                 $table->decimal('check_in_latitude', 10, 7)->nullable();

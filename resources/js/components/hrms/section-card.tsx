@@ -81,8 +81,12 @@ const tones: Record<string, string> = {
     Converted: 'bg-emerald-50 text-emerald-700',
     'Do not contact': 'bg-rose-50 text-rose-700',
     'Not answering / Didn\'t connected': 'bg-rose-50 text-rose-700',
+    'alert-expired': 'bg-rose-50 text-rose-800 ring-1 ring-rose-200',
+    'alert-expiring': 'bg-rose-50 text-rose-800 ring-1 ring-rose-200',
+    'alert-clear': 'bg-emerald-50 text-emerald-800',
+    'alert-unset': 'bg-slate-100 text-slate-600',
 };
 
-export function StatusBadge({ value }: { value: string }) {
-    return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tones[value] ?? 'bg-slate-100 text-slate-600'}`}>{value}</span>;
+export function StatusBadge({ value, tone }: { value: string; tone?: string }) {
+    return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tones[tone ?? value] ?? 'bg-slate-100 text-slate-600'}`}>{value}</span>;
 }

@@ -359,8 +359,8 @@ export default function EmployeesPage({ workspace, employees, filters, options, 
                         <Field label="Work mode" error={form.errors.work_mode}>
                             <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={form.data.work_mode} onChange={(event) => form.setData('work_mode', event.target.value)}>
                                 <option value="office">Office</option>
-                                <option value="hybrid">Hybrid</option>
                                 <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
                             </select>
                         </Field>
                         <Field label="Access level" error={form.errors.role}>

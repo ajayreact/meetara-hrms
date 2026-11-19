@@ -6,6 +6,7 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -180,20 +181,7 @@ class LeadDirectory
             $query->where('leads.pipeline_status', $filters['status']);
         }
 
-        if ($filters['q'] !== '') {
-            $like = '%'.addcslashes($filters['q'], '%_\\').'%';
-            $digits = preg_replace('/\D+/', '', $filters['q']) ?? '';
-            $query->where(function (Builder $inner) use ($like, $digits): void {
-                $inner->where('leads.name', 'like', $like)
-                    ->orWhere('leads.email', 'like', $like)
-                    ->orWhere('leads.email_normalized', 'like', $like)
-                    ->orWhere('leads.phone', 'like', $like);
-
-                if (strlen($digits) >= 3) {
-                    $inner->orWhere('leads.phone_digits', 'like', '%'.$digits.'%');
-                }
-            });
-        }
+        LeadSearch::apply($query, $filters['q']);
 
         return $query;
     }

@@ -6,6 +6,7 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadSearch;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +24,9 @@ class LeadDistribution
     {
         $context = $this->context($actor);
         $section = $this->section((string) ($input['section'] ?? 'pending'));
+        $term = $this->searchTerm($input);
         $query = $this->sectionQuery($context['tenantId'], $context['employeeId'], $section);
+        LeadSearch::apply($query, $term);
         $matching = (clone $query)->count();
         $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
@@ -50,10 +53,11 @@ class LeadDistribution
             'reports' => $this->reports($context['tenantId'], $context['employeeId']),
             'destinations' => $this->destinations($context['tenantId'], $context['employeeId']),
             'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $names, $today, $section))->all(),
+            'q' => $term,
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
-            'selectedIds' => $this->selectedIds($context, $section, $input),
+            'selectedIds' => $this->selectedIds($context, $section, $term, $input),
             'statuses' => $this->statuses(),
         ];
     }
@@ -570,18 +574,29 @@ class LeadDistribution
      * @param  array<string, mixed>  $input
      * @return list<int>|null
      */
-    private function selectedIds(array $context, string $section, array $input): ?array
+    private function selectedIds(array $context, string $section, string $term, array $input): ?array
     {
         if ((string) ($input['selection'] ?? '') !== 'matching' || ! in_array($section, ['pending', 'distributed'], true)) {
             return null;
         }
 
-        return $this->sectionQuery($context['tenantId'], $context['employeeId'], $section)
+        $query = $this->sectionQuery($context['tenantId'], $context['employeeId'], $section);
+        LeadSearch::apply($query, $term);
+
+        return $query
             ->orderByDesc('leads.id')
             ->limit(self::LIMIT)
             ->pluck('leads.id')
             ->map(fn ($id): int => (int) $id)
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function searchTerm(array $input): string
+    {
+        return mb_substr(trim((string) ($input['q'] ?? '')), 0, 120);
     }
 
     /**

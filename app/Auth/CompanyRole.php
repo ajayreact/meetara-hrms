@@ -79,6 +79,8 @@ class CompanyRole
             'leadsReport' => false,
             'idCardsManage' => false,
             'idCardsIssue' => false,
+            'candidatesManage' => false,
+            'candidatesExport' => false,
         ];
 
         return match ($role) {
@@ -112,6 +114,8 @@ class CompanyRole
                 'leadsReport' => true,
                 'idCardsManage' => true,
                 'idCardsIssue' => true,
+                'candidatesManage' => true,
+                'candidatesExport' => true,
             ]),
             'hr' => array_merge($none, [
                 'employees' => true,
@@ -134,6 +138,7 @@ class CompanyRole
                 'leadsReport' => true,
                 'idCardsManage' => true,
                 'idCardsIssue' => true,
+                'candidatesManage' => true,
             ]),
             'accounts' => array_merge($none, [
                 'payroll' => true,

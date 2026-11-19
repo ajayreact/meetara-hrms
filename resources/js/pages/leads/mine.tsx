@@ -4,6 +4,7 @@ import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadF
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router } from '@inertiajs/react';
 import { CalendarClock, CalendarDays, Clock3 } from 'lucide-react';
@@ -28,6 +29,7 @@ interface MineLead {
 
 interface MineProps extends HrmsPageProps {
     queue: 'all' | 'overdue' | 'today' | 'upcoming';
+    q?: string;
     counts: { overdue: number; today: number; upcoming: number };
     leads: MineLead[];
     matching: number;
@@ -45,8 +47,19 @@ const queues = [
     ['upcoming', 'Upcoming'],
 ] as const;
 
-export default function MyAssignedLeadsPage({ workspace, queue, counts, leads, matching, page, pages, statuses = [], notice, error }: MineProps) {
+export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, leads, matching, page, pages, statuses = [], notice, error }: MineProps) {
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
+    const [term, setTerm] = useState(q);
+
+    function visit(next: { queue?: MineProps['queue']; page?: number; q?: string }) {
+        const nextQueue = next.queue ?? queue;
+        const search = (next.q !== undefined ? next.q : q).trim();
+        router.get('/leads/mine', {
+            queue: nextQueue === 'all' ? undefined : nextQueue,
+            page: next.page && next.page > 1 ? next.page : undefined,
+            q: search !== '' ? search : undefined,
+        }, { preserveScroll: true });
+    }
 
     return (
         <HrmsLayout workspace={workspace} title="My leads">
@@ -60,9 +73,17 @@ export default function MyAssignedLeadsPage({ workspace, queue, counts, leads, m
             <SectionCard title="Assigned leads">
                 <div className="mb-4 flex flex-wrap gap-2">
                     {queues.map(([value, label]) => (
-                        <Button key={value} type="button" variant={queue === value ? 'default' : 'outline'} onClick={() => router.get('/leads/mine', value === 'all' ? {} : { queue: value })}>{label}</Button>
+                        <Button key={value} type="button" variant={queue === value ? 'default' : 'outline'} onClick={() => visit({ queue: value, page: 1 })}>{label}</Button>
                     ))}
                 </div>
+                <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); visit({ q: term, page: 1 }); }}>
+                    <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-slate-500">
+                        Search
+                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
+                    </label>
+                    <Button type="submit" variant="outline">Search</Button>
+                    {q !== '' && <Button type="button" variant="ghost" onClick={() => { setTerm(''); visit({ q: '', page: 1 }); }}>Clear</Button>}
+                </form>
                 {leads.length === 0 ? (
                     <p className="text-sm text-slate-500">No leads in this list.</p>
                 ) : (
@@ -114,8 +135,8 @@ export default function MyAssignedLeadsPage({ workspace, queue, counts, leads, m
                 )}
                 <p className="mt-3 text-sm text-slate-500">{matching} leads · page {page} of {pages}</p>
                 <div className="mt-3 flex gap-2">
-                    {page > 1 && <Button type="button" variant="outline" onClick={() => router.get('/leads/mine', { queue: queue === 'all' ? undefined : queue, page: page - 1 })}>Previous</Button>}
-                    {page < pages && <Button type="button" variant="outline" onClick={() => router.get('/leads/mine', { queue: queue === 'all' ? undefined : queue, page: page + 1 })}>Next</Button>}
+                    {page > 1 && <Button type="button" variant="outline" onClick={() => visit({ page: page - 1 })}>Previous</Button>}
+                    {page < pages && <Button type="button" variant="outline" onClick={() => visit({ page: page + 1 })}>Next</Button>}
                 </div>
             </SectionCard>
             <LeadFollowUpDialog

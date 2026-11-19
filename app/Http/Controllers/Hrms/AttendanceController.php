@@ -10,6 +10,7 @@ use App\Services\Hrms\AttendanceCorrection;
 use App\Services\Hrms\AttendanceDirectory;
 use App\Services\Hrms\AttendanceRejected;
 use App\Services\Hrms\AttendanceService;
+use App\Services\Hrms\WorkFromHome;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class AttendanceController extends Controller
         private readonly AttendanceDirectory $directory,
         private readonly AttendanceService $attendance,
         private readonly AttendanceCorrection $corrections,
+        private readonly WorkFromHome $workFromHome,
     ) {}
 
     public function mine(Request $request): Response
@@ -35,6 +37,7 @@ class AttendanceController extends Controller
             'timing' => $this->directory->timing($user),
             'history' => $this->directory->month($user, $request->query('month')),
             'corrections' => $this->corrections->forEmployee($user),
+            'wfhRequests' => $this->workFromHome->mine($user),
             'notice' => $request->session()->get('status'),
         ]);
     }
@@ -73,10 +76,41 @@ class AttendanceController extends Controller
             'canCorrect' => in_array($user->applicationRole(), ['company_admin', 'hr'], true),
             'canExport' => $user->can('export', AttendanceLog::class),
             'corrections' => $this->corrections->forCompany($user),
+            'wfhRequests' => $this->workFromHome->visible($user),
+            'canReviewHome' => in_array($user->applicationRole(), ['company_admin', 'hr'], true),
             'authorizations' => $user->applicationRole() === 'team_lead' ? [] : $this->corrections->authorizations($user),
             'people' => $this->people($user),
             'notice' => $request->session()->get('status'),
         ]);
+    }
+
+    public function requestHome(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'work_date' => ['required', 'date'],
+            'reason' => ['required', 'string', 'max:191'],
+        ]);
+
+        return $this->attempt(function () use ($request, $data): string {
+            $this->workFromHome->request($this->actor($request), (string) $data['work_date'], (string) $data['reason']);
+
+            return 'Work-from-home request submitted. Attendance is unchanged until HR or Head of Operations approves it.';
+        });
+    }
+
+    public function reviewHome(Request $request, int $wfhRequest): RedirectResponse
+    {
+        $actor = $this->actor($request);
+        abort_unless(in_array($actor->applicationRole(), ['company_admin', 'hr'], true), 403);
+        $decision = (string) $request->input('decision', '');
+
+        return $this->attempt(function () use ($request, $wfhRequest, $decision): string {
+            $this->workFromHome->review($this->actor($request), $wfhRequest, $decision);
+
+            return $decision === 'approved'
+                ? 'Work-from-home request approved for that date.'
+                : 'Work-from-home request rejected.';
+        });
     }
 
     public function clockIn(Request $request): RedirectResponse

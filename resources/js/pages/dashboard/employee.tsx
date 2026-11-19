@@ -1,3 +1,4 @@
+import { LeadReminderBoard, type LeadReminders } from '@/components/hrms/lead-reminder-board';
 import { WorkplacePanels, type WorkplacePayload } from '@/components/hrms/workplace-panels';
 import { greetingName, HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { MetricCard } from '@/components/hrms/metric-card';
@@ -39,7 +40,7 @@ interface Ess {
     actions: EssAction[];
 }
 
-export default function EmployeeDashboard({ workspace, timing, history, leaveBoard, workplace, ess = null, notice }: HrmsPageProps & { timing?: TimingState; history?: History; leaveBoard?: LeaveBoard; workplace?: WorkplacePayload; ess?: Ess | null; notice?: string | null }) {
+export default function EmployeeDashboard({ workspace, timing, history, leaveBoard, workplace, ess = null, leadReminders = null, notice }: HrmsPageProps & { timing?: TimingState; history?: History; leaveBoard?: LeaveBoard; workplace?: WorkplacePayload; ess?: Ess | null; leadReminders?: LeadReminders | null; notice?: string | null }) {
     const days = history?.days ?? [];
     const summary = history && days.length > 0 ? history.summary : null;
     const balances = leaveBoard?.balances ?? [];
@@ -154,6 +155,7 @@ export default function EmployeeDashboard({ workspace, timing, history, leaveBoa
                     )}
                 </SectionCard>
             </div>
+            {leadReminders && <LeadReminderBoard reminders={leadReminders} />}
             <WorkplacePanels workplace={workplace} />
         </HrmsLayout>
     );

@@ -26,13 +26,22 @@ class AttendanceService
     public function __construct(
         private readonly ClientAddress $clientAddress,
         private readonly GpsCapture $gpsCapture,
+        private readonly WorkFromHome $workFromHome,
     ) {}
 
     public function clockIn(User $actor, ?int $requestedOfficeId, Request $request): AttendanceLog
     {
         return DB::transaction(function () use ($actor, $requestedOfficeId, $request): AttendanceLog {
             $employee = $this->employee($actor);
-            $office = $this->office($employee, $requestedOfficeId);
+            $assigned = $this->designatedOffice($employee);
+            $local = $this->moment($assigned, (int) $employee->tenant_id);
+            $shiftDate = $this->shiftDate($employee, $local);
+
+            if ($this->workFromHome->allows($employee, $shiftDate->toDateString())) {
+                return $this->clockInFromHome($actor, $employee, $assigned, $request, $local, $shiftDate);
+            }
+
+            $office = $this->office($employee, $requestedOfficeId, $request);
             $observed = $this->requireNetwork($request, $office, (int) $employee->tenant_id, 'Clock-in');
             $location = $this->requireLocation($request, $office, 'Clock-in');
             $local = $this->localNow($office);
@@ -68,7 +77,7 @@ class AttendanceService
                     'location_id' => $office->id,
                     'work_date' => $shiftDate->toDateString(),
                     'check_in' => $local->format('Y-m-d H:i:s'),
-                    'work_mode' => $employee->work_mode ?: 'office',
+                    'work_mode' => 'office',
                     'check_in_ip' => $observed,
                     'verified_as' => $location['verified'] ? 'public_ip_and_gps' : 'public_ip',
                     'status' => $status,
@@ -130,6 +139,12 @@ class AttendanceService
 
             if ($this->openBreak($log) !== null) {
                 throw new AttendanceRejected('End your break before clocking out.');
+            }
+
+            if (in_array((string) $log->work_mode, ['wfh', 'work_from_home'], true)) {
+                $this->clockOutFromHome($actor, $employee, $log, $request);
+
+                return;
             }
 
             $office = $this->officeForLog($log, $employee);
@@ -237,14 +252,16 @@ class AttendanceService
         return $employee;
     }
 
-    private function office(Employee $employee, ?int $requestedOfficeId): Office
+    private function office(Employee $employee, ?int $requestedOfficeId, Request $request): Office
     {
         $office = EmployeeOffice::resolve((int) $employee->tenant_id, $employee->location_id);
 
+        if ($office === null && ($employee->location_id === null || $employee->location_id === '')) {
+            $office = $this->officeMatchingNetwork($employee, $request);
+        }
+
         if ($office === null) {
-            throw new AttendanceRejected($employee->location_id === null
-                ? 'You are not assigned to an office. Contact HR.'
-                : 'Your office network could not be verified. Contact HR.');
+            throw new AttendanceRejected('Your office network could not be verified. Contact HR.');
         }
 
         if ($requestedOfficeId !== null && $requestedOfficeId !== (int) $office->id) {
@@ -256,6 +273,73 @@ class AttendanceService
         }
 
         return $office;
+    }
+
+    /**
+     * An employee who is not mapped to an office can still clock in when the
+     * observed public address matches exactly one active office network.
+     * An assigned office is never replaced by this lookup.
+     */
+    private function officeMatchingNetwork(Employee $employee, Request $request): Office
+    {
+        $observed = $this->clientAddress->observe($request);
+
+        if (! $observed['ok'] || $observed['ip'] === null) {
+            $this->logUnresolvedAddress($request, $employee, $observed['reason']);
+            $invalidProxy = str_contains($observed['reason'], 'invalid');
+
+            throw new AttendanceRejected($invalidProxy
+                ? 'Clock-in was blocked because the trusted-proxy configuration is invalid.'
+                : 'Clock-in was blocked because a forwarded address arrived from an untrusted connection.');
+        }
+
+        $ip = $observed['ip'];
+
+        if (NetworkAddress::isForbidden($ip)) {
+            throw new AttendanceRejected($this->networkDenialMessage('address_not_public', $ip, 'Clock-in'));
+        }
+
+        $matches = [];
+
+        foreach (Office::query()->where('tenant_id', $employee->tenant_id)->where('status', 'active')->get() as $office) {
+            $cidrs = LocationNetwork::query()
+                ->where('tenant_id', $employee->tenant_id)
+                ->where('location_id', $office->id)
+                ->pluck('cidr')
+                ->all();
+
+            if (NetworkAddress::denialReason($ip, $cidrs) === null) {
+                $matches[] = $office;
+            }
+        }
+
+        if (count($matches) === 1) {
+            return $matches[0];
+        }
+
+        if (count($matches) > 1) {
+            Log::warning('Clock-in was denied because the approved network matches more than one office.', [
+                'resolved_ip' => $ip,
+                ...$this->clientAddress->context($request),
+                'tenant_id' => (int) $employee->tenant_id,
+            ]);
+
+            throw new AttendanceRejected('This connection matches more than one office network. Contact HR so your office can be assigned.');
+        }
+
+        throw new AttendanceRejected($this->networkDenialMessage('address_not_approved', $ip, 'Clock-in'));
+    }
+
+    private function logUnresolvedAddress(Request $request, Employee $employee, string $reason): void
+    {
+        Log::warning('Clock-in was denied by the approved office network check.', [
+            'reason' => 'address_unresolved',
+            'detail' => $reason,
+            'resolved_ip' => null,
+            ...$this->clientAddress->context($request),
+            'tenant_id' => (int) $employee->tenant_id,
+            'office_id' => null,
+        ]);
     }
 
     private function requireNetwork(Request $request, Office $office, int $companyId, string $action): string
@@ -441,10 +525,10 @@ class AttendanceService
         return $office;
     }
 
-    private function dayStatus(Employee $employee, Office $office, CarbonInterface $local, WorkSchedule $schedule): string
+    private function dayStatus(Employee $employee, ?Office $office, CarbonInterface $local, WorkSchedule $schedule): string
     {
         $date = $local->toDateString();
-        $holiday = AttendanceCalendar::holiday($employee, (int) $office->id, $date);
+        $holiday = AttendanceCalendar::holiday($employee, $office?->id, $date);
 
         if ($holiday !== null) {
             if (! AttendanceCalendar::authorized((int) $employee->tenant_id, (int) $employee->id, $date, 'holiday')) {
@@ -573,5 +657,132 @@ class AttendanceService
             });
 
         return (int) max(0, floor((($out->getTimestamp() - $in->getTimestamp()) - $breakSeconds) / 60));
+    }
+
+    private function clockInFromHome(User $actor, Employee $employee, ?Office $office, Request $request, CarbonInterface $local, CarbonInterface $shiftDate): AttendanceLog
+    {
+        $observed = $this->auditAddress($request, $employee, $office, 'Clock-in');
+        $this->assertNoOpenSession($employee, $local);
+        $existing = AttendanceLog::query()
+            ->where('employee_id', $employee->id)
+            ->where('tenant_id', $employee->tenant_id)
+            ->whereDate('work_date', $shiftDate->toDateString())
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing !== null) {
+            $timezone = $this->zone($office, (int) $employee->tenant_id);
+            $this->restoreEarlierShift($employee, $existing, $timezone);
+
+            if ($existing->work_date?->toDateString() === $shiftDate->toDateString()) {
+                throw new AttendanceRejected($this->earlierShiftDate($employee, $existing, $timezone) !== null
+                    ? 'The previous shift already has an attendance record, so tonight\'s clock-in cannot start. Contact HR.'
+                    : 'You already have an attendance record for this shift.');
+            }
+        }
+
+        $schedule = WorkSchedule::forEmployee($employee, $shiftDate);
+
+        try {
+            $log = new AttendanceLog;
+            $log->forceFill([
+                'tenant_id' => $employee->tenant_id,
+                'employee_id' => $employee->id,
+                'location_id' => $office?->id,
+                'work_date' => $shiftDate->toDateString(),
+                'check_in' => $local->format('Y-m-d H:i:s'),
+                'work_mode' => 'work_from_home',
+                'check_in_ip' => $observed,
+                'verified_as' => 'wfh_authorized',
+                'status' => $this->dayStatus($employee, $office, $shiftDate, $schedule),
+                'late_minutes' => $schedule->lateMinutes($local),
+                'payroll_status' => 'pending',
+            ])->save();
+        } catch (QueryException) {
+            throw new AttendanceRejected('You already have an active attendance session.');
+        }
+
+        $this->gpsCapture->record($actor, $employee, $log, 'clock_in', $request);
+
+        return $log;
+    }
+
+    private function clockOutFromHome(User $actor, Employee $employee, AttendanceLog $log, Request $request): void
+    {
+        $office = $this->designatedOffice($employee);
+        if ($office === null && $log->location_id) {
+            $office = Office::query()->whereKey($log->location_id)->where('tenant_id', $employee->tenant_id)->first();
+        }
+        $observed = $this->auditAddress($request, $employee, $office, 'Clock-out');
+        $timezone = $this->zone($office, (int) $employee->tenant_id);
+        $local = now()->timezone($timezone);
+        $this->restoreEarlierShift($employee, $log, $timezone);
+        $checkIn = (string) $log->check_in;
+        $schedule = WorkSchedule::forEmployee($employee, Carbon::parse($checkIn, $timezone));
+
+        $log->forceFill([
+            'check_out' => $local->format('Y-m-d H:i:s'),
+            'check_out_ip' => $observed,
+            'minutes' => $this->workMinutes($log, $checkIn, $local->format('Y-m-d H:i:s'), $timezone),
+        ])->save();
+
+        if ((string) $log->check_in !== $checkIn || ! in_array((string) $log->work_mode, ['wfh', 'work_from_home'], true)) {
+            throw new AttendanceRejected('Your office network could not be verified. Contact HR.');
+        }
+
+        $log->forceFill([
+            'late_minutes' => $schedule->lateMinutes(Carbon::parse($checkIn, $timezone)),
+        ])->save();
+        $this->gpsCapture->record($actor, $employee, $log, 'clock_out', $request);
+    }
+
+    private function designatedOffice(Employee $employee): ?Office
+    {
+        if ($employee->location_id === null || $employee->location_id === '') {
+            return null;
+        }
+
+        return Office::query()->whereKey($employee->location_id)->where('tenant_id', $employee->tenant_id)->first();
+    }
+
+    private function auditAddress(Request $request, Employee $employee, ?Office $office, string $action): string
+    {
+        $observed = $this->clientAddress->observe($request);
+
+        if (! $observed['ok'] || $observed['ip'] === null) {
+            Log::warning($action.' was denied because the client address could not be verified.', [
+                'reason' => 'address_unresolved',
+                'detail' => $observed['reason'],
+                'resolved_ip' => null,
+                ...$this->clientAddress->context($request),
+                'tenant_id' => (int) $employee->tenant_id,
+                'office_id' => $office?->id,
+            ]);
+            $invalidProxy = str_contains($observed['reason'], 'invalid');
+
+            throw new AttendanceRejected($invalidProxy
+                ? $action.' was blocked because the trusted-proxy configuration is invalid.'
+                : $action.' was blocked because a forwarded address arrived from an untrusted connection.');
+        }
+
+        return $observed['ip'];
+    }
+
+    private function moment(?Office $office, int $tenantId): Carbon
+    {
+        return now()->timezone($this->zone($office, $tenantId));
+    }
+
+    private function zone(?Office $office, int $tenantId): string
+    {
+        if ($office !== null) {
+            return $this->timezone($office);
+        }
+
+        $timezone = DB::table('tenants')->where('id', $tenantId)->value('timezone');
+
+        return is_string($timezone) && in_array($timezone, timezone_identifiers_list(), true)
+            ? $timezone
+            : (string) config('attendance.fallback_timezone', 'Asia/Kolkata');
     }
 }

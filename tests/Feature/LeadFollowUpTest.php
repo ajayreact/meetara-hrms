@@ -113,6 +113,117 @@ class LeadFollowUpTest extends TestCase
         $this->assertSame($employees, $this->employeeSnapshot());
     }
 
+    public function test_role_scoped_search_and_dashboard_reminders_keep_existing_follow_ups(): void
+    {
+        $company = CompanyFixture::make('Search Leads', 'searchleads');
+        $other = CompanyFixture::make('Search Leads Other', 'searchleadsother');
+        $owner = $this->roleUser($company, 'Owner');
+        $sai = $this->lead($company, null, [
+            'name' => 'Sai  Shravya',
+            'email' => 'sai.shravya@example.test',
+            'phone' => '571-437-4341',
+            'phone_digits' => '5714374341',
+            'follow_up_on' => '2026-11-11',
+            'remarks' => 'Pool callback',
+        ]);
+
+        for ($index = 1; $index <= 25; $index++) {
+            $this->lead($company, null, ['name' => 'Pool filler '.$index, 'email' => "pool{$index}@example.test"]);
+            $this->lead($company, $company->reportEmployeeId, ['name' => 'Assigned filler '.$index, 'email' => "assigned{$index}@example.test"]);
+        }
+
+        $ada = $this->lead($company, $company->reportEmployeeId, [
+            'name' => 'Ada Find',
+            'email' => 'Ada.Find@Example.COM',
+            'email_normalized' => 'ada.find@example.com',
+            'phone' => '(571) 437-4341',
+            'phone_digits' => '5714374341',
+            'follow_up_on' => '2026-11-11',
+            'remarks' => 'Call about the visa',
+        ]);
+        $overdue = $this->lead($company, $company->reportEmployeeId, [
+            'name' => 'Overdue Person',
+            'follow_up_on' => '2026-11-10',
+            'remarks' => 'Left a voicemail',
+        ]);
+        $upcoming = $this->lead($company, $company->reportEmployeeId, [
+            'name' => 'Upcoming Person',
+            'follow_up_on' => '2026-11-12',
+            'remarks' => 'Send the brochure',
+        ]);
+        $closed = $this->lead($company, $company->reportEmployeeId, [
+            'name' => 'Closed Person',
+            'pipeline_status' => 'converted',
+            'follow_up_on' => '2026-11-01',
+            'remarks' => 'Joined the team',
+        ]);
+        $this->lead($company, $company->outsideEmployeeId, ['name' => 'Hidden Coworker', 'email' => 'hidden.coworker@example.test', 'phone_digits' => '9990001111']);
+        $this->lead($other, $other->reportEmployeeId, ['name' => 'Sai  Shravya', 'email' => 'sai.shravya@example.test', 'phone_digits' => '5714374341']);
+        $stored = DB::table('leads')->orderBy('id')->get(['id', 'follow_up_on', 'pipeline_status', 'remarks', 'assignee_employee_id', 'team_lead_employee_id']);
+
+        $this->actingAs($company->lead)->get('/my-leads?page=1')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('leads', fn ($rows): bool => ! collect($rows)->contains('id', $sai)));
+        $this->actingAs($company->lead)->get('/my-leads?q='.urlencode('  sai    shravya '))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('matching', 1)
+                ->where('page', 1)
+                ->where('leads.0.id', $sai)
+                ->where('leads.0.name', 'Sai  Shravya'));
+        $this->actingAs($company->lead)->get('/my-leads?q=sai.shravya@example.test&selection=matching')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('selectedIds', [$sai]));
+        $this->actingAs($company->lead)->get('/my-leads?section=total&q=571-437-4341')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('leads', fn ($rows): bool => collect($rows)->pluck('id')->sort()->values()->all() === collect([$sai, $ada])->sort()->values()->all()));
+        $this->actingAs($company->lead)->get('/leads?q=Sai')->assertForbidden();
+
+        $this->actingAs($company->employee)->get('/leads/mine?page=1')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('leads', fn ($rows): bool => ! collect($rows)->contains('id', $ada)));
+        $this->actingAs($company->employee)->get('/leads/mine?q='.urlencode('ADA.find@example.com'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('matching', 1)->where('page', 1)->where('leads.0.id', $ada));
+        $this->actingAs($company->employee)->get('/leads/mine?q='.urlencode('(571) 437-4341'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('matching', 1)->where('leads.0.id', $ada));
+        $this->actingAs($company->employee)->get('/leads/mine?q=Hidden')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('matching', 0));
+        $this->actingAs($company->employee)->get('/leads?q=Ada')->assertForbidden();
+
+        $this->actingAs($owner)->get('/leads?q='.urlencode('571 437 4341'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('leads', fn ($rows): bool => collect($rows)->pluck('id')->sort()->values()->all() === collect([$sai, $ada])->sort()->values()->all()));
+        $this->actingAs($owner)->get('/dashboard')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('leadReminders', null));
+
+        $this->actingAs($company->employee)->get('/dashboard')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/employee')
+            ->where('leadReminders.counts.overdue', 1)
+            ->where('leadReminders.counts.today', 1)
+            ->where('leadReminders.counts.upcoming', 1)
+            ->where('leadReminders.overdue.0.id', $overdue)
+            ->where('leadReminders.overdue.0.when', '2026-11-10')
+            ->where('leadReminders.overdue.0.details', 'Left a voicemail')
+            ->where('leadReminders.today.0.id', $ada)
+            ->where('leadReminders.today.0.name', 'Ada Find')
+            ->where('leadReminders.today.0.details', 'Call about the visa')
+            ->where('leadReminders.upcoming.0.id', $upcoming)
+            ->where('leadReminders.overdue', fn ($rows): bool => ! collect($rows)->contains('id', $closed) && ! collect($rows)->contains('id', $sai)));
+        $this->actingAs($company->lead)->get('/dashboard')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('dashboard/team-lead')
+            ->where('leadReminders.counts.overdue', 1)
+            ->where('leadReminders.counts.today', 2)
+            ->where('leadReminders.counts.upcoming', 1)
+            ->where('leadReminders.today', fn ($rows): bool => collect($rows)->pluck('id')->sort()->values()->all() === collect([$sai, $ada])->sort()->values()->all())
+            ->where('leadReminders.overdue', fn ($rows): bool => ! collect($rows)->contains('id', $closed)));
+
+        $this->assertEquals($stored->all(), DB::table('leads')->orderBy('id')->get(['id', 'follow_up_on', 'pipeline_status', 'remarks', 'assignee_employee_id', 'team_lead_employee_id'])->all());
+    }
+
     public function test_follow_up_dates_are_split_into_overdue_today_and_upcoming(): void
     {
         $company = CompanyFixture::make('Follow Dates', 'followdates');

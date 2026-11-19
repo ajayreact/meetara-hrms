@@ -6,6 +6,7 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -23,9 +24,11 @@ class LeadFollowUp
         $context = $this->employeeContext($actor);
         $today = $this->today($context['tenantId']);
         $queue = $this->queue((string) ($input['queue'] ?? 'all'));
+        $term = mb_substr(trim((string) ($input['q'] ?? '')), 0, 120);
         $query = $this->assigned($context['tenantId'], $context['employeeId']);
         $counts = $this->counts(clone $query, $today);
         $filtered = $this->queued(clone $query, $queue, $today);
+        LeadSearch::apply($filtered, $term);
         $matching = (clone $filtered)->count();
         $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
@@ -45,6 +48,7 @@ class LeadFollowUp
 
         return [
             'queue' => $queue,
+            'q' => $term,
             'counts' => $counts,
             'leads' => $rows->map(function (Lead $lead) use ($today): array {
                 $followUpOn = $this->date($lead->follow_up_on);
@@ -77,6 +81,79 @@ class LeadFollowUp
             'pages' => $pages,
             'statuses' => $this->statuses(),
         ];
+    }
+
+    /**
+     * Pending follow-up reminders for the signed-in Team Lead or Employee.
+     * Closed outcomes stay stored and are left out of the pending lists.
+     *
+     * @return array{overdue: list<array<string, mixed>>, today: list<array<string, mixed>>, upcoming: list<array<string, mixed>>, counts: array{overdue: int, today: int, upcoming: int}}
+     */
+    public function dashboardReminders(User $actor): array
+    {
+        $empty = [
+            'overdue' => [],
+            'today' => [],
+            'upcoming' => [],
+            'counts' => ['overdue' => 0, 'today' => 0, 'upcoming' => 0],
+        ];
+        $role = $actor->applicationRole();
+        $companyId = $actor->companyId();
+
+        if ($companyId === null || ! in_array($role, ['team_lead', 'employee'], true) || ! Schema::hasTable('leads') || ! Schema::hasColumn('leads', 'follow_up_on')) {
+            return $empty;
+        }
+
+        $employeeId = DB::table('employees')
+            ->where('tenant_id', $companyId)
+            ->where('user_id', $actor->id)
+            ->where('status', 'active')
+            ->value('id');
+
+        if ($employeeId === null) {
+            return $empty;
+        }
+
+        $query = Lead::query()
+            ->inCompany((int) $companyId)
+            ->whereNotNull('leads.follow_up_on')
+            ->whereNotIn('leads.pipeline_status', ['converted', 'not_interested', 'do_not_contact']);
+
+        if ($role === 'team_lead') {
+            $query->where('leads.team_lead_employee_id', (int) $employeeId);
+            $prefix = '/my-leads/';
+        } else {
+            $query->where('leads.assignee_employee_id', (int) $employeeId);
+            $prefix = '/leads/mine/';
+        }
+
+        $today = $this->today((int) $companyId);
+        $reminders = $empty;
+
+        foreach (['overdue', 'today', 'upcoming'] as $bucket) {
+            $bucketQuery = $this->queued(clone $query, $bucket, $today);
+            $reminders['counts'][$bucket] = (clone $bucketQuery)->count();
+            $reminders[$bucket] = $bucketQuery
+                ->orderBy('leads.follow_up_on')
+                ->orderBy('leads.id')
+                ->limit(15)
+                ->get(['leads.id', 'leads.name', 'leads.follow_up_on', 'leads.remarks', 'leads.pipeline_status'])
+                ->map(function (Lead $lead) use ($prefix): array {
+                    $when = $this->date($lead->follow_up_on);
+                    $remarks = trim((string) ($lead->remarks ?? ''));
+
+                    return [
+                        'id' => (int) $lead->id,
+                        'name' => (string) $lead->name,
+                        'when' => $when ?? '',
+                        'details' => $remarks !== '' ? $remarks : $this->label((string) $lead->pipeline_status),
+                        'statusLabel' => $this->label((string) $lead->pipeline_status),
+                        'href' => $prefix.$lead->id,
+                    ];
+                })->all();
+        }
+
+        return $reminders;
     }
 
     /**

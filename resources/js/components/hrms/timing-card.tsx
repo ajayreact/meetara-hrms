@@ -15,6 +15,10 @@ export interface TimingState {
     canStartBreak: boolean;
     canEndBreak: boolean;
     canClockOut: boolean;
+    workMode?: 'office' | 'work_from_home';
+    workModeLabel?: string;
+    assignedModeLabel?: string;
+    canRequestHome?: boolean;
     gpsRequired?: boolean;
     gpsCapture?: boolean;
     gpsNoticePending?: boolean;
@@ -191,13 +195,15 @@ export function TimingCard({ timing, notice, className = '' }: { timing: TimingS
                 <InfoRow icon={Clock3} label="Clock In" value={timing.clockIn ?? '—'} />
                 <InfoRow icon={AlarmClock} label="Break In" value={timing.breakIn ?? '—'} />
             </div>
+            {timing.assignedModeLabel ? <p className="mt-3 text-xs text-slate-600">Authorized work mode: {timing.assignedModeLabel}</p> : null}
+            {timing.workModeLabel ? <p className="mt-1 text-xs text-slate-600">Today&apos;s attendance mode: {timing.workModeLabel}</p> : null}
             {timing.shiftNotice ? <p className="mt-3 text-xs text-slate-600">{timing.shiftNotice}</p> : null}
             {messages.map((item) => <p key={item} className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{item}</p>)}
             <Dialog open={confirmOut} onOpenChange={setConfirmOut}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Clock out?</DialogTitle>
-                        <DialogDescription>This closes the current attendance session after the same office network check as clock-in. An open break must be ended first.</DialogDescription>
+                        <DialogDescription>{timing.workMode === 'work_from_home' ? 'This closes the work-from-home session. It does not use the office network check. An open break must be ended first.' : 'This closes the current attendance session after the same office network check as clock-in. An open break must be ended first.'}</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setConfirmOut(false)}>Cancel</Button>
