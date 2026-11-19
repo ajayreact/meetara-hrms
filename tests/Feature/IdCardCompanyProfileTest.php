@@ -177,6 +177,7 @@ class IdCardCompanyProfileTest extends TestCase
         $placeholder = $this->pdfText((new EmployeeIdCardPdf)->render($this->cardPayload(null)));
         $this->assertStringContainsString('(HR signature)', $placeholder);
         $this->assertStringContainsString('Authorized Signatory', $placeholder);
+        $this->assertStringContainsString('SCAN TO VERIFY EMPLOYEE', $placeholder);
 
         $printed = $this->pdfText((new EmployeeIdCardPdf)->render($this->cardPayload(
             Storage::disk('local')->path((string) $row->signature_path),

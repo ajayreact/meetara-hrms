@@ -212,16 +212,7 @@ class EmployeeIdCardPdf
             }
         }
 
-        $pill = $this->scanPillPng();
-        $pillW = 33.2;
-        $pillH = 4.7;
-        try {
-            $pdf->Image($pill, (self::WIDTH_MM - $pillW) / 2, 42.3, $pillW, $pillH);
-        } finally {
-            if (is_file($pill)) {
-                unlink($pill);
-            }
-        }
+        $this->scanPill($pdf);
 
         $issued = $this->formatDate($card['issuedAt'] ?? null);
         $cardNumber = trim((string) ($card['cardNumber'] ?? ''));
@@ -968,34 +959,26 @@ class EmployeeIdCardPdf
         return $path;
     }
 
-    private function scanPillPng(): string
+    private function scanPill(IdCardCanvas $pdf): void
     {
-        $w = 760;
-        $h = 92;
-        $img = imagecreatetruecolor($w, $h);
-        imagesavealpha($img, true);
-        $clear = imagecolorallocatealpha($img, 0, 0, 0, 127);
-        imagefill($img, 0, 0, $clear);
-        $navy = imagecolorallocate($img, self::NAVY[0], self::NAVY[1], self::NAVY[2]);
-        $white = imagecolorallocate($img, 255, 255, 255);
-        imagefilledrectangle($img, (int) ($h / 2), 0, $w - (int) ($h / 2), $h, $navy);
-        imagefilledellipse($img, (int) ($h / 2), (int) ($h / 2), $h, $h, $navy);
-        imagefilledellipse($img, $w - (int) ($h / 2), (int) ($h / 2), $h, $h, $navy);
-        $font = 'C:/Windows/Fonts/arialbd.ttf';
+        $pillW = 33.2;
+        $pillH = 4.6;
+        $pillX = (self::WIDTH_MM - $pillW) / 2;
+        $pillY = 42.35;
         $label = 'SCAN TO VERIFY EMPLOYEE';
-        if (is_file($font)) {
-            $fontSize = 27;
-            $box = imagettfbbox($fontSize, 0, $font, $label);
-            $tw = abs($box[2] - $box[0]);
-            $th = abs($box[7] - $box[1]);
-            imagettftext($img, $fontSize, 0, (int) (($w - $tw) / 2), (int) (($h + $th) / 2) - 1, $white, $font, $label);
+        $size = 5.2;
+
+        $pdf->fillRoundRect($pillX, $pillY, $pillW, $pillH, $pillH / 2, self::NAVY);
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('Helvetica', 'B', $size);
+        while ($size > 4.0 && $pdf->GetStringWidth($label) > ($pillW - 2.2)) {
+            $size -= 0.2;
+            $pdf->SetFont('Helvetica', 'B', $size);
         }
 
-        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'id-card-pill-'.bin2hex(random_bytes(6)).'.png';
-        imagepng($img, $path);
-        imagedestroy($img);
-
-        return $path;
+        $textH = 2.0;
+        $pdf->SetXY($pillX, $pillY + (($pillH - $textH) / 2));
+        $pdf->Cell($pillW, $textH, $label, 0, 0, 'C');
     }
 
     private function signaturePng(): ?string
