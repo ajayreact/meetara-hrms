@@ -182,7 +182,7 @@ class LeadFollowUpTest extends TestCase
 
         $this->actingAs($company->employee)->get('/leads/mine?page=1')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('leads', fn ($rows): bool => ! collect($rows)->contains('id', $ada)));
+            ->assertInertia(fn (Assert $page) => $page->where('leads', fn ($rows): bool => collect($rows)->contains('id', $ada) && ! collect($rows)->contains('name', 'Assigned filler 1')));
         $this->actingAs($company->employee)->get('/leads/mine?q='.urlencode('ADA.find@example.com'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('matching', 1)->where('page', 1)->where('leads.0.id', $ada));

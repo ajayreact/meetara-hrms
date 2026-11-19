@@ -37,6 +37,10 @@ class LeadSearch
                 $inner->orWhereRaw('LOWER(leads.email_normalized) LIKE ?', [$like]);
             }
 
+            if (Schema::hasColumn('leads', 'source_name')) {
+                $inner->orWhereRaw('LOWER(leads.source_name) LIKE ?', [$like]);
+            }
+
             if (strlen($digits) < 3) {
                 return;
             }

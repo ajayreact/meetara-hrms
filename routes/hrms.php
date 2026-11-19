@@ -28,6 +28,7 @@ use App\Http\Controllers\Hrms\LeadFollowUpController;
 use App\Http\Controllers\Hrms\LeadImportController;
 use App\Http\Controllers\Hrms\LeadPoolController;
 use App\Http\Controllers\Hrms\LeadReportController;
+use App\Http\Controllers\Hrms\LeadSourceController;
 use App\Http\Controllers\Hrms\LeaveController;
 use App\Http\Controllers\Hrms\OfferLetterController;
 use App\Http\Controllers\Hrms\OfferLetterTemplateController;
@@ -116,6 +117,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/my-leads/{lead}/follow-ups', [LeadFollowUpController::class, 'storeTeam'])->whereNumber('lead')->name('hrms.my-leads.follow-up');
     Route::get('/my-leads/{lead}', [LeadDistributionController::class, 'show'])->whereNumber('lead')->name('hrms.my-leads.show');
     Route::get('/leads', [LeadPoolController::class, 'index'])->name('hrms.leads');
+    Route::get('/leads/sources', [LeadSourceController::class, 'index'])->name('hrms.leads.sources');
+    Route::post('/leads/sources', [LeadSourceController::class, 'store'])->name('hrms.leads.sources.store');
+    Route::post('/leads/sources/{source}', [LeadSourceController::class, 'update'])->whereNumber('source')->name('hrms.leads.sources.update');
     Route::get('/leads/import', [LeadImportController::class, 'index'])->name('hrms.leads.upload');
     Route::post('/leads/imports', [LeadImportController::class, 'store'])->middleware('throttle:10,1')->name('hrms.leads.import.store');
     Route::get('/leads/imports/{batch}', [LeadImportController::class, 'show'])->whereNumber('batch')->name('hrms.leads.import');
@@ -130,6 +134,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/leads/mine/{lead}', [LeadFollowUpController::class, 'showMine'])->whereNumber('lead')->name('hrms.leads.mine.show');
     Route::post('/leads/mine/{lead}/follow-ups', [LeadFollowUpController::class, 'storeMine'])->whereNumber('lead')->name('hrms.leads.mine.follow-up');
     Route::get('/leads/follow-ups', [LeadFollowUpController::class, 'company'])->name('hrms.leads.follow-ups');
+    Route::post('/leads/{lead}/source', [LeadSourceController::class, 'attach'])->whereNumber('lead')->name('hrms.leads.source');
     Route::post('/leads/{lead}/follow-ups', [LeadFollowUpController::class, 'storeCompany'])->whereNumber('lead')->name('hrms.leads.follow-up');
     Route::get('/leads/{lead}', [LeadPoolController::class, 'show'])->whereNumber('lead')->name('hrms.leads.show');
     Route::post('/work-tasks', [WorkTaskController::class, 'store'])->name('hrms.work-tasks.store');
@@ -235,6 +240,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/usa-offers/create', [UsaOfferController::class, 'create'])->name('hrms.usa-offers.create');
     Route::get('/usa-offers/settings', [UsaOfferController::class, 'settings'])->name('hrms.usa-offers.settings');
     Route::post('/usa-offers/settings', [UsaOfferController::class, 'saveProfile'])->name('hrms.usa-offers.settings.save');
+    Route::post('/usa-offers/settings/appointment', [UsaOfferController::class, 'saveAppointment'])->name('hrms.usa-offers.settings.appointment');
+    Route::post('/usa-offers/settings/appointment/preview', [UsaOfferController::class, 'previewAppointment'])->name('hrms.usa-offers.settings.appointment.preview');
     Route::post('/usa-offers/settings/letterhead', [UsaOfferController::class, 'saveLetterhead'])->name('hrms.usa-offers.settings.letterhead');
     Route::get('/usa-offers/settings/letterhead', [UsaOfferController::class, 'showLetterhead'])->name('hrms.usa-offers.settings.letterhead.preview');
     Route::post('/usa-offers/settings/signature', [UsaOfferController::class, 'saveSignature'])->name('hrms.usa-offers.settings.signature');

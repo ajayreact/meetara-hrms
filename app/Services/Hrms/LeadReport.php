@@ -9,6 +9,7 @@ use App\Support\AuthenticatedWorkspace;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeadReport
 {
@@ -42,6 +43,7 @@ class LeadReport
             'universities' => $this->breakdown(clone $leads, 'university'),
             'graduationTerms' => $this->breakdown(clone $leads, 'graduation_term'),
             'designations' => $this->breakdown(clone $leads, 'designations'),
+            'sources' => $this->sources(clone $leads),
         ];
     }
 
@@ -59,7 +61,7 @@ class LeadReport
         $tenantId = $this->companyContext($actor);
         $range = $this->range($tenantId, $input);
         $zone = $this->zone($tenantId);
-        fputcsv($output, ['Name', 'Email', 'Phone', 'State', 'University', 'Graduation term', 'Designation', 'Experience', 'Pipeline status', 'Follow-up', 'Team lead', 'Assignee', 'Created']);
+        fputcsv($output, ['Name', 'Email', 'Phone', 'State', 'University', 'Graduation term', 'Designation', 'Experience', 'Pipeline status', 'Follow-up', 'Team lead', 'Assignee', 'Created', 'Source']);
 
         $query = $this->leads($tenantId, $range)
             ->leftJoin('employees as report_team_leads', function ($join) use ($tenantId): void {
@@ -81,6 +83,7 @@ class LeadReport
                 'leads.pipeline_status',
                 'leads.follow_up_on',
                 'leads.created_at',
+                'leads.source_name',
                 'report_team_leads.first_name as team_first',
                 'report_team_leads.last_name as team_last',
                 'report_assignees.first_name as assignee_first',
@@ -103,6 +106,7 @@ class LeadReport
                 $this->csvCell($this->personName($lead->getAttribute('team_first'), $lead->getAttribute('team_last'))),
                 $this->csvCell($this->personName($lead->getAttribute('assignee_first'), $lead->getAttribute('assignee_last'))),
                 $this->csvCell($lead->created_at instanceof \DateTimeInterface ? Carbon::parse($lead->created_at)->timezone($zone)->format('Y-m-d H:i') : ''),
+                $this->csvCell($lead->source_name ?? ''),
             ]);
         }
     }
@@ -147,6 +151,7 @@ class LeadReport
                 'activities' => $this->activityTotal($context['tenantId'], $range, $context['employeeId']),
             ],
             'employees' => $this->teamEmployees($context['tenantId'], $context['employeeId'], clone $leads, $range, $today),
+            'sources' => $this->sources(clone $leads),
         ];
     }
 
@@ -281,6 +286,37 @@ class LeadReport
      * @param  Builder<Lead>  $query
      * @return list<array{label: string, total: int, converted: int}>
      */
+    /**
+     * @param  Builder<Lead>  $query
+     * @return list<array{label: string, total: int, converted: int, conversionRate: int}>
+     */
+    private function sources(Builder $query): array
+    {
+        if (! Schema::hasColumn('leads', 'source_name')) {
+            return [];
+        }
+
+        $expression = "COALESCE(NULLIF(leads.source_name, ''), 'Not set')";
+
+        return $query->toBase()
+            ->selectRaw("{$expression} as label, COUNT(*) as total, SUM(CASE WHEN leads.pipeline_status = 'converted' THEN 1 ELSE 0 END) as converted")
+            ->groupByRaw($expression)
+            ->orderByRaw('total DESC')
+            ->orderByRaw("{$expression} ASC")
+            ->get()
+            ->map(function ($row): array {
+                $total = (int) $row->total;
+                $converted = (int) $row->converted;
+
+                return [
+                    'label' => (string) $row->label,
+                    'total' => $total,
+                    'converted' => $converted,
+                    'conversionRate' => $total === 0 ? 0 : (int) round(($converted / $total) * 100),
+                ];
+            })->all();
+    }
+
     private function breakdown(Builder $query, string $column): array
     {
         $expression = match ($column) {

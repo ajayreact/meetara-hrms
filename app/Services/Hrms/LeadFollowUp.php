@@ -6,6 +6,7 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadListing;
 use App\Support\LeadSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -29,10 +30,18 @@ class LeadFollowUp
         $counts = $this->counts(clone $query, $today);
         $filtered = $this->queued(clone $query, $queue, $today);
         LeadSearch::apply($filtered, $term);
+        $perPage = LeadListing::perPage($input, self::PAGE_SIZE);
         $matching = (clone $filtered)->count();
-        $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
+        $pages = max(1, (int) ceil($matching / $perPage));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
-        $rows = $filtered->orderBy('leads.follow_up_on')->orderByDesc('leads.id')->forPage($page, self::PAGE_SIZE)->get([
+
+        if ($queue === 'all') {
+            LeadListing::recentFirst($filtered);
+        } else {
+            $filtered->orderBy('leads.follow_up_on')->orderByDesc('leads.id');
+        }
+
+        $rows = $filtered->forPage($page, $perPage)->get([
             'leads.id',
             'leads.name',
             'leads.email',
@@ -44,6 +53,8 @@ class LeadFollowUp
             'leads.pipeline_status',
             'leads.follow_up_on',
             'leads.remarks',
+            'leads.assigned_at',
+            'leads.source_name',
         ]);
 
         return [
@@ -67,6 +78,8 @@ class LeadFollowUp
                     'statusLabel' => $this->label((string) $lead->pipeline_status),
                     'followUpOn' => $followUpOn,
                     'remarks' => (string) ($lead->remarks ?? ''),
+                    'source' => (string) ($lead->source_name ?? ''),
+                    'assignedAt' => $lead->assigned_at instanceof \DateTimeInterface ? $lead->assigned_at->format('Y-m-d H:i') : '',
                     'timing' => $timing,
                     'reminder' => match ($timing) {
                         'overdue' => 'overdue',
@@ -79,6 +92,7 @@ class LeadFollowUp
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
+            'perPage' => $perPage,
             'statuses' => $this->statuses(),
         ];
     }
@@ -421,6 +435,7 @@ class LeadFollowUp
                 'statusLabel' => $this->label((string) $lead->pipeline_status),
                 'importedOn' => $this->date($lead->imported_on),
                 'sourceRow' => $lead->source_row === null ? null : (int) $lead->source_row,
+                'source' => (string) ($lead->source_name ?? ''),
                 'followUpOn' => $this->date($lead->follow_up_on),
                 'remarks' => (string) ($lead->remarks ?? ''),
                 'unassigned' => false,

@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button';
-import { isNavActive, sidebarItems, type SidebarItem } from '@/lib/navigation';
+import { branchActive, itemActive, sidebarItems, type SidebarItem } from '@/lib/navigation';
 import type { Workspace } from '@/types/hrms';
 import type { SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Building2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { Building2, ChevronRight, LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export function initials(name: string): string {
@@ -65,7 +65,7 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
                                 <p className={`px-2.5 pb-1 text-[11px] font-semibold tracking-wide text-slate-400 uppercase ${compact ? 'md:sr-only' : ''}`}>{section}</p>
                                 <div className="flex flex-col gap-0.5">
                                     {items.filter((item) => item.section === section).map((item) => (
-                                        <NavLink key={item.href} item={item} url={url} compact={compact} onNavigate={() => setOpen(false)} />
+                                        <NavNode key={item.label} item={item} url={url} compact={compact} depth={0} onNavigate={() => setOpen(false)} />
                                     ))}
                                 </div>
                             </div>
@@ -112,20 +112,80 @@ export function HrmsLayout({ workspace, title, children }: { workspace: Workspac
     );
 }
 
-function NavLink({ item, url, compact, onNavigate }: { item: SidebarItem; url: string; compact: boolean; onNavigate: () => void }) {
-    const active = isNavActive(item.href, url);
+function NavNode({ item, url, compact, depth, onNavigate }: { item: SidebarItem; url: string; compact: boolean; depth: number; onNavigate: () => void }) {
+    const childActive = item.children?.some((child) => branchActive(child, url)) ?? false;
+    const [expanded, setExpanded] = useState(childActive);
+
+    useEffect(() => {
+        if (childActive) {
+            setExpanded(true);
+        }
+    }, [childActive, url]);
+
+    if (item.children) {
+        return <NavGroup item={item} url={url} compact={compact} depth={depth} expanded={expanded} onToggle={() => setExpanded((value) => !value)} onNavigate={onNavigate} />;
+    }
+
+    if (!item.href) {
+        return null;
+    }
+
+    return <NavLink item={{ ...item, href: item.href }} url={url} compact={compact} depth={depth} onNavigate={onNavigate} />;
+}
+
+function NavGroup({ item, url, compact, depth, expanded, onToggle, onNavigate }: { item: SidebarItem; url: string; compact: boolean; depth: number; expanded: boolean; onToggle: () => void; onNavigate: () => void }) {
     const Icon = item.icon;
+    const containsActive = item.children?.some((child) => branchActive(child, url)) ?? false;
+    const pad = depth === 0 ? 'px-2.5' : depth === 1 ? 'pl-8 pr-2.5' : 'pl-11 pr-2.5';
+
+    return (
+        <div className={depth === 0 ? 'relative' : undefined}>
+            <button
+                type="button"
+                title={item.label}
+                aria-expanded={expanded}
+                onClick={onToggle}
+                className={`flex w-full items-center gap-2.5 rounded-lg border-l-2 py-1.5 text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${pad} ${compact && depth === 0 ? 'md:justify-center md:border-l-0 md:px-2' : ''} ${containsActive ? 'border-transparent text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+                {depth === 0 && <Icon className="size-[18px] shrink-0" aria-hidden="true" />}
+                <span className={`min-w-0 flex-1 truncate ${compact && depth === 0 ? 'md:sr-only' : ''}`}>{item.label}</span>
+                <ChevronRight className={`size-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''} ${compact && depth === 0 ? 'md:hidden' : ''}`} aria-hidden="true" />
+            </button>
+            {expanded && item.children && (
+                <>
+                    <div className={`mt-0.5 flex flex-col gap-0.5 ${compact && depth === 0 ? 'md:hidden' : ''}`}>
+                        {item.children.map((child) => (
+                            <NavNode key={`${item.label}-${child.label}`} item={child} url={url} compact={false} depth={depth + 1} onNavigate={onNavigate} />
+                        ))}
+                    </div>
+                    {compact && depth === 0 && (
+                        <div className="absolute top-0 left-full z-50 ml-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-lg md:block">
+                            {item.children.map((child) => (
+                                <NavNode key={`${item.label}-flyout-${child.label}`} item={child} url={url} compact={false} depth={0} onNavigate={onNavigate} />
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+function NavLink({ item, url, compact, depth, onNavigate }: { item: SidebarItem & { href: string }; url: string; compact: boolean; depth: number; onNavigate: () => void }) {
+    const active = itemActive(item, url);
+    const Icon = item.icon;
+    const pad = depth === 0 ? 'px-2.5' : depth === 1 ? 'pl-8 pr-2.5' : 'pl-11 pr-2.5';
 
     return (
         <Link
             href={item.href}
             onClick={onNavigate}
             title={item.label}
-            className={`flex items-center gap-2.5 rounded-lg border-l-2 px-2.5 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${compact ? 'md:justify-center md:border-l-0 md:px-2' : ''} ${active ? 'border-blue-700 bg-blue-50 text-blue-800' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            className={`flex items-center gap-2.5 rounded-lg border-l-2 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none ${pad} ${compact && depth === 0 ? 'md:justify-center md:border-l-0 md:px-2' : ''} ${active ? 'border-blue-700 bg-blue-50 text-blue-800' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             aria-current={active ? 'page' : undefined}
         >
-            <Icon className="size-[18px] shrink-0" aria-hidden="true" />
-            <span className={`truncate ${compact ? 'md:sr-only' : ''}`}>{item.label}</span>
+            {depth === 0 && <Icon className="size-[18px] shrink-0" aria-hidden="true" />}
+            <span className={`truncate ${compact && depth === 0 ? 'md:sr-only' : ''}`}>{item.label}</span>
         </Link>
     );
 }

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Services\Hrms\LeadDirectory;
 use App\Services\Hrms\LeadDistribution;
 use App\Services\Hrms\LeadFollowUp;
+use App\Services\Hrms\LeadSources;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,6 +23,7 @@ class LeadPoolController extends Controller
 
         return Inertia::render('leads/index', [
             ...$directory->page($user, $request->query()),
+            'canManageSources' => ($permissions['leadsManageSources'] ?? false) === true,
             'canImport' => ($permissions['leadsImport'] ?? false) === true,
             'canAssign' => ($permissions['leadsAssignTeam'] ?? false) === true,
             'canFollowUp' => ($permissions['leadsFollowUpTeam'] ?? false) === true,
@@ -31,16 +33,19 @@ class LeadPoolController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $lead, LeadDirectory $directory, LeadDistribution $distribution, LeadFollowUp $followUps): Response
+    public function show(Request $request, int $lead, LeadDirectory $directory, LeadDistribution $distribution, LeadFollowUp $followUps, LeadSources $sources): Response
     {
         $user = $request->user();
         $role = AuthenticatedWorkspace::resolve($user)['role'];
         $permissions = CompanyRole::permissions(is_string($role) ? $role : '');
         $detail = $directory->detail($user, $lead);
         $canFollowUp = ($permissions['leadsViewAll'] ?? false) === true && ($permissions['leadsFollowUpTeam'] ?? false) === true;
+        $canSetSource = ($permissions['leadsManageSources'] ?? false) === true && ($detail['lead']['source'] ?? '') === '';
 
         return Inertia::render('leads/show', [
             ...$detail,
+            'sourceChoices' => $canSetSource ? $sources->choices((int) $user->companyId()) : [],
+            'canSetSource' => $canSetSource,
             ...$distribution->timeline((int) $user->companyId(), $lead),
             'canAssign' => ($permissions['leadsAssignTeam'] ?? false) === true,
             'canManage' => false,

@@ -39,13 +39,18 @@ class UsaOfferPdf
     /** @var array<string, mixed> */
     private array $profile = [];
 
+    /** @var array<string, string>|null */
+    private ?array $appointment = null;
+
     /**
      * @param  array<string, mixed>  $offer
      * @param  array<string, mixed>  $profile
+     * @param  array<string, string>|null  $appointment
      */
-    public function render(array $offer, array $profile, ?string $letterhead = null, ?string $signature = null): string
+    public function render(array $offer, array $profile, ?string $letterhead = null, ?string $signature = null, ?array $appointment = null): string
     {
         $this->profile = $profile;
+        $this->appointment = $appointment;
         $this->requireIdentity();
         $this->letterhead = $letterhead !== null && is_file($letterhead) ? $letterhead : null;
         $this->signature = $signature !== null && is_file($signature) ? $signature : null;
@@ -102,8 +107,31 @@ class UsaOfferPdf
         }
 
         $y += $this->px(10);
+        $builtIn = $this->usesBuiltInAppointment();
 
-        foreach ($this->wrappedRuns($this->offerRuns($offer), self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
+        if (! $builtIn) {
+            $subject = trim((string) ($this->appointment['subject'] ?? ''));
+
+            if ($subject !== '') {
+                foreach ($this->wrappedRuns([[$subject, true, [0, 0, 0], false]], self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
+                    if ($y + $this->px(self::LEADING) > $this->px(self::BODY_BOTTOM)) {
+                        yield $image;
+                        $image = $this->chrome();
+                        $y = $this->px(self::BODY_TOP);
+                    }
+
+                    $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+                }
+
+                $y += $this->px(10);
+            }
+        }
+
+        $body = $builtIn
+            ? $this->offerRuns($offer)
+            : UsaOfferAppointment::bodyRuns($this->appointment ?? [], $offer, $this->profile);
+
+        foreach ($this->wrappedRuns($body, self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
             if ($y + $this->px(self::LEADING) > $this->px(self::BODY_BOTTOM)) {
                 yield $image;
                 $image = $this->chrome();
@@ -111,6 +139,24 @@ class UsaOfferPdf
             }
 
             $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+        }
+
+        if (! $builtIn) {
+            $position = UsaOfferAppointment::positionRuns($this->appointment ?? [], $offer, $this->profile);
+
+            if ($position !== []) {
+                $y += $this->px(10);
+
+                foreach ($this->wrappedRuns($position, self::BODY, $this->px(self::CONTENT_WIDTH)) as $line) {
+                    if ($y + $this->px(self::LEADING) > $this->px(self::BODY_BOTTOM)) {
+                        yield $image;
+                        $image = $this->chrome();
+                        $y = $this->px(self::BODY_TOP);
+                    }
+
+                    $y = $this->paint($image, $line, $this->px(self::MARGIN_X), $y, self::BODY, self::LEADING);
+                }
+            }
         }
 
         $y += $this->px(12);
@@ -132,7 +178,11 @@ class UsaOfferPdf
                 $y = $this->px(self::BODY_TOP);
             }
 
-            $this->draw($image, 'Responsibilities', $this->px(self::MARGIN_X), $y, self::HEADING, true, [0, 0, 0]);
+            $heading = $builtIn ? 'Responsibilities' : trim((string) ($this->appointment['responsibilities_heading'] ?? 'Responsibilities'));
+
+            if ($heading !== '') {
+                $this->draw($image, $heading, $this->px(self::MARGIN_X), $y, self::HEADING, true, [0, 0, 0]);
+            }
             $y += $this->px(self::LEADING + 4);
 
             foreach ($items as $item) {
@@ -149,7 +199,10 @@ class UsaOfferPdf
         }
 
         $y += $this->px(12);
-        $report = $this->wrappedRuns($this->reportRuns(), self::BODY, $this->px(self::CONTENT_WIDTH));
+        $reportRuns = $builtIn || UsaOfferAppointment::reportingIsDefault($this->appointment)
+            ? $this->reportRuns()
+            : UsaOfferAppointment::reportingRuns($this->appointment ?? [], $offer, $this->profile);
+        $report = $this->wrappedRuns($reportRuns, self::BODY, $this->px(self::CONTENT_WIDTH));
         $reportHeight = count($report) * $this->px(self::LEADING);
 
         if ($y + $reportHeight > $this->px(self::BODY_BOTTOM)) {
@@ -171,8 +224,12 @@ class UsaOfferPdf
             $y = $this->px(self::BODY_TOP);
         }
 
-        $y = $this->signatory($image, $y);
-        $acceptance = $this->wrappedRuns([['I have read this offer and accept the terms of appointment described herein.', false, [0, 0, 0], false]], self::BODY, $this->px(self::CONTENT_WIDTH));
+        $closing = $builtIn ? 'Sincerely,' : trim((string) ($this->appointment['closing'] ?? ''));
+        $y = $this->signatory($image, $y, $closing !== '' ? $closing : 'Sincerely,');
+        $acceptanceText = $builtIn
+            ? 'I have read this offer and accept the terms of appointment described herein.'
+            : trim((string) ($this->appointment['acceptance'] ?? ''));
+        $acceptance = $this->wrappedRuns([[$acceptanceText !== '' ? $acceptanceText : 'I have read this offer and accept the terms of appointment described herein.', false, [0, 0, 0], false]], self::BODY, $this->px(self::CONTENT_WIDTH));
         $acceptanceHeight = (count($acceptance) * $this->px(self::LEADING)) + $this->px(self::LEADING + 22 + 10);
 
         if ($y + $acceptanceHeight > $this->px(self::BODY_BOTTOM)) {
@@ -257,10 +314,10 @@ class UsaOfferPdf
         return $y;
     }
 
-    private function signatory(\GdImage $image, int $y): int
+    private function signatory(\GdImage $image, int $y, string $closing = 'Sincerely,'): int
     {
         $x = $this->px(self::MARGIN_X);
-        $this->draw($image, 'Sincerely,', $x, $y, self::BODY, false, [0, 0, 0]);
+        $this->draw($image, $closing, $x, $y, self::BODY, false, [0, 0, 0]);
         $y += $this->px(8);
         $y += $this->paintSignature($image, $x, $y);
         $y += $this->px(self::SIGNATURE_CLEARANCE);
@@ -475,6 +532,11 @@ class UsaOfferPdf
     private function field(string $key): string
     {
         return trim((string) ($this->profile[$key] ?? ''));
+    }
+
+    private function usesBuiltInAppointment(): bool
+    {
+        return ! is_array($this->appointment) || UsaOfferAppointment::isBuiltIn($this->appointment);
     }
 
     private function requireIdentity(): void

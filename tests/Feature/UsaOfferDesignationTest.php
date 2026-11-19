@@ -34,8 +34,8 @@ class UsaOfferDesignationTest extends TestCase
             ->where('designations', function ($rows): bool {
                 $names = collect($rows)->pluck('name');
 
-                return count($rows) === 36
-                    && $names->unique()->count() === 36
+                return count($rows) === 37
+                    && $names->unique()->count() === 37
                     && $names->contains('Software Engineer')
                     && $names->contains('.NET Full Stack Developer')
                     && $names->contains('AI/ML Engineer')
@@ -162,8 +162,99 @@ class UsaOfferDesignationTest extends TestCase
         $this->assertSame($indiaLetters, DB::table('offer_letters')->count());
         $this->assertFalse(Schema::hasColumn('offer_letters', 'responsibilities'));
         Mail::assertNothingSent();
-        $this->assertSame(36, count(UsaDesignationCatalog::defaults()));
-        $this->assertSame(36, collect(UsaDesignationCatalog::defaults())->pluck('key')->unique()->count());
+        $this->assertSame(37, count(UsaDesignationCatalog::defaults()));
+        $this->assertSame(37, collect(UsaDesignationCatalog::defaults())->pluck('key')->unique()->count());
+    }
+
+    public function test_supply_chain_systems_analyst_is_saved_editable_and_used_on_a_generated_offer(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('Veltrix Digital Solutions Inc', 'veltrix-supply-chain');
+        $responsibilities = [
+            'Analyze and improve supply chain processes, including procurement, inventory, logistics, and distribution.',
+            'Gather business requirements and translate them into functional system specifications.',
+            'Configure, maintain, and support Supply Chain Management (SCM) systems.',
+            'Monitor inventory levels, order processing, supplier performance, and operational workflows.',
+            'Develop reports and dashboards to support supply chain decision-making.',
+            'Collaborate with procurement, warehouse, logistics, finance, and IT teams.',
+            'Troubleshoot system issues and coordinate technical resolutions.',
+            'Support system integrations, testing, documentation, and process improvements.',
+        ];
+
+        $this->actingAs($company->hr)->get('/usa-offers/settings')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('groups.supply_chain', 'Supply Chain & Operations')
+            ->where('designations', function ($rows) use ($responsibilities): bool {
+                $designation = collect($rows)->firstWhere('name', 'Supply Chain Systems Analyst');
+                $engineer = collect($rows)->firstWhere('name', 'Software Engineer');
+
+                return count($rows) === 37
+                    && collect($rows)->where('name', 'Supply Chain Systems Analyst')->count() === 1
+                    && $designation['group'] === 'Supply Chain & Operations'
+                    && $designation['groupKey'] === 'supply_chain'
+                    && $designation['builtin'] === true
+                    && $designation['active'] === true
+                    && $designation['responsibilities'] === $responsibilities
+                    && $engineer['responsibilities'][0] === 'Design, develop, test and maintain scalable software applications.';
+            })
+        );
+
+        $this->actingAs($company->hr)->get('/usa-offers/settings')->assertOk();
+        $this->assertSame(1, DB::table('usa_offer_designations')->where('tenant_id', $company->id)->where('name', 'Supply Chain Systems Analyst')->count());
+        $this->assertSame(37, DB::table('usa_offer_designations')->where('tenant_id', $company->id)->count());
+
+        $designationId = (int) DB::table('usa_offer_designations')->where('tenant_id', $company->id)->where('name', 'Supply Chain Systems Analyst')->value('id');
+        $edited = $responsibilities;
+        $edited[0] = 'Review procurement, inventory, logistics, and distribution workflows.';
+        $this->actingAs($company->hr)->post('/usa-offers/designations/'.$designationId, [
+            'responsibilities' => implode("\n", $edited),
+            'active' => 1,
+        ])->assertRedirect();
+        $this->assertSame($edited, json_decode((string) DB::table('usa_offer_designations')->where('id', $designationId)->value('responsibilities'), true));
+        $this->assertSame(
+            'Design, develop, test and maintain scalable software applications.',
+            json_decode((string) DB::table('usa_offer_designations')->where('tenant_id', $company->id)->where('name', 'Software Engineer')->value('responsibilities'), true)[0]
+        );
+
+        $this->actingAs($company->hr)->post('/usa-offers/designations/'.$designationId.'/restore')->assertRedirect();
+        $this->assertSame($responsibilities, json_decode((string) DB::table('usa_offer_designations')->where('id', $designationId)->value('responsibilities'), true));
+
+        $this->actingAs($company->hr)->get('/usa-offers/create')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('designations', function ($rows) use ($responsibilities): bool {
+                $designation = collect($rows)->firstWhere('name', 'Supply Chain Systems Analyst');
+
+                return $designation !== null
+                    && $designation['group'] === 'Supply Chain & Operations'
+                    && $designation['responsibilities'] === $responsibilities;
+            })
+        );
+
+        $this->actingAs($company->hr)->post('/usa-offers/settings', $this->profile())->assertRedirect();
+        $this->actingAs($company->hr)->post('/usa-offers/settings/letterhead', [
+            'letterhead' => UploadedFile::fake()->image('letterhead.png', 900, 200),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/usa-offers/settings/signature', [
+            'signature' => UploadedFile::fake()->image('signature.jpg', 320, 80),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/usa-offers', $this->offer($designationId, $responsibilities))->assertRedirect();
+
+        $offerId = (int) DB::table('usa_offers')->where('tenant_id', $company->id)->value('id');
+        $this->assertSame('Supply Chain Systems Analyst', DB::table('usa_offers')->where('id', $offerId)->value('designation_name'));
+        $this->assertSame($responsibilities, json_decode((string) DB::table('usa_offers')->where('id', $offerId)->value('responsibilities'), true));
+        $this->actingAs($company->hr)->get('/usa-offers/'.$offerId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('offer.designationName', 'Supply Chain Systems Analyst')
+            ->where('offer.responsibilities', $responsibilities)
+        );
+
+        $preview = $this->actingAs($company->hr)->get('/usa-offers/'.$offerId.'/preview');
+        $preview->assertOk();
+        $this->assertStringStartsWith('%PDF', $preview->getContent());
+        $this->actingAs($company->hr)->post('/usa-offers/'.$offerId.'/generate')->assertRedirect();
+        $stored = (string) Storage::disk('local')->get('usa-offers/'.$company->id.'/'.$offerId.'.pdf');
+        $this->assertStringStartsWith('%PDF', $stored);
+        $this->assertGreaterThanOrEqual(2, (new UsaOfferPdf)->pages($stored));
+        $this->assertSame($responsibilities, json_decode((string) DB::table('usa_offers')->where('id', $offerId)->value('responsibilities'), true));
+        $this->assertSame('Supply Chain Systems Analyst', DB::table('usa_offers')->where('id', $offerId)->value('designation_name'));
     }
 
     public function test_long_responsibilities_continue_onto_another_page_without_dropping_the_signature(): void

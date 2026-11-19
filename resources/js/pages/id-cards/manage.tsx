@@ -1,6 +1,7 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import {
     Dialog,
     DialogContent,
@@ -54,6 +55,7 @@ interface IssueState {
             companyDisplayName: string;
             hasLogo: boolean;
             logoUrl: string | null;
+            logoOnDark?: boolean;
             hasPhoto: boolean;
             photoUrl: string | null;
             name: string;
@@ -70,6 +72,8 @@ interface IssueState {
             verifyUrl: string;
             hasSignature: boolean;
             signatureUrl: string | null;
+            hasLogo?: boolean;
+            logoUrl?: string | null;
         };
     } | null;
 }
@@ -347,17 +351,16 @@ export default function IdCardManage({
                                     />
                                     {form.errors.emergency_contact_number && <span className="text-rose-700">{form.errors.emergency_contact_number}</span>}
                                 </label>
-                                <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                                <div className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
                                     Employee photo
-                                    <input
-                                        className="mt-1.5 block w-full text-sm text-slate-600"
-                                        type="file"
+                                    <FileUpload
                                         accept="image/png,image/jpeg"
-                                        onChange={(event) => form.setData('photo', event.target.files?.[0] ?? null)}
+                                        file={form.data.photo}
+                                        hint="PNG or JPEG up to 2 MB. Stored privately for this company."
+                                        error={form.errors.photo}
+                                        onChange={(file) => form.setData('photo', file)}
                                     />
-                                    <span className="text-[11px] text-slate-400">PNG or JPEG up to 2 MB. Stored privately for this company.</span>
-                                    {form.errors.photo && <span className="text-rose-700">{form.errors.photo}</span>}
-                                </label>
+                                </div>
                                 <div className="sm:col-span-2">
                                     <Button type="submit" disabled={form.processing}>{card.id ? 'Save changes' : 'Save card details'}</Button>
                                 </div>
@@ -410,7 +413,7 @@ export default function IdCardManage({
                                 <div className="mx-auto aspect-[54/86] w-full max-w-[13.5rem] overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white shadow-sm">
                                     <div className="flex h-full flex-col items-center bg-gradient-to-b from-slate-50 to-white px-3 py-3 text-center">
                                         {liveLogo ? (
-                                            <img src={liveLogo} alt="" className="h-8 w-auto max-w-[9rem] rounded-sm bg-white object-contain p-0.5" />
+                                            <img src={liveLogo} alt="" className={`h-8 w-auto max-w-[9rem] rounded-sm object-contain p-0.5 ${preview.front.logoOnDark ? 'bg-slate-950' : 'bg-white'}`} />
                                         ) : (
                                             <div className="flex h-8 w-28 items-center justify-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400">Logo</div>
                                         )}
@@ -432,6 +435,9 @@ export default function IdCardManage({
                                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Back</p>
                                 <div className="mx-auto aspect-[54/86] w-full max-w-[13.5rem] overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white shadow-sm">
                                     <div className="flex h-full flex-col px-3 py-3 text-xs text-slate-600">
+                                        {preview.back.logoUrl ? (
+                                            <img src={`${preview.back.logoUrl}${preview.back.logoUrl.includes('?') ? '&' : '?'}t=${encodeURIComponent(card.updatedAt ?? '')}`} alt="" className="mx-auto mb-2 h-8 w-auto max-w-[8rem] object-contain" />
+                                        ) : null}
                                         <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-900">Employee details</p>
                                         <div className="mt-3 space-y-2">
                                             <p><span className="font-medium text-slate-900">Email</span><br />{selected?.email || preview.back.email || '—'}</p>

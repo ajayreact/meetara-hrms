@@ -6,6 +6,7 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadListing;
 use App\Support\LeadSearch;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,11 +28,14 @@ class LeadDistribution
         $term = $this->searchTerm($input);
         $query = $this->sectionQuery($context['tenantId'], $context['employeeId'], $section);
         LeadSearch::apply($query, $term);
+        $perPage = LeadListing::perPage($input, self::PAGE_SIZE);
         $matching = (clone $query)->count();
-        $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
+        $pages = max(1, (int) ceil($matching / $perPage));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
         $today = $this->today($context['tenantId']);
-        $rows = (clone $query)->orderByDesc('leads.id')->forPage($page, self::PAGE_SIZE)->get([
+        $listed = clone $query;
+        LeadListing::recentFirst($listed);
+        $rows = $listed->forPage($page, $perPage)->get([
             'leads.id',
             'leads.name',
             'leads.email',
@@ -41,6 +45,8 @@ class LeadDistribution
             'leads.follow_up_on',
             'leads.remarks',
             'leads.assignee_employee_id',
+            'leads.assigned_at',
+            'leads.source_name',
         ]);
         $names = $this->employeeNames($context['tenantId'], $rows->pluck('assignee_employee_id')->filter()->map(fn ($id): int => (int) $id)->all());
         $summary = $this->summary($context['tenantId'], $context['employeeId']);
@@ -57,6 +63,7 @@ class LeadDistribution
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
+            'perPage' => $perPage,
             'selectedIds' => $this->selectedIds($context, $section, $term, $input),
             'statuses' => $this->statuses(),
         ];
@@ -711,6 +718,8 @@ class LeadDistribution
             'reminder' => $this->reminder($followUpOn, $today),
             'canFollowUp' => in_array($section, ['total', 'pending', 'retained', 'distributed'], true),
             'assigneeName' => $assigneeId === null ? '' : (string) ($names[$assigneeId] ?? ''),
+            'source' => (string) ($lead->source_name ?? ''),
+            'assignedAt' => $lead->assigned_at instanceof \DateTimeInterface ? $lead->assigned_at->format('Y-m-d H:i') : '',
         ];
     }
 
@@ -769,6 +778,7 @@ class LeadDistribution
             'statusLabel' => Lead::STATUSES[$lead->pipeline_status] ?? (string) $lead->pipeline_status,
             'importedOn' => $this->date($lead->imported_on),
             'sourceRow' => $lead->source_row === null ? null : (int) $lead->source_row,
+            'source' => (string) ($lead->source_name ?? ''),
             'followUpOn' => $this->date($lead->follow_up_on),
             'remarks' => (string) ($lead->remarks ?? ''),
             'unassigned' => $lead->team_lead_employee_id === null && $lead->assignee_employee_id === null,

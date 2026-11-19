@@ -3,6 +3,7 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -401,11 +402,10 @@ function I983SignatoryForm({ signatory }: { signatory: I983Signatory }) {
                     <Input id="i983-signatory-title" value={form.data.signatory_title} onChange={(event) => form.setData('signatory_title', event.target.value)} />
                     <InputError message={form.errors.signatory_title} />
                 </label>
-                <label className="grid gap-1.5 text-sm md:col-span-2">
+                <div className="grid gap-1.5 text-sm md:col-span-2">
                     <Label htmlFor="i983-signatory-image">Signature image (PNG or JPEG)</Label>
-                    <Input id="i983-signatory-image" type="file" accept="image/png,image/jpeg" onChange={(event) => form.setData('signature', event.target.files?.[0] ?? null)} />
-                    <InputError message={form.errors.signature} />
-                </label>
+                    <FileUpload id="i983-signatory-image" accept="image/png,image/jpeg" file={form.data.signature} hint="PNG or JPEG." error={form.errors.signature} onChange={(file) => form.setData('signature', file)} />
+                </div>
                 <div className="md:col-span-2">
                     <Button type="submit" disabled={form.processing}>{form.processing ? 'Working…' : 'Save signatory'}</Button>
                 </div>

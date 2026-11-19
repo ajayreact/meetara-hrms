@@ -16,7 +16,8 @@ class PayrollNoteRequest extends FormRequest
         }
 
         return match ($this->route()->getName()) {
-            'hrms.payroll.review', 'hrms.payroll.process', 'hrms.payroll.correct' => $user->can('prepare', $run),
+            'hrms.payroll.review', 'hrms.payroll.correct' => $user->can('prepare', $run),
+            'hrms.payroll.process' => $user->can('process', $run),
             'hrms.payroll.approve' => $user->can('approve', $run),
             default => false,
         };

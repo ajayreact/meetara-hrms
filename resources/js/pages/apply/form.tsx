@@ -1,5 +1,6 @@
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Head, useForm } from '@inertiajs/react';
@@ -233,12 +234,10 @@ export default function CandidateFormPage({ token, form, uploadNotice }: { token
                     <p className="mt-1 text-sm text-slate-500">{form.accept}</p>
                     <div className="mt-3 grid gap-3">
                         {form.documents.map((document) => (
-                            <label key={document.name} className="grid gap-1.5 text-sm">
+                            <div key={document.name} className="grid gap-1.5 text-sm">
                                 <Label htmlFor={document.name}>{document.label}{document.required ? '' : ' (optional)'}</Label>
-                                <span className="text-slate-500">{document.hint} {form.accept}</span>
-                                <Input id={document.name} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => submission.setData(document.name, event.target.files?.[0] ?? null)} />
-                                <InputError message={submission.errors[document.name]} />
-                            </label>
+                                <FileUpload id={document.name} accept="application/pdf,image/jpeg,image/png,image/webp" hint={`${document.hint} ${form.accept}`.trim()} error={submission.errors[document.name]} onChange={(file) => submission.setData(document.name, file)} />
+                            </div>
                         ))}
                     </div>
                 </section>

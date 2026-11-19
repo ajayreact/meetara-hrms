@@ -23,6 +23,7 @@ class UsaDesignationCatalog
         'security' => 'Cybersecurity',
         'enterprise' => 'Enterprise & Platforms',
         'quality' => 'Quality & Project Management',
+        'supply_chain' => 'Supply Chain & Operations',
     ];
 
     public function manages(object $user): bool
@@ -642,6 +643,18 @@ class UsaDesignationCatalog
                     'Track sprint progress.',
                     'Support continuous improvement.',
                     'Maintain Agile process documentation.',
+                ],
+            ],
+            'supply_chain' => [
+                'Supply Chain Systems Analyst' => [
+                    'Analyze and improve supply chain processes, including procurement, inventory, logistics, and distribution.',
+                    'Gather business requirements and translate them into functional system specifications.',
+                    'Configure, maintain, and support Supply Chain Management (SCM) systems.',
+                    'Monitor inventory levels, order processing, supplier performance, and operational workflows.',
+                    'Develop reports and dashboards to support supply chain decision-making.',
+                    'Collaborate with procurement, warehouse, logistics, finance, and IT teams.',
+                    'Troubleshoot system issues and coordinate technical resolutions.',
+                    'Support system integrations, testing, documentation, and process improvements.',
                 ],
             ],
         ];

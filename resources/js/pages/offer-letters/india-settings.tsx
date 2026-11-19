@@ -2,8 +2,9 @@ import { OfferApprovals, type OfferApprovalState } from '@/components/hrms/offer
 import { HrmsLayout } from '@/components/hrms/hrms-layout';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm } from '@inertiajs/react';
-import { Building2, Eye, FileText, ImageIcon, Info, PenLine, Upload } from 'lucide-react';
-import { FormEvent, ReactNode, useRef, useState } from 'react';
+import { FileUpload } from '@/components/ui/file-upload';
+import { Building2, Eye, FileText, ImageIcon, Info, PenLine } from 'lucide-react';
+import { FormEvent, ReactNode, useState } from 'react';
 import { HistoryRow, Identity, Legal, Letterhead, stamp, templateStatus, TemplateRow } from './india-shared';
 
 type Section = 'company' | 'letterhead' | 'signature' | 'letter';
@@ -288,7 +289,6 @@ function LetterSummary({ template, statusLabel, tone }: { template: TemplateRow 
 }
 
 function LetterheadSection({ active, letterheads, identity }: { active: Letterhead | null; letterheads: Letterhead[]; identity: Identity | null }) {
-    const input = useRef<HTMLInputElement>(null);
     const [pending, setPending] = useState<File | null>(null);
     const [printedName, setPrintedName] = useState(identity?.printedName ?? '');
     const [printedAddress, setPrintedAddress] = useState(identity?.printedAddress ?? '');
@@ -330,14 +330,14 @@ function LetterheadSection({ active, letterheads, identity }: { active: Letterhe
                             {identity?.printedAddress && <p className="text-sm text-slate-500">Printed address: {identity.printedAddress}</p>}
                             {identity?.legalName && <p className="text-sm text-slate-500">Legal company: {identity.legalName}</p>}
                             {active.imageWidth && active.imageHeight && <p className="text-sm text-slate-500">{active.imageWidth} × {active.imageHeight} px</p>}
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                <button className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => input.current?.click()}><Upload className="size-3.5" /> Replace letterhead</button>
-                                <a className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm" href={route('hrms.offer-letters.letterheads.preview', active.id)} target="_blank" rel="noreferrer"><Eye className="size-3.5" /> Preview</a>
+                            <div className="mt-4 flex flex-wrap items-start gap-2">
+                                <FileUpload file={pending} buttonLabel="Replace letterhead" accept="image/png,image/jpeg,application/pdf" hint="PNG, JPEG, or PDF." resetAfterChange onChange={choose} />
+                                <a className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm" href={route('hrms.offer-letters.letterheads.preview', active.id)} target="_blank" rel="noreferrer"><Eye className="size-3.5" /> Preview</a>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <button className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white" type="button" onClick={() => input.current?.click()}><Upload className="size-3.5" /> Upload letterhead</button>
+                    <FileUpload className="mt-4" buttonLabel="Upload letterhead" accept="image/png,image/jpeg,application/pdf" hint="PNG, JPEG, or PDF." resetAfterChange onChange={choose} />
                 )}
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <label className="text-sm font-medium text-slate-700">Printed company name
@@ -350,7 +350,6 @@ function LetterheadSection({ active, letterheads, identity }: { active: Letterhe
                 {active && (
                     <button className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.letterheads.identity', active.id), { printed_legal_name: printedName, printed_address: printedAddress })}>Save printed identity</button>
                 )}
-                <input ref={input} className="hidden" type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => { choose(event.target.files?.[0] ?? null); event.target.value = ''; }} />
                 {active?.note && <p className="mt-3 text-sm text-amber-800">{active.note}</p>}
                 {identity && !identity.confirmed && <p className={`mt-4 rounded-xl border px-4 py-3 text-sm ${mismatched ? 'border-rose-200 bg-rose-50 text-rose-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>{identity.warning}</p>}
                 {identity?.confirmed && <p className="mt-4 text-sm text-slate-600">Letterhead confirmed by {identity.confirmedBy || 'an authorized user'}{identity.confirmedAt ? ` on ${stamp(identity.confirmedAt)}` : ''}. Replacing the file clears this confirmation.</p>}
@@ -454,7 +453,6 @@ function LayoutSettings({ item }: { item: Letterhead }) {
 }
 
 function SignatureSection({ legal }: { legal: Legal | null }) {
-    const file = useRef<HTMLInputElement>(null);
     const onFile = Boolean(legal?.signatureOnFile);
     const form = useForm({
         enabled: legal?.signatureEnabled ?? false,
@@ -485,13 +483,18 @@ function SignatureSection({ legal }: { legal: Legal | null }) {
                 {onFile && legal?.signatureImageWidth && legal.signatureImageHeight && <p className="mt-2 text-xs text-slate-500">{legal.signatureImageWidth} × {legal.signatureImageHeight} px. The image keeps its own shape.</p>}
                 {!onFile && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">No signature image is on file. The signature will not print.</p>}
                 {onFile && !legal?.signatureActive && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">This signature is inactive. The signature will not print.</p>}
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white" type="button" onClick={() => file.current?.click()}><Upload className="size-3.5" /> {onFile ? 'Replace signature' : 'Upload signature'}</button>
+                <div className="mt-4 flex flex-wrap items-start gap-2">
+                    <FileUpload
+                        buttonLabel={onFile ? 'Replace signature' : 'Upload signature'}
+                        accept="image/png,image/jpeg"
+                        hint="PNG or JPEG."
+                        error={upload.errors.signature}
+                        resetAfterChange
+                        onChange={(next) => { if (next) { upload.transform((data) => ({ ...data, signature: next })); upload.post(route('hrms.offer-letters.signature.store'), { forceFormData: true }); } }}
+                    />
                     {onFile && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm" type="button" onClick={() => router.post(route('hrms.offer-letters.signature.active'), { country: 'india', active: legal?.signatureActive ? 0 : 1 })}>{legal?.signatureActive ? 'Deactivate' : 'Activate'}</button>}
                     {onFile && <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600" type="button" onClick={() => { if (window.confirm('Remove the signature from new letters? Issued PDFs keep the image they were generated with.')) router.post(route('hrms.offer-letters.signature.remove'), { country: 'india' }); }}>Remove</button>}
                 </div>
-                <input ref={file} className="hidden" type="file" accept="image/png,image/jpeg" onChange={(event) => { const next = event.target.files?.[0] ?? null; if (next) { upload.transform((data) => ({ ...data, signature: next })); upload.post(route('hrms.offer-letters.signature.store'), { forceFormData: true }); } event.target.value = ''; }} />
-                {upload.errors.signature && <p className="mt-2 text-sm text-rose-700">{upload.errors.signature}</p>}
             </Card>
             <Card>
                 <h2 className="text-base font-semibold text-slate-950">Placement preview</h2>

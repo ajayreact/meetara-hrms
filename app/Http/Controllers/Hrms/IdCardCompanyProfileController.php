@@ -43,6 +43,7 @@ class IdCardCompanyProfileController extends Controller
             'website' => ['nullable', 'string', 'max:191'],
             'footer_address' => ['required', 'string', 'max:2000'],
             'logo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'white_logo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'signature' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
 
@@ -52,6 +53,7 @@ class IdCardCompanyProfileController extends Controller
             $data,
             $request->file('logo'),
             $request->file('signature'),
+            $request->file('white_logo'),
         );
 
         return redirect()
@@ -64,6 +66,7 @@ class IdCardCompanyProfileController extends Controller
         return $this->profiles->logoResponse(
             $this->manager($request),
             (string) $request->query('country', 'india'),
+            (string) $request->query('variant', 'standard') === 'white' ? 'white' : 'standard',
         );
     }
 

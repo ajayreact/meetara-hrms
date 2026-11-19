@@ -54,7 +54,7 @@ class RoleAccessAuditTest extends TestCase
         $this->actingAs($owner)->post('/payroll/runs/'.$company->payrollRunId.'/process', [
             'note' => 'Process now',
             'confirm' => 'PROCESS',
-        ])->assertSessionHas('error');
+        ])->assertForbidden();
         $this->actingAs($owner)->get('/employees')->assertOk()->assertSee($company->reportEmail)->assertDontSee($other->reportEmail);
         $this->actingAs($owner)->get('/company/settings')->assertInertia(fn (Assert $page) => $page->where('payrollSettings.statutory', 'Not configured'));
         $this->actingAs($owner)->get('/route-map')->assertOk()->assertInertia(fn (Assert $page) => $page->component('route-map/index')->where('map.canViewPreciseLocations', true));

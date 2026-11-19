@@ -405,8 +405,10 @@ class StandaloneIdCardIssuer
             'preview' => [
                 'front' => [
                     'companyDisplayName' => $snapshot['companyDisplayName'],
-                    'hasLogo' => $snapshot['logoPath'] !== null,
+                    'hasLogo' => $snapshot['frontLogoPath'] !== null || $snapshot['logoPath'] !== null,
                     'logoUrl' => $snapshot['logoUrl'],
+                    'logoOnDark' => $snapshot['logoOnDark'],
+                    'logoOnDark' => $snapshot['logoOnDark'],
                     'hasPhoto' => $snapshot['photoPath'] !== null,
                     'photoUrl' => $snapshot['photoUrl'],
                     'name' => $snapshot['name'],
@@ -423,6 +425,8 @@ class StandaloneIdCardIssuer
                     'verifyUrl' => $snapshot['verifyUrl'],
                     'hasSignature' => $snapshot['signaturePath'] !== null,
                     'signatureUrl' => $snapshot['signatureUrl'],
+                    'hasLogo' => $snapshot['backLogoPath'] !== null || $snapshot['logoPath'] !== null,
+                    'logoUrl' => $snapshot['backLogoUrl'],
                 ],
             ],
         ];
@@ -505,13 +509,10 @@ class StandaloneIdCardIssuer
             $card->company_profile_id = $profile->id;
         }
 
-        $logoPath = $profile && $this->privateLogo($tenantId, $profile->logo_path)
-            ? Storage::disk('local')->path((string) $profile->logo_path)
-            : $this->officialLogoPath();
+        $logos = $this->logoSelection($tenantId, $profile, (string) $card->country);
         $photoPath = $this->privatePhoto($tenantId, $card->photo_path)
             ? Storage::disk('local')->path((string) $card->photo_path)
             : null;
-        $hasCompanyLogo = $profile && $this->privateLogo($tenantId, $profile->logo_path);
         [$signaturePath, $signatureUrl] = $this->signatureAsset($tenantId, $profile, (string) $card->country);
         $dateOfBirth = $card->date_of_birth instanceof \DateTimeInterface
             ? $card->date_of_birth->format('Y-m-d')
@@ -531,13 +532,15 @@ class StandaloneIdCardIssuer
             'companyDisplayName' => (string) ($profile?->display_name ?? ''),
             'companyLegalName' => (string) ($profile?->legal_name ?? ''),
             'footerAddress' => $this->cardOfficeAddress($profile),
-            'logoPath' => $logoPath,
+            'logoPath' => $logos['logoPath'],
+            'frontLogoPath' => $logos['frontLogoPath'],
+            'backLogoPath' => $logos['backLogoPath'],
             'photoPath' => $photoPath,
             'signaturePath' => $signaturePath,
             'signatureUrl' => $signatureUrl,
-            'logoUrl' => $hasCompanyLogo
-                ? '/id-cards/settings/logo?country='.$card->country
-                : ($logoPath !== null ? '/brand/veltrix-logo.png' : null),
+            'logoUrl' => $logos['frontLogoUrl'],
+            'backLogoUrl' => $logos['backLogoUrl'],
+            'logoOnDark' => $logos['frontLogoPath'] !== null,
             'photoUrl' => $photoPath !== null ? '/id-cards/standalone/'.$card->id.'/photo' : null,
             'verifyUrl' => $this->verifyUrl((string) $card->qr_token),
             'cardNumber' => (string) $card->card_number,
@@ -561,6 +564,38 @@ class StandaloneIdCardIssuer
         return $office.', '.$footer;
     }
 
+    /**
+     * @return array{frontLogoPath: ?string, backLogoPath: ?string, logoPath: ?string, frontLogoUrl: ?string, backLogoUrl: ?string}
+     */
+    private function logoSelection(int $tenantId, ?IdCardCompanyProfile $profile, string $country): array
+    {
+        $standard = $profile && $this->privateLogo($tenantId, $profile->logo_path)
+            ? Storage::disk('local')->path((string) $profile->logo_path)
+            : null;
+        $white = $profile
+            && Schema::hasColumn('id_card_company_profiles', 'white_logo_path')
+            && $this->privateLogo($tenantId, $profile->white_logo_path ?? null)
+            ? Storage::disk('local')->path((string) $profile->white_logo_path)
+            : null;
+        $official = $this->officialLogoPath();
+        $front = $white ?? $standard ?? $official;
+        $back = $standard ?? $official;
+
+        return [
+            'frontLogoPath' => $white,
+            'backLogoPath' => $standard,
+            'logoPath' => $standard ?? $official,
+            'frontLogoUrl' => $white !== null
+                ? '/id-cards/settings/logo?country='.$country.'&variant=white'
+                : ($standard !== null
+                    ? '/id-cards/settings/logo?country='.$country
+                    : ($front !== null ? '/brand/veltrix-logo.png' : null)),
+            'backLogoUrl' => $standard !== null
+                ? '/id-cards/settings/logo?country='.$country
+                : ($back !== null ? '/brand/veltrix-logo.png' : null),
+        ];
+    }
+
     private function officialLogoPath(): ?string
     {
         $path = public_path('images/logo/veltrix-logo.png');
@@ -574,7 +609,7 @@ class StandaloneIdCardIssuer
      */
     private function storedPayload(array $payload): array
     {
-        unset($payload['logoPath'], $payload['photoPath'], $payload['signaturePath'], $payload['companyProfileId']);
+        unset($payload['logoPath'], $payload['frontLogoPath'], $payload['backLogoPath'], $payload['photoPath'], $payload['signaturePath'], $payload['companyProfileId']);
 
         return $payload;
     }

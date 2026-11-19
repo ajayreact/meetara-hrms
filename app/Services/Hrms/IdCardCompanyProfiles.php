@@ -45,7 +45,7 @@ class IdCardCompanyProfiles
      * @param  array<string, mixed>  $input
      * @return array{message: string, profile: array<string, mixed>}
      */
-    public function save(User $actor, string $country, array $input, ?UploadedFile $logo = null, ?UploadedFile $signature = null): array
+    public function save(User $actor, string $country, array $input, ?UploadedFile $logo = null, ?UploadedFile $signature = null, ?UploadedFile $whiteLogo = null): array
     {
         $context = $this->context($actor);
         $country = $this->country($country);
@@ -62,13 +62,27 @@ class IdCardCompanyProfiles
         $logoPath = $row?->logo_path;
         $logoMime = $row?->logo_mime;
         $previousLogo = is_string($logoPath) ? $logoPath : null;
+        $whitePath = $row?->white_logo_path;
+        $whiteMime = $row?->white_logo_mime;
+        $previousWhite = is_string($whitePath) ? $whitePath : null;
         $signaturePath = $row?->signature_path;
         $signatureMime = $row?->signature_mime;
         $previousSignature = is_string($signaturePath) ? $signaturePath : null;
+        $storesWhite = Schema::hasColumn('id_card_company_profiles', 'white_logo_path');
+
+        if ($whiteLogo !== null && ! $storesWhite) {
+            throw ValidationException::withMessages([
+                'white_logo' => 'White logo storage is not available yet.',
+            ]);
+        }
 
         if ($logo !== null) {
             // Store the new logo first; delete the previous file only after the DB write succeeds.
             [$logoPath, $logoMime] = $this->storeLogo($context['tenantId'], $country, $logo, null);
+        }
+
+        if ($whiteLogo !== null) {
+            [$whitePath, $whiteMime] = $this->storeLogo($context['tenantId'], $country, $whiteLogo, null, 'white_logo', 'white');
         }
 
         if ($signature !== null) {
@@ -85,6 +99,10 @@ class IdCardCompanyProfiles
             'footer_address' => trim((string) ($input['footer_address'] ?? '')),
             'logo_path' => $logoPath,
             'logo_mime' => $logoMime,
+            ...($storesWhite ? [
+                'white_logo_path' => $whitePath,
+                'white_logo_mime' => $whiteMime,
+            ] : []),
             'signature_path' => $signaturePath,
             'signature_mime' => $signatureMime,
             'status' => 'active',
@@ -113,6 +131,10 @@ class IdCardCompanyProfiles
                 Storage::disk('local')->delete($logoPath);
             }
 
+            if ($whiteLogo !== null && is_string($whitePath) && $whitePath !== $previousWhite && $this->privateLogo($context['tenantId'], $whitePath)) {
+                Storage::disk('local')->delete($whitePath);
+            }
+
             if ($signature !== null && is_string($signaturePath) && $signaturePath !== $previousSignature && $this->privateSignature($context['tenantId'], $signaturePath)) {
                 Storage::disk('local')->delete($signaturePath);
             }
@@ -122,6 +144,10 @@ class IdCardCompanyProfiles
 
         if ($logo !== null && is_string($previousLogo) && $previousLogo !== '' && $previousLogo !== $logoPath && $this->privateLogo($context['tenantId'], $previousLogo)) {
             Storage::disk('local')->delete($previousLogo);
+        }
+
+        if ($whiteLogo !== null && is_string($previousWhite) && $previousWhite !== '' && $previousWhite !== $whitePath && $this->privateLogo($context['tenantId'], $previousWhite)) {
+            Storage::disk('local')->delete($previousWhite);
         }
 
         if ($signature !== null && is_string($previousSignature) && $previousSignature !== '' && $previousSignature !== $signaturePath && $this->privateSignature($context['tenantId'], $previousSignature)) {
@@ -136,7 +162,7 @@ class IdCardCompanyProfiles
         ];
     }
 
-    public function logoResponse(User $actor, string $country): StreamedResponse
+    public function logoResponse(User $actor, string $country, string $variant = 'standard'): StreamedResponse
     {
         $context = $this->context($actor);
         $country = $this->country($country);
@@ -144,12 +170,15 @@ class IdCardCompanyProfiles
             ->inCompany($context['tenantId'])
             ->where('country', $country)
             ->first();
-        abort_unless($row !== null && $this->privateLogo($context['tenantId'], $row->logo_path), 404);
+        $white = $variant === 'white';
+        $path = $white ? ($row?->white_logo_path ?? null) : $row?->logo_path;
+        $mime = $white ? ($row?->white_logo_mime ?? null) : $row?->logo_mime;
+        abort_unless($row !== null && $this->privateLogo($context['tenantId'], $path), 404);
 
-        return Storage::disk('local')->response((string) $row->logo_path, basename((string) $row->logo_path), [
+        return Storage::disk('local')->response((string) $path, basename((string) $path), [
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
-            'Content-Type' => (string) ($row->logo_mime ?: 'application/octet-stream'),
+            'Content-Type' => (string) ($mime ?: 'application/octet-stream'),
         ]);
     }
 
@@ -191,6 +220,8 @@ class IdCardCompanyProfiles
                 'footerAddress' => '',
                 'hasLogo' => false,
                 'logoUrl' => null,
+                'hasWhiteLogo' => false,
+                'whiteLogoUrl' => null,
                 'hasSignature' => false,
                 'signatureUrl' => null,
                 'status' => 'active',
@@ -199,6 +230,8 @@ class IdCardCompanyProfiles
         }
 
         $hasLogo = $this->privateLogo($tenantId, $row->logo_path);
+        $hasWhiteLogo = Schema::hasColumn('id_card_company_profiles', 'white_logo_path')
+            && $this->privateLogo($tenantId, $row->white_logo_path ?? null);
         $hasSignature = $this->privateSignature($tenantId, $row->signature_path ?? null);
 
         return [
@@ -213,6 +246,8 @@ class IdCardCompanyProfiles
             'footerAddress' => (string) $row->footer_address,
             'hasLogo' => $hasLogo,
             'logoUrl' => $hasLogo ? '/id-cards/settings/logo?country='.$country : null,
+            'hasWhiteLogo' => $hasWhiteLogo,
+            'whiteLogoUrl' => $hasWhiteLogo ? '/id-cards/settings/logo?country='.$country.'&variant=white' : null,
             'hasSignature' => $hasSignature,
             'signatureUrl' => $hasSignature ? '/id-cards/settings/signature?country='.$country : null,
             'status' => (string) $row->status,
@@ -231,6 +266,8 @@ class IdCardCompanyProfiles
             'legalName' => (string) ($profile['legalName'] ?? ''),
             'hasLogo' => (bool) ($profile['hasLogo'] ?? false),
             'logoUrl' => $profile['logoUrl'] ?? null,
+            'hasWhiteLogo' => (bool) ($profile['hasWhiteLogo'] ?? false),
+            'whiteLogoUrl' => $profile['whiteLogoUrl'] ?? null,
             'hasSignature' => (bool) ($profile['hasSignature'] ?? false),
             'signatureUrl' => $profile['signatureUrl'] ?? null,
             'footerAddress' => (string) ($profile['footerAddress'] ?? ''),
@@ -245,25 +282,27 @@ class IdCardCompanyProfiles
     /**
      * @return array{0: string, 1: string}
      */
-    private function storeLogo(int $tenantId, string $country, UploadedFile $logo, ?string $previous): array
+    private function storeLogo(int $tenantId, string $country, UploadedFile $logo, ?string $previous, string $field = 'logo', string $prefix = ''): array
     {
         $extension = strtolower((string) $logo->getClientOriginalExtension());
         $mime = (string) ($logo->getMimeType() ?: '');
         $allowed = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+        $label = $field === 'white_logo' ? 'white logo' : 'logo';
 
         if (! array_key_exists($extension, $allowed) || ! in_array($mime, ['image/jpeg', 'image/png'], true)) {
             throw ValidationException::withMessages([
-                'logo' => 'Upload a PNG or JPEG logo up to 2 MB.',
+                $field => 'Upload a PNG or JPEG '.$label.' up to 2 MB.',
             ]);
         }
 
         $contents = file_get_contents($logo->getRealPath());
 
         if (! is_string($contents) || $contents === '') {
-            throw ValidationException::withMessages(['logo' => 'The logo file could not be read.']);
+            throw ValidationException::withMessages([$field => 'The '.$label.' file could not be read.']);
         }
 
-        $path = 'id-cards/'.$tenantId.'/logos/'.$country.'-'.Str::uuid()->toString().'.'.$extension;
+        $name = $country.($prefix !== '' ? '-'.$prefix : '').'-'.Str::uuid()->toString();
+        $path = 'id-cards/'.$tenantId.'/logos/'.$name.'.'.$extension;
         Storage::disk('local')->put($path, $contents);
 
         if (is_string($previous) && $previous !== '' && $previous !== $path && $this->privateLogo($tenantId, $previous)) {

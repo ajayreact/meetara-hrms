@@ -29,9 +29,11 @@ import {
 
 export interface SidebarItem {
     label: string;
-    href: string;
+    href?: string;
     icon: LucideIcon;
     section: string;
+    children?: SidebarItem[];
+    active?: (url: string) => boolean;
 }
 
 export function sidebarItems(workspace: Workspace): SidebarItem[] {
@@ -64,6 +66,9 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     if (workspace.permissions.leadsViewAll) {
         items.push({ label: 'Leads', href: '/leads', icon: Contact, section: 'People' });
     }
+    if (workspace.permissions.leadsManageSources) {
+        items.push({ label: 'Lead sources', href: '/leads/sources', icon: Contact, section: 'People' });
+    }
     if (workspace.permissions.leadsViewAll && workspace.permissions.leadsReport) {
         items.push({ label: 'Lead reports', href: '/leads/reports', icon: BarChart3, section: 'People' });
     }
@@ -73,9 +78,31 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     }
 
     if (workspace.role === 'company_admin' || workspace.role === 'hr') {
-        items.push({ label: 'Offer letters', href: '/offer-letters', icon: ScrollText, section: 'People' });
-        items.push({ label: 'Offer templates', href: '/offer-letters/templates', icon: ScrollText, section: 'People' });
-        items.push({ label: 'USA offers', href: '/usa-offers', icon: ScrollText, section: 'People' });
+        items.push({
+            label: 'Offer Letters',
+            icon: ScrollText,
+            section: 'People',
+            children: [
+                {
+                    label: 'India',
+                    icon: ScrollText,
+                    section: 'People',
+                    children: [
+                        { label: 'Indian Offer Letters', href: '/offer-letters', icon: ScrollText, section: 'People', active: isIndianOfferLetters },
+                        { label: 'Indian Offer Letter Settings', href: '/offer-letters/templates', icon: ScrollText, section: 'People', active: isIndiaOfferSettings },
+                    ],
+                },
+                {
+                    label: 'USA',
+                    icon: ScrollText,
+                    section: 'People',
+                    children: [
+                        { label: 'USA Offer Letters', href: '/usa-offers', icon: ScrollText, section: 'People', active: isUsaOfferLetters },
+                        { label: 'USA Offer Letter Settings', href: '/usa-offers/settings', icon: ScrollText, section: 'People', active: isUsaOfferSettings },
+                    ],
+                },
+            ],
+        });
         items.push({ label: 'STEM I-983', href: '/i983', icon: ClipboardList, section: 'People' });
         items.push({ label: 'Candidate forms', href: '/candidates', icon: ClipboardList, section: 'People' });
     }
@@ -84,16 +111,26 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
         items.push({ label: 'Candidate Management', href: '/candidate-records', icon: Contact, section: 'People' });
     }
 
-    if (workspace.permissions.idCardsManage) {
-        items.push({ label: 'ID cards', href: '/id-cards', icon: IdCard, section: 'People' });
-        items.push({ label: 'Standalone ID cards', href: '/id-cards/standalone', icon: IdCard, section: 'People' });
-        items.push({ label: 'Standalone ID import', href: '/id-cards/standalone/import', icon: IdCard, section: 'People' });
-        items.push({ label: 'ID card settings', href: '/id-cards/settings', icon: IdCard, section: 'People' });
-    }
+    if (workspace.permissions.idCardsManage || workspace.permissions.idCardsIssue) {
+        const idCards: SidebarItem[] = [];
 
-    if (workspace.permissions.idCardsIssue) {
-        items.push({ label: 'Bulk ID cards', href: '/id-cards/bulk', icon: IdCard, section: 'People' });
-        items.push({ label: 'Bulk standalone ID cards', href: '/id-cards/standalone/bulk', icon: IdCard, section: 'People' });
+        if (workspace.permissions.idCardsManage) {
+            idCards.push(
+                { label: 'Employee ID Cards', href: '/id-cards', icon: IdCard, section: 'People', active: isEmployeeIdCards },
+                { label: 'Standalone ID Cards', href: '/id-cards/standalone', icon: IdCard, section: 'People', active: isStandaloneIdCards },
+                { label: 'Standalone ID Import', href: '/id-cards/standalone/import', icon: IdCard, section: 'People', active: (url) => pathOf(url).startsWith('/id-cards/standalone/import') },
+                { label: 'ID Card Settings', href: '/id-cards/settings', icon: IdCard, section: 'People', active: (url) => pathOf(url).startsWith('/id-cards/settings') },
+            );
+        }
+
+        if (workspace.permissions.idCardsIssue) {
+            idCards.push(
+                { label: 'Bulk ID cards', href: '/id-cards/bulk', icon: IdCard, section: 'People', active: (url) => pathOf(url).startsWith('/id-cards/bulk') },
+                { label: 'Bulk standalone ID cards', href: '/id-cards/standalone/bulk', icon: IdCard, section: 'People', active: (url) => pathOf(url).startsWith('/id-cards/standalone/bulk') },
+            );
+        }
+
+        items.push({ label: 'ID Cards', icon: IdCard, section: 'People', children: idCards });
     }
 
     items.push({
@@ -168,6 +205,78 @@ export function sidebarItems(workspace: Workspace): SidebarItem[] {
     return items;
 }
 
+export function itemActive(item: SidebarItem, url: string): boolean {
+    if (item.active) {
+        return item.active(url);
+    }
+
+    if (!item.href) {
+        return false;
+    }
+
+    return isNavActive(item.href, url);
+}
+
+export function branchActive(item: SidebarItem, url: string): boolean {
+    if (itemActive(item, url)) {
+        return true;
+    }
+
+    return item.children?.some((child) => branchActive(child, url)) ?? false;
+}
+
+function pathOf(url: string): string {
+    return url.split('?')[0] ?? url;
+}
+
+function isIndianOfferLetters(url: string): boolean {
+    const path = pathOf(url);
+
+    return path === '/offer-letters' || path === '/offer-letters/create' || /^\/offer-letters\/\d+(?:\/.*)?$/.test(path);
+}
+
+function isIndiaOfferSettings(url: string): boolean {
+    const [path, query = ''] = url.split('?');
+
+    if (path === '/offer-letters/setup') {
+        return true;
+    }
+
+    if (path !== '/offer-letters/templates') {
+        return false;
+    }
+
+    return new URLSearchParams(query).get('country') !== 'usa';
+}
+
+function isUsaOfferLetters(url: string): boolean {
+    const path = pathOf(url);
+
+    if (!path.startsWith('/usa-offers') || path === '/usa-offers/settings' || path.startsWith('/usa-offers/settings/')) {
+        return false;
+    }
+
+    return path === '/usa-offers' || path === '/usa-offers/create' || /^\/usa-offers\/\d+(?:\/.*)?$/.test(path);
+}
+
+function isUsaOfferSettings(url: string): boolean {
+    const path = pathOf(url);
+
+    return path === '/usa-offers/settings' || path.startsWith('/usa-offers/settings/');
+}
+
+function isEmployeeIdCards(url: string): boolean {
+    const path = pathOf(url);
+
+    return path === '/id-cards' || /^\/id-cards\/\d+(?:\/.*)?$/.test(path);
+}
+
+function isStandaloneIdCards(url: string): boolean {
+    const path = pathOf(url);
+
+    return path === '/id-cards/standalone' || /^\/id-cards\/standalone\/\d+(?:\/.*)?$/.test(path);
+}
+
 export function isNavActive(href: string, url: string): boolean {
     const [path, query = ''] = url.split('?');
     const [hrefPath, hrefQuery = ''] = href.split('?');
@@ -190,7 +299,7 @@ export function isNavActive(href: string, url: string): boolean {
     }
 
     if (hrefPath === '/leads') {
-        return (path === '/leads' || path.startsWith('/leads/')) && !path.startsWith('/leads/reports');
+        return (path === '/leads' || path.startsWith('/leads/')) && !path.startsWith('/leads/reports') && !path.startsWith('/leads/sources');
     }
 
     if (hrefPath === '/leads/mine') {

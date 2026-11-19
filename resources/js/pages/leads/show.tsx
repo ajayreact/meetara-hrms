@@ -3,7 +3,7 @@ import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm } from '@inertiajs/react';
-import { BriefcaseBusiness, Building2, CalendarDays, FileSpreadsheet, GraduationCap, Hash, Linkedin, Mail, MapPin, Phone, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, Building2, CalendarDays, Contact, FileSpreadsheet, GraduationCap, Hash, Linkedin, Mail, MapPin, Phone, UserRound } from 'lucide-react';
 import { useState } from 'react';
 
 interface LeadDetail {
@@ -21,6 +21,7 @@ interface LeadDetail {
     statusLabel: string;
     importedOn: string | null;
     sourceRow: number | null;
+    source?: string;
     followUpOn: string | null;
     remarks: string;
     unassigned: boolean;
@@ -87,6 +88,8 @@ export default function LeadShowPage({
     backHref = '/leads',
     reports = [],
     destinations,
+    sourceChoices = [],
+    canSetSource = false,
     notice,
     error,
 }: HrmsPageProps & {
@@ -103,6 +106,8 @@ export default function LeadShowPage({
     backHref?: string;
     reports?: Destination[];
     destinations?: Destination[];
+    sourceChoices?: { id: number; name: string }[];
+    canSetSource?: boolean;
     notice?: string | null;
     error?: string | null;
 }) {
@@ -127,6 +132,7 @@ export default function LeadShowPage({
         { icon: UserRound, label: 'Designations', value: lead.designations || '—' },
         { icon: CalendarDays, label: 'Imported on', value: lead.importedOn || '—' },
         { icon: Hash, label: 'Source row', value: lead.sourceRow === null ? '—' : String(lead.sourceRow) },
+        { icon: Contact, label: 'Lead source', value: lead.source || '—' },
     ];
     const placementFacts = [
         { label: 'Pool', value: placement?.label || (lead.unassigned ? 'Unassigned' : 'Assigned') },
@@ -223,6 +229,25 @@ export default function LeadShowPage({
                 </SectionCard>
             </div>
 
+            {canSetSource && sourceChoices.length > 0 && (
+                <form
+                    className="mb-4 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        const data = new FormData(event.currentTarget);
+                        router.post(`/leads/${lead.id}/source`, { source_id: data.get('source_id') });
+                    }}
+                >
+                    <label className="grid min-w-56 flex-1 gap-1 text-xs text-slate-500">
+                        Original source
+                        <select name="source_id" aria-label="Original source" className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" defaultValue={sourceChoices[0]?.id}>
+                            {sourceChoices.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+                        </select>
+                    </label>
+                    <Button type="submit">Save source</Button>
+                </form>
+            )}
+
             {canManage && placement?.section === 'pending' && assignmentDestinations.length > 0 && (
                 <form
                     className="mt-4 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -290,8 +315,9 @@ export default function LeadShowPage({
                                 <li key={record.id} className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-sm">
                                     <p className="font-medium text-slate-900">{record.note || 'Assignment change'}</p>
                                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                                        {(record.fromAssignee || 'Unassigned')} → {(record.toAssignee || 'Unassigned')}
-                                        {record.actor ? ` · ${record.actor}` : ''}{record.at ? ` · ${record.at}` : ''}
+                                        {record.actor ? `Assigned by ${record.actor}` : 'Assigned'}
+                                        {` to ${record.toAssignee || record.toTeamLead || 'the company pool'}`}
+                                        {record.at ? ` · ${record.at}` : ''}
                                     </p>
                                 </li>
                             ))}

@@ -1,6 +1,7 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
 import { Building2, IdCard } from 'lucide-react';
@@ -18,6 +19,8 @@ interface Profile {
     footerAddress: string;
     hasLogo: boolean;
     logoUrl: string | null;
+    hasWhiteLogo: boolean;
+    whiteLogoUrl: string | null;
     hasSignature: boolean;
     signatureUrl: string | null;
     status: string;
@@ -29,6 +32,8 @@ interface Preview {
     legalName: string;
     hasLogo: boolean;
     logoUrl: string | null;
+    hasWhiteLogo: boolean;
+    whiteLogoUrl: string | null;
     hasSignature: boolean;
     signatureUrl: string | null;
     footerAddress: string;
@@ -65,9 +70,11 @@ export default function IdCardSettings({
         website: profile.website,
         footer_address: profile.footerAddress,
         logo: null as File | null,
+        white_logo: null as File | null,
         signature: null as File | null,
     });
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [whiteLogoPreview, setWhiteLogoPreview] = useState<string | null>(null);
     const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
 
     useEffect(() => {
@@ -81,9 +88,11 @@ export default function IdCardSettings({
             website: profile.website,
             footer_address: profile.footerAddress,
             logo: null,
+            white_logo: null,
             signature: null,
         });
         setLogoPreview(null);
+        setWhiteLogoPreview(null);
         setSignaturePreview(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [country, profile.id, profile.updatedAt]);
@@ -100,6 +109,19 @@ export default function IdCardSettings({
 
         return () => URL.revokeObjectURL(url);
     }, [form.data.logo]);
+
+    useEffect(() => {
+        if (form.data.white_logo === null) {
+            setWhiteLogoPreview(null);
+
+            return;
+        }
+
+        const url = URL.createObjectURL(form.data.white_logo);
+        setWhiteLogoPreview(url);
+
+        return () => URL.revokeObjectURL(url);
+    }, [form.data.white_logo]);
 
     useEffect(() => {
         if (form.data.signature === null) {
@@ -127,7 +149,8 @@ export default function IdCardSettings({
         contactNumber: form.data.contact_number || preview.contactNumber,
         email: form.data.email || preview.email,
         website: form.data.website || preview.website,
-        logoSrc: logoPreview ?? (profile.hasLogo ? `${profile.logoUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
+        logoSrc: logoPreview ?? (profile.hasLogo && profile.logoUrl ? `${profile.logoUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
+        whiteLogoSrc: whiteLogoPreview ?? (profile.hasWhiteLogo && profile.whiteLogoUrl ? `${profile.whiteLogoUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
         signatureSrc: signaturePreview ?? (profile.hasSignature && profile.signatureUrl ? `${profile.signatureUrl}&t=${encodeURIComponent(profile.updatedAt ?? '')}` : null),
     };
 
@@ -135,7 +158,7 @@ export default function IdCardSettings({
         <HrmsLayout workspace={workspace} title="ID card company details">
             <PageIntro
                 title="ID card company details"
-                subtitle="Save India and USA branding separately. The selected country’s footer address and logo print on employee ID cards."
+                subtitle="Save India and USA branding separately. The white logo prints on the front of the ID card, and the colored logo prints on the back."
             />
             {notice && <p className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</p>}
 
@@ -194,28 +217,41 @@ export default function IdCardSettings({
                             <span className="text-[11px] text-slate-400">Printed on the back of the ID card.</span>
                             {form.errors.footer_address && <span className="text-rose-700">{form.errors.footer_address}</span>}
                         </label>
-                        <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
-                            Company logo
-                            <input
-                                className="mt-1.5 block w-full text-sm text-slate-600"
-                                type="file"
+                        <div className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                            White logo
+                            <span className="text-[11px] text-slate-400">Used on the dark front of the ID card. A transparent PNG keeps the logo sharp.</span>
+                            <FileUpload
                                 accept="image/png,image/jpeg"
-                                onChange={(event) => form.setData('logo', event.target.files?.[0] ?? null)}
+                                file={form.data.white_logo}
+                                buttonLabel="Choose File"
+                                hint="PNG or JPEG up to 2 MB. Stored privately for this company."
+                                error={form.errors.white_logo}
+                                onChange={(file) => form.setData('white_logo', file)}
                             />
-                            <span className="text-[11px] text-slate-400">PNG or JPEG up to 2 MB. Stored privately for this company.</span>
-                            {form.errors.logo && <span className="text-rose-700">{form.errors.logo}</span>}
-                        </label>
-                        <label className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                        </div>
+                        <div className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
+                            Standard / colored logo
+                            <span className="text-[11px] text-slate-400">Used on the light back of the ID card. This does not replace the white front logo.</span>
+                            <FileUpload
+                                accept="image/png,image/jpeg"
+                                file={form.data.logo}
+                                buttonLabel="Choose File"
+                                hint="PNG or JPEG up to 2 MB. Stored privately for this company."
+                                error={form.errors.logo}
+                                onChange={(file) => form.setData('logo', file)}
+                            />
+                        </div>
+                        <div className="grid gap-1 text-xs text-slate-500 sm:col-span-2">
                             HR authorized signature
-                            <input
-                                className="mt-1.5 block w-full text-sm text-slate-600"
-                                type="file"
+                            <FileUpload
                                 accept="image/png,image/jpeg"
-                                onChange={(event) => form.setData('signature', event.target.files?.[0] ?? null)}
+                                file={form.data.signature}
+                                buttonLabel="Choose File"
+                                hint="PNG or JPEG up to 2 MB. Stored privately for this company and printed above Authorized Signatory (HR)."
+                                error={form.errors.signature}
+                                onChange={(file) => form.setData('signature', file)}
                             />
-                            <span className="text-[11px] text-slate-400">PNG or JPEG up to 2 MB. Stored privately for this company and printed above Authorized Signatory (HR).</span>
-                            {form.errors.signature && <span className="text-rose-700">{form.errors.signature}</span>}
-                        </label>
+                        </div>
                         <div className="sm:col-span-2">
                             <Button type="submit" disabled={form.processing}>{profile.id ? 'Save changes' : 'Save company details'}</Button>
                         </div>
@@ -228,10 +264,12 @@ export default function IdCardSettings({
                             <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-sm">
                                 <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-4 py-5 text-white">
                                     <div className="flex items-center gap-3">
-                                        {livePreview.logoSrc ? (
-                                            <img src={livePreview.logoSrc} alt="" className="h-10 w-10 rounded-lg bg-white object-contain p-1" />
+                                        {livePreview.whiteLogoSrc ? (
+                                            <img src={livePreview.whiteLogoSrc} alt="" className="h-10 w-auto max-w-[8rem] rounded-lg bg-slate-950 object-contain p-1" />
+                                        ) : livePreview.logoSrc ? (
+                                            <img src={livePreview.logoSrc} alt="" className="h-10 w-auto max-w-[8rem] rounded-lg bg-slate-950 object-contain p-1" />
                                         ) : (
-                                            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-[10px] font-semibold uppercase tracking-wide">Logo</span>
+                                            <span className="flex h-10 w-16 items-center justify-center rounded-lg bg-white/10 text-[10px] font-semibold uppercase tracking-wide">Logo</span>
                                         )}
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-semibold">{livePreview.displayName}</p>
@@ -246,6 +284,13 @@ export default function IdCardSettings({
                                     </div>
                                 </div>
                                 <div className="space-y-2 px-4 py-4 text-xs text-slate-600">
+                                    <div className="flex justify-center">
+                                        {livePreview.logoSrc ? (
+                                            <img src={livePreview.logoSrc} alt="" className="h-8 w-auto max-w-[8rem] object-contain" />
+                                        ) : (
+                                            <span className="text-[10px] text-slate-400">Colored logo</span>
+                                        )}
+                                    </div>
                                     <p><span className="font-medium text-slate-900">Back footer</span></p>
                                     <p className="whitespace-pre-wrap leading-5">{livePreview.footerAddress}</p>
                                     <div className="border-t border-slate-100 pt-3 text-center">

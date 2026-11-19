@@ -6,9 +6,11 @@ use App\Auth\CompanyRole;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\AuthenticatedWorkspace;
+use App\Support\LeadListing;
 use App\Support\LeadSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeadDirectory
 {
@@ -35,9 +37,10 @@ class LeadDirectory
         $this->assertViewer($actor);
         $tenantId = (int) $actor->companyId();
         $filters = $this->filters($input);
+        $perPage = LeadListing::perPage($input, self::PAGE_SIZE);
         $query = $this->filtered($tenantId, $filters);
         $matching = (clone $query)->count();
-        $pages = max(1, (int) ceil($matching / self::PAGE_SIZE));
+        $pages = max(1, (int) ceil($matching / $perPage));
         $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
         $today = $this->today($tenantId);
         $rows = (clone $query)
@@ -48,9 +51,9 @@ class LeadDirectory
             ->leftJoin('employees as lead_assignees', function ($join) use ($tenantId): void {
                 $join->on('lead_assignees.id', '=', 'leads.assignee_employee_id')
                     ->where('lead_assignees.tenant_id', '=', $tenantId);
-            })
-            ->orderByDesc('leads.id')
-            ->forPage($page, self::PAGE_SIZE)
+            });
+        LeadListing::recentFirst($rows);
+        $rows = $rows->forPage($page, $perPage)
             ->get([
                 'leads.id',
                 'leads.name',
@@ -65,6 +68,8 @@ class LeadDirectory
                 'leads.import_batch_id',
                 'leads.team_lead_employee_id',
                 'leads.assignee_employee_id',
+                'leads.assigned_at',
+                'leads.source_name',
                 'lead_import_batches.original_name as batch_name',
                 'lead_assignees.first_name as assignee_first_name',
                 'lead_assignees.last_name as assignee_last_name',
@@ -79,13 +84,14 @@ class LeadDirectory
                 'term' => $filters['term'],
                 'status' => $filters['status'],
                 'pool' => $filters['pool'],
+                'source' => $filters['source'],
             ],
             'options' => $this->options($tenantId),
             'leads' => $rows->map(fn (Lead $lead): array => $this->row($lead, $today))->all(),
             'matching' => $matching,
             'page' => $page,
             'pages' => $pages,
-            'perPage' => self::PAGE_SIZE,
+            'perPage' => $perPage,
             'selectedIds' => $this->selectedIds($tenantId, $filters, $input),
             'selectable' => true,
             'statuses' => $this->statuses(),
@@ -120,6 +126,7 @@ class LeadDirectory
                 'sourceRow' => $lead->source_row === null ? null : (int) $lead->source_row,
                 'followUpOn' => $this->date($lead->follow_up_on),
                 'remarks' => (string) ($lead->remarks ?? ''),
+                'source' => (string) ($lead->source_name ?? ''),
                 'unassigned' => $lead->team_lead_employee_id === null && $lead->assignee_employee_id === null,
             ],
             'batch' => $this->batch($tenantId, $lead->import_batch_id === null ? null : (int) $lead->import_batch_id),
@@ -142,12 +149,13 @@ class LeadDirectory
 
     /**
      * @param  array<string, mixed>  $input
-     * @return array{q: string, state: string, university: string, term: string, status: string, pool: string}
+     * @return array{q: string, state: string, university: string, term: string, status: string, pool: string, source: string}
      */
     private function filters(array $input): array
     {
         $status = trim((string) ($input['status'] ?? ''));
         $pool = (string) ($input['pool'] ?? 'all');
+        $source = trim((string) ($input['source'] ?? ''));
 
         return [
             'q' => mb_substr(trim((string) ($input['q'] ?? '')), 0, 120),
@@ -156,11 +164,12 @@ class LeadDirectory
             'term' => mb_substr(trim((string) ($input['term'] ?? '')), 0, 255),
             'status' => array_key_exists($status, Lead::STATUSES) ? $status : '',
             'pool' => $pool === 'unassigned' ? 'unassigned' : 'all',
+            'source' => $source === 'none' || ctype_digit($source) ? $source : '',
         ];
     }
 
     /**
-     * @param  array{q: string, state: string, university: string, term: string, status: string, pool: string}  $filters
+     * @param  array{q: string, state: string, university: string, term: string, status: string, pool: string, source: string}  $filters
      * @return Builder<Lead>
      */
     private function filtered(int $tenantId, array $filters): Builder
@@ -169,6 +178,12 @@ class LeadDirectory
 
         if ($filters['pool'] === 'unassigned') {
             $query->whereNull('leads.team_lead_employee_id')->whereNull('leads.assignee_employee_id');
+        }
+
+        if (Schema::hasColumn('leads', 'lead_source_id') && $filters['source'] === 'none') {
+            $query->whereNull('leads.lead_source_id');
+        } elseif (Schema::hasColumn('leads', 'lead_source_id') && $filters['source'] !== '') {
+            $query->where('leads.lead_source_id', (int) $filters['source']);
         }
 
         foreach (['state' => 'state', 'university' => 'university', 'term' => 'graduation_term'] as $filter => $column) {
@@ -187,7 +202,7 @@ class LeadDirectory
     }
 
     /**
-     * @param  array{q: string, state: string, university: string, term: string, status: string, pool: string}  $filters
+     * @param  array{q: string, state: string, university: string, term: string, status: string, pool: string, source: string}  $filters
      * @param  array<string, mixed>  $input
      * @return list<int>|null
      */
@@ -247,7 +262,7 @@ class LeadDirectory
     }
 
     /**
-     * @return array{states: list<string>, universities: list<string>, terms: list<string>, statuses: list<array{value: string, label: string}>}
+     * @return array{states: list<string>, universities: list<string>, terms: list<string>, statuses: list<array{value: string, label: string}>, sources: list<array{id: int, name: string}>}
      */
     private function options(int $tenantId): array
     {
@@ -262,6 +277,7 @@ class LeadDirectory
             'universities' => $this->distinct($tenantId, 'university'),
             'terms' => $this->distinct($tenantId, 'graduation_term'),
             'statuses' => $statuses,
+            'sources' => app(LeadSources::class)->choices($tenantId),
         ];
     }
 
@@ -305,6 +321,8 @@ class LeadDirectory
             'reminder' => $this->reminder($followUpOn, $today),
             'batchId' => $lead->import_batch_id === null ? null : (int) $lead->import_batch_id,
             'batchName' => is_string($lead->getAttribute('batch_name')) ? $lead->getAttribute('batch_name') : '',
+            'source' => (string) ($lead->source_name ?? ''),
+            'assignedAt' => $lead->assigned_at instanceof \DateTimeInterface ? $lead->assigned_at->format('Y-m-d H:i') : '',
             'unassigned' => $lead->team_lead_employee_id === null && $lead->assignee_employee_id === null,
             'heldBy' => $this->heldBy($lead),
         ];

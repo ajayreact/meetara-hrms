@@ -9,10 +9,12 @@ use Tests\TestCase;
 
 class PaymentConcurrencyTest extends TestCase
 {
+    private const DATABASE = 'meetara_hrms_integrity_20261020';
+
     public function test_overlapping_confirmations_record_one_payment(): void
     {
-        if (TestDatabaseGuard::integrationDecision('meetara_hrms_integrity_20261020') === 'skip') {
-            $this->markTestSkipped('Overlapping payment locks are run on the disposable MySQL database meetara_hrms_integrity_20261020.');
+        if (TestDatabaseGuard::integrationDecision(self::DATABASE) === 'skip') {
+            $this->markTestSkipped('Overlapping payment locks are run on the disposable MySQL database '.self::DATABASE.'.');
         }
 
         $engine = DB::selectOne(
@@ -54,9 +56,9 @@ class PaymentConcurrencyTest extends TestCase
         $holder->beginTransaction();
         $holder->query('SELECT id FROM payroll_payments WHERE id='.(int) $paymentId.' FOR UPDATE');
 
-        $environment = getenv();
+        $environment = getenv() ?: [];
         $environment['DB_CONNECTION'] = 'mysql';
-        $environment['DB_DATABASE'] = $database;
+        $environment['DB_DATABASE'] = self::DATABASE;
         $child = proc_open(
             [PHP_BINARY, base_path('tests/Support/confirm-payment-once.php'), (string) $paymentId],
             [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],

@@ -25,6 +25,7 @@ export interface WorkspacePermissions {
     leadsFollowUpTeam: boolean;
     leadsFollowUpOwn: boolean;
     leadsReport: boolean;
+    leadsManageSources: boolean;
     idCardsManage: boolean;
     idCardsIssue: boolean;
     candidatesManage: boolean;

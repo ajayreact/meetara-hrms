@@ -54,7 +54,7 @@ interface RunDetail {
     history: { action: string; note: string | null; at: string }[];
 }
 
-export default function PayrollShow({ workspace, run, canPrepare = false, canApprove = false, notice, error }: HrmsPageProps & { run: RunDetail; canPrepare?: boolean; canApprove?: boolean; notice?: string | null; error?: string | null }) {
+export default function PayrollShow({ workspace, run, canPrepare = false, canProcess = false, canApprove = false, notice, error }: HrmsPageProps & { run: RunDetail; canPrepare?: boolean; canProcess?: boolean; canApprove?: boolean; notice?: string | null; error?: string | null }) {
     const note = useForm({ note: '', confirm: '' });
     const [confirmProcess, setConfirmProcess] = useState(false);
     const [query, setQuery] = useState('');
@@ -85,13 +85,13 @@ export default function PayrollShow({ workspace, run, canPrepare = false, canApp
                     {canPrepare && ['draft', 'calculated'].includes(run.rawStatus) && <Button type="button" disabled={note.processing} onClick={() => note.post(`/payroll/runs/${run.id}/calculate`)}>{note.processing ? 'Working…' : 'Calculate'}</Button>}
                     {canPrepare && run.rawStatus === 'calculated' && <Button type="button" variant="outline" disabled={note.processing} onClick={() => note.post(`/payroll/runs/${run.id}/review`)}>{note.processing ? 'Working…' : 'Send for review'}</Button>}
                     {canApprove && run.rawStatus === 'under_review' && <Button type="button" disabled={note.processing || run.statutory.ready !== true} onClick={() => note.post(`/payroll/runs/${run.id}/approve`)}>{note.processing ? 'Working…' : 'Approve'}</Button>}
-                    {canPrepare && run.rawStatus === 'approved' && (
+                    {canProcess && run.rawStatus === 'approved' && (
                         <label className="flex items-center gap-2 text-sm">
                             <input type="checkbox" checked={confirmProcess} onChange={(event) => setConfirmProcess(event.target.checked)} />
                             Confirm processing. This finalizes the saved calculation.
                         </label>
                     )}
-                    {canPrepare && run.rawStatus === 'approved' && <Button type="button" disabled={note.processing || !confirmProcess || run.blocked} onClick={() => { note.transform((data) => ({ ...data, confirm: 'PROCESS' })); note.post(`/payroll/runs/${run.id}/process`); }}>{note.processing ? 'Working…' : 'Process payroll'}</Button>}
+                    {canProcess && run.rawStatus === 'approved' && <Button type="button" disabled={note.processing || !confirmProcess || run.blocked} onClick={() => { note.transform((data) => ({ ...data, confirm: 'PROCESS' })); note.post(`/payroll/runs/${run.id}/process`); }}>{note.processing ? 'Working…' : 'Process payroll'}</Button>}
                     {canPrepare && run.rawStatus === 'processed' && <Button type="button" variant="outline" disabled={note.processing} onClick={() => note.post(`/payroll/runs/${run.id}/correct`)}>{note.processing ? 'Working…' : 'Open correction'}</Button>}
                 </div>
                 <label className="mt-3 grid max-w-xl gap-1 text-sm">

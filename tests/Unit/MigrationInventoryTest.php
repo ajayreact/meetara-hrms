@@ -35,6 +35,9 @@ class MigrationInventoryTest extends TestCase
             '2026_11_17_180000_add_designation_department_to_employee_id_cards',
             '2026_11_19_160000_add_id_card_hr_signature_and_standalone_dob',
             '2026_11_19_180000_add_candidate_management_tables',
+            '2026_11_19_234500_add_usa_offer_appointment_template',
+            '2026_11_20_021500_add_id_card_white_logo',
+            '2026_11_20_031800_add_lead_sources',
         ], $inventory->filesAfterDump());
     }
 
@@ -107,6 +110,9 @@ class MigrationInventoryTest extends TestCase
             '2026_11_17_180000_add_designation_department_to_employee_id_cards',
             '2026_11_19_160000_add_id_card_hr_signature_and_standalone_dob',
             '2026_11_19_180000_add_candidate_management_tables',
+            '2026_11_19_234500_add_usa_offer_appointment_template',
+            '2026_11_20_021500_add_id_card_white_logo',
+            '2026_11_20_031800_add_lead_sources',
         ], $inventory->pendingFiles($documentedLedger));
         $this->assertTrue($inventory->invitationColumnRequiresLifecycleTable());
         $this->assertTrue($inventory->subjectEmailRepairAddsMissingColumnOnly());

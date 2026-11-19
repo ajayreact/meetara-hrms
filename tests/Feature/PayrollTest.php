@@ -296,7 +296,7 @@ class PayrollTest extends TestCase
         $this->assertNull(DB::table('payroll_runs')->where('id', $runId)->value('approved_by'));
         $this->assertSame(0, DB::table('payroll_payments')->count());
 
-        $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertSessionHas('error');
+        $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertForbidden();
         $this->actingAs($accounts)->post("/payroll/runs/{$runId}/process", ['note' => 'Process now', 'confirm' => 'PROCESS'])->assertSessionHas('error');
         $this->assertSame('under_review', DB::table('payroll_runs')->where('id', $runId)->value('status'));
 
@@ -763,7 +763,7 @@ class PayrollTest extends TestCase
         $this->actingAs($admin)->post("/payroll/runs/{$runId}/process", [
             'note' => 'Process now',
             'confirm' => 'PROCESS',
-        ])->assertSessionHas('error');
+        ])->assertForbidden();
 
         DB::table('payroll_runs')->where('id', $runId)->update([
             'status' => 'processed',

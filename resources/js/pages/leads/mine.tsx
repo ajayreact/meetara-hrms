@@ -3,8 +3,8 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
+import { LeadPagination, LeadSearchField } from '@/components/hrms/lead-listing';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router } from '@inertiajs/react';
 import { CalendarClock, CalendarDays, Clock3 } from 'lucide-react';
@@ -23,6 +23,7 @@ interface MineLead {
     statusLabel: string;
     followUpOn: string | null;
     remarks: string;
+    source?: string;
     timing: string;
     reminder: 'none' | 'due_today' | 'overdue' | 'upcoming';
 }
@@ -35,6 +36,7 @@ interface MineProps extends HrmsPageProps {
     matching: number;
     page: number;
     pages: number;
+    perPage?: number;
     statuses?: { value: string; label: string }[];
     notice?: string | null;
     error?: string | null;
@@ -47,18 +49,20 @@ const queues = [
     ['upcoming', 'Upcoming'],
 ] as const;
 
-export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, leads, matching, page, pages, statuses = [], notice, error }: MineProps) {
+export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, leads, matching, page, pages, perPage = 25, statuses = [], notice, error }: MineProps) {
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
-    const [term, setTerm] = useState(q);
+    const [searching, setSearching] = useState(false);
 
-    function visit(next: { queue?: MineProps['queue']; page?: number; q?: string }) {
+    function visit(next: { queue?: MineProps['queue']; page?: number; perPage?: number; q?: string }) {
         const nextQueue = next.queue ?? queue;
         const search = (next.q !== undefined ? next.q : q).trim();
+        const size = next.perPage ?? perPage;
         router.get('/leads/mine', {
             queue: nextQueue === 'all' ? undefined : nextQueue,
             page: next.page && next.page > 1 ? next.page : undefined,
+            per_page: size !== 25 ? size : undefined,
             q: search !== '' ? search : undefined,
-        }, { preserveScroll: true });
+        }, { preserveState: true, preserveScroll: true, onStart: () => setSearching(true), onFinish: () => setSearching(false) });
     }
 
     return (
@@ -76,16 +80,12 @@ export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, 
                         <Button key={value} type="button" variant={queue === value ? 'default' : 'outline'} onClick={() => visit({ queue: value, page: 1 })}>{label}</Button>
                     ))}
                 </div>
-                <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); visit({ q: term, page: 1 }); }}>
-                    <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-slate-500">
-                        Search
-                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
-                    </label>
-                    <Button type="submit" variant="outline">Search</Button>
-                    {q !== '' && <Button type="button" variant="ghost" onClick={() => { setTerm(''); visit({ q: '', page: 1 }); }}>Clear</Button>}
-                </form>
+                <div className="mb-4">
+                    <LeadSearchField applied={q} onSearch={(value) => visit({ q: value, page: 1 })} />
+                </div>
+                {searching && <p className="mb-3 text-sm text-slate-500">Searching…</p>}
                 {leads.length === 0 ? (
-                    <p className="text-sm text-slate-500">No leads in this list.</p>
+                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{searching ? 'Searching…' : 'No leads in this list.'}</p>
                 ) : (
                     <DataTable fit>
                         <thead>
@@ -93,6 +93,7 @@ export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, 
                                 <th className={headCell}>Name</th>
                                 <th className={headCell}>Email</th>
                                 <th className={headCell}>Phone</th>
+                                <th className={headCell}>Source</th>
                                 <th className={headCell}>University</th>
                                 <th className={headCell}>Graduation term</th>
                                 <th className={headCell}>Status</th>
@@ -106,6 +107,7 @@ export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, 
                                     <td className={`${bodyCell} max-w-0 truncate font-medium`} title={lead.name}><Link href={`/leads/mine/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
                                     <td className={`${bodyCell} max-w-0 truncate`} title={lead.email || undefined}>{lead.email || '—'}</td>
                                     <td className={`${bodyCell} whitespace-nowrap`}>{phoneLabel(lead.phone)}</td>
+                                    <td className={`${bodyCell} max-w-0 truncate`} title={lead.source || undefined}>{lead.source || '—'}</td>
                                     <td className={`${bodyCell} max-w-0 truncate`} title={lead.university || undefined}>{lead.university || '—'}</td>
                                     <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
                                     <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
@@ -133,11 +135,7 @@ export default function MyAssignedLeadsPage({ workspace, queue, q = '', counts, 
                         </tbody>
                     </DataTable>
                 )}
-                <p className="mt-3 text-sm text-slate-500">{matching} leads · page {page} of {pages}</p>
-                <div className="mt-3 flex gap-2">
-                    {page > 1 && <Button type="button" variant="outline" onClick={() => visit({ page: page - 1 })}>Previous</Button>}
-                    {page < pages && <Button type="button" variant="outline" onClick={() => visit({ page: page + 1 })}>Next</Button>}
-                </div>
+                <LeadPagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} onPerPage={(size) => visit({ perPage: size, page: 1 })} />
             </SectionCard>
             <LeadFollowUpDialog
                 open={editing !== null}

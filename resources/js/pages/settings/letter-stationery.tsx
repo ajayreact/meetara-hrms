@@ -1,4 +1,5 @@
 import { SectionCard } from '@/components/hrms/section-card';
+import { FileUpload } from '@/components/ui/file-upload';
 import { router, useForm } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
 import { signatureSummary } from '../offer-letters/rich-letter-editor';
@@ -121,7 +122,7 @@ function CountryPanel({ country, pack, onEnlarge }: { country: 'india' | 'usa'; 
                 <p className="text-sm text-slate-600">Upload a PNG or JPG. The original shape is kept. The image is the background of every PDF page, and the letter text stays inside the margins below.</p>
                 <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={uploadLetterhead}>
                     <label className="text-sm sm:col-span-2">Letterhead image
-                        <input className="mt-1 block w-full text-sm" type="file" accept="image/png,image/jpeg" onChange={(event) => letterheadForm.setData('letterhead', event.target.files?.[0] ?? null)} />
+                        <FileUpload className="mt-1" accept="image/png,image/jpeg" file={letterheadForm.data.letterhead} hint="PNG or JPEG." error={letterheadForm.errors.letterhead} onChange={(file) => letterheadForm.setData('letterhead', file)} />
                     </label>
                     <label className="text-sm">Page size
                         <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={pageChoice(letterheadForm.data.page_width, letterheadForm.data.page_height)} onChange={(event) => applyPage(letterheadForm, event.target.value)}>
@@ -162,7 +163,7 @@ function CountryPanel({ country, pack, onEnlarge }: { country: 'india' | 'usa'; 
                     <p className="mt-3 text-sm text-slate-500">No HR signature uploaded</p>
                 )}
                 <form className="mt-3 grid gap-3" onSubmit={(event) => { event.preventDefault(); signatureForm.post(route('hrms.offer-letters.signature.store'), { forceFormData: true }); }}>
-                    <input className="text-sm" type="file" accept="image/png,image/jpeg" onChange={(event) => signatureForm.setData('signature', event.target.files?.[0] ?? null)} />
+                    <FileUpload accept="image/png,image/jpeg" file={signatureForm.data.signature} hint="PNG or JPEG." error={signatureForm.errors.signature} onChange={(file) => signatureForm.setData('signature', file)} />
                     {signatureForm.errors.signature && <p className="text-sm text-rose-700">{signatureForm.errors.signature}</p>}
                     <button className="w-fit rounded-xl bg-blue-700 px-4 py-2 text-sm text-white" type="submit" disabled={signatureForm.processing || !legal}>Replace signature</button>
                 </form>

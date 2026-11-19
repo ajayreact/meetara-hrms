@@ -3,8 +3,8 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
+import { LeadPagination, LeadSearchField } from '@/components/hrms/lead-listing';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router } from '@inertiajs/react';
 import { Contact, UserRound, Users } from 'lucide-react';
@@ -23,6 +23,7 @@ interface TeamLeadRow {
     reminder: 'none' | 'due_today' | 'overdue' | 'upcoming';
     canFollowUp: boolean;
     assigneeName: string;
+    source?: string;
 }
 
 interface EmployeeSummary {
@@ -76,6 +77,7 @@ interface TeamPageProps extends HrmsPageProps {
     matching: number;
     page: number;
     pages: number;
+    perPage?: number;
     selectedIds: number[] | null;
     statuses?: { value: string; label: string }[];
     notice?: string | null;
@@ -104,6 +106,7 @@ export default function TeamLeadPage({
     matching,
     page,
     pages,
+    perPage = 25,
     selectedIds,
     statuses = [],
     notice,
@@ -114,7 +117,7 @@ export default function TeamLeadPage({
     ];
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
-    const [term, setTerm] = useState(q);
+    const [searching, setSearching] = useState(false);
     const [assigneeId, setAssigneeId] = useState(assignmentDestinations[0]?.id ?? 0);
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
     const pageIds = leads.map((lead) => lead.id);
@@ -138,15 +141,17 @@ export default function TeamLeadPage({
         }
     }, [assignmentDestinations, assigneeId]);
 
-    function visit(next: { section?: Section; page?: number; selection?: string; q?: string }) {
+    function visit(next: { section?: Section; page?: number; perPage?: number; selection?: string; q?: string }) {
         const nextSection = next.section ?? section;
         const search = (next.q !== undefined ? next.q : q).trim();
+        const size = next.perPage ?? perPage;
         router.get('/my-leads', {
             section: nextSection === 'pending' ? undefined : nextSection,
             page: next.page && next.page > 1 ? next.page : undefined,
+            per_page: size !== 25 ? size : undefined,
             selection: next.selection,
             q: search !== '' ? search : undefined,
-        }, { preserveState: true, preserveScroll: true });
+        }, { preserveState: true, preserveScroll: true, onStart: () => setSearching(true), onFinish: () => setSearching(false) });
     }
 
     function toggle(id: number) {
@@ -192,15 +197,10 @@ export default function TeamLeadPage({
                         <Button key={item} type="button" variant={section === item ? 'default' : 'outline'} onClick={() => { setSelected([]); visit({ section: item, page: 1 }); }}>{sectionCopy[item]}</Button>
                     ))}
                 </div>
-                <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); setSelected([]); visit({ q: term, page: 1 }); }}>
-                    <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-slate-500">
-                        Search
-                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
-                    </label>
-                    <Button type="submit" variant="outline">Search</Button>
-                    {q !== '' && <Button type="button" variant="ghost" onClick={() => { setTerm(''); setSelected([]); visit({ q: '', page: 1 }); }}>Clear</Button>}
-                </form>
-                <p className="mb-3 text-sm text-slate-500">{matching} in this section · page {page} of {pages}</p>
+                <div className="mb-4">
+                    <LeadSearchField applied={q} onSearch={(value) => { setSelected([]); visit({ q: value, page: 1 }); }} />
+                </div>
+                {searching && <p className="mb-3 text-sm text-slate-500">Searching…</p>}
                 {canSelect && (
                     <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                         <span>{selected.length} selected</span>
@@ -222,7 +222,7 @@ export default function TeamLeadPage({
                     </div>
                 )}
                 {leads.length === 0 ? (
-                    <p className="text-sm text-slate-500">No leads in this section.</p>
+                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{searching ? 'Searching…' : 'No leads in this section.'}</p>
                 ) : (
                     <DataTable fit>
                         <thead>
@@ -235,6 +235,7 @@ export default function TeamLeadPage({
                                 <th className={headCell}>Name</th>
                                 <th className={headCell}>Email</th>
                                 <th className={headCell}>Phone</th>
+                                <th className={headCell}>Source</th>
                                 <th className={headCell}>State</th>
                                 <th className={headCell}>Status</th>
                                 <th className={headCell}>Call on</th>
@@ -253,6 +254,7 @@ export default function TeamLeadPage({
                                     <td className={`${bodyCell} max-w-0 truncate font-medium`} title={lead.name}><Link href={`/my-leads/${lead.id}`} className="text-blue-700 hover:underline">{lead.name}</Link></td>
                                     <td className={`${bodyCell} max-w-0 truncate`} title={lead.email || undefined}>{lead.email || '—'}</td>
                                     <td className={`${bodyCell} whitespace-nowrap`}>{phoneLabel(lead.phone)}</td>
+                                    <td className={`${bodyCell} max-w-0 truncate`} title={lead.source || undefined}>{lead.source || '—'}</td>
                                     <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
                                     <td className={bodyCell}><StatusBadge value={lead.statusLabel} /></td>
                                     <td className={bodyCell}>
@@ -282,10 +284,7 @@ export default function TeamLeadPage({
                         </tbody>
                     </DataTable>
                 )}
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                    {page > 1 && <Button type="button" variant="outline" onClick={() => visit({ page: page - 1 })}>Previous</Button>}
-                    {page < pages && <Button type="button" variant="outline" onClick={() => visit({ page: page + 1 })}>Next</Button>}
-                </div>
+                <LeadPagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} onPerPage={(size) => visit({ perPage: size, page: 1 })} />
             </SectionCard>
 
             {myPipeline.some((row) => row.count > 0) && (

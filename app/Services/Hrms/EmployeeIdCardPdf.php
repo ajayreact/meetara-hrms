@@ -134,20 +134,15 @@ class EmployeeIdCardPdf
         $photoY = 18.0;
         $this->placePortrait($pdf, $photoX, $photoY, $photoW, $photoH, $this->absolutePath($card['photoPath'] ?? null));
 
-        $logoPath = $this->absolutePath($card['logoPath'] ?? null);
-        $logoOnNavy = $this->logoOnNavy($logoPath);
-        [$logoW, $logoH] = $this->logoBox($logoOnNavy ?? $logoPath, 28.6, 7.7);
-        $logoX = (self::WIDTH_MM - $logoW) / 2;
-        $logoY = 4.5;
-        try {
-            if ($logoOnNavy !== null || $logoPath !== null) {
-                $pdf->Image($logoOnNavy ?? $logoPath, $logoX, $logoY, $logoW);
-            }
-        } finally {
-            if ($logoOnNavy !== null && is_file($logoOnNavy)) {
-                unlink($logoOnNavy);
-            }
-        }
+        $this->drawLogo(
+            $pdf,
+            $this->absolutePath($card['frontLogoPath'] ?? null),
+            $this->absolutePath($card['logoPath'] ?? null),
+            true,
+            28.6,
+            7.7,
+            4.5,
+        );
 
         $this->styledName($pdf, (string) ($card['name'] ?? ''), 44.8);
 
@@ -185,18 +180,15 @@ class EmployeeIdCardPdf
         $pdf->fillRoundRect($qrX - $frame, $qrY - $frame, $qrSize + ($frame * 2), $qrSize + ($frame * 2), 2.15, self::ORANGE);
         $pdf->fillRoundRect($qrX - $frame + 0.55, $qrY - $frame + 0.55, $qrSize + ($frame * 2) - 1.1, $qrSize + ($frame * 2) - 1.1, 1.7, self::WHITE);
 
-        $logoPath = $this->trimLogo($this->absolutePath($card['logoPath'] ?? null));
-        [$logoW, $logoH] = $this->logoBox($logoPath, 27.6, 7.4);
-        $logoX = (self::WIDTH_MM - $logoW) / 2;
-        try {
-            if ($logoPath !== null) {
-                $pdf->Image($logoPath, $logoX, 6.5, $logoW);
-            }
-        } finally {
-            if ($logoPath !== null && is_file($logoPath) && str_contains($logoPath, 'id-card-logo-')) {
-                unlink($logoPath);
-            }
-        }
+        $this->drawLogo(
+            $pdf,
+            $this->absolutePath($card['backLogoPath'] ?? null),
+            $this->absolutePath($card['backLogoPath'] ?? null) !== null ? null : $this->absolutePath($card['logoPath'] ?? null),
+            false,
+            27.6,
+            7.4,
+            6.5,
+        );
 
         $innerX = 4.2;
         $innerW = self::WIDTH_MM - ($innerX * 2);
@@ -1042,6 +1034,131 @@ class EmployeeIdCardPdf
                 );
             }
         }
+    }
+
+    private function drawLogo(IdCardCanvas $pdf, ?string $dedicated, ?string $fallback, bool $onNavy, float $maxW, float $maxH, float $y): void
+    {
+        $prepared = null;
+        $source = null;
+
+        try {
+            if ($dedicated !== null && is_file($dedicated)) {
+                $prepared = $this->flattenLogo($dedicated, $onNavy);
+                $source = $prepared ?? $dedicated;
+            } else {
+                $prepared = $onNavy ? $this->logoOnNavy($fallback) : $this->trimLogo($fallback);
+                $source = $prepared ?? ($fallback !== null && is_file($fallback) ? $fallback : null);
+            }
+
+            if ($source === null || ! is_file($source)) {
+                return;
+            }
+
+            [$logoW] = $this->logoBox($source, $maxW, $maxH);
+            $pdf->Image($source, (self::WIDTH_MM - $logoW) / 2, $y, $logoW);
+        } finally {
+            if (is_string($prepared) && is_file($prepared) && str_contains($prepared, 'id-card-logo-')) {
+                unlink($prepared);
+            }
+        }
+    }
+
+    private function flattenLogo(string $logoPath, bool $onNavy): ?string
+    {
+        $contents = @file_get_contents($logoPath);
+        $src = is_string($contents) ? @imagecreatefromstring($contents) : false;
+
+        if ($src === false) {
+            return null;
+        }
+
+        $src = $this->limitLogo($src);
+        $srcW = imagesx($src);
+        $srcH = imagesy($src);
+        $minX = $srcW;
+        $minY = $srcH;
+        $maxX = 0;
+        $maxY = 0;
+
+        for ($y = 0; $y < $srcH; $y++) {
+            for ($x = 0; $x < $srcW; $x++) {
+                $rgba = imagecolorat($src, $x, $y);
+                $alpha = ($rgba >> 24) & 0x7F;
+                $r = ($rgba >> 16) & 0xFF;
+                $g = ($rgba >> 8) & 0xFF;
+                $b = $rgba & 0xFF;
+                $empty = $alpha > 100 || (! $onNavy && $r > 245 && $g > 245 && $b > 245);
+
+                if (! $empty) {
+                    $minX = min($minX, $x);
+                    $minY = min($minY, $y);
+                    $maxX = max($maxX, $x);
+                    $maxY = max($maxY, $y);
+                }
+            }
+        }
+
+        if ($maxX < $minX || $maxY < $minY) {
+            imagedestroy($src);
+
+            return null;
+        }
+
+        $w = $maxX - $minX + 1;
+        $h = $maxY - $minY + 1;
+        $dst = imagecreatetruecolor($w, $h);
+        $background = imagecolorallocate(
+            $dst,
+            $onNavy ? self::NAVY[0] : 255,
+            $onNavy ? self::NAVY[1] : 255,
+            $onNavy ? self::NAVY[2] : 255,
+        );
+        imagefilledrectangle($dst, 0, 0, $w, $h, $background);
+
+        for ($y = $minY; $y <= $maxY; $y++) {
+            for ($x = $minX; $x <= $maxX; $x++) {
+                $rgba = imagecolorat($src, $x, $y);
+                $alpha = ($rgba >> 24) & 0x7F;
+
+                if ($alpha > 100) {
+                    continue;
+                }
+
+                $color = imagecolorallocate($dst, ($rgba >> 16) & 0xFF, ($rgba >> 8) & 0xFF, $rgba & 0xFF);
+                imagesetpixel($dst, $x - $minX, $y - $minY, $color);
+            }
+        }
+
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'id-card-logo-'.bin2hex(random_bytes(6)).'.png';
+        imagepng($dst, $path, 6);
+        imagedestroy($dst);
+        imagedestroy($src);
+
+        return $path;
+    }
+
+    private function limitLogo(\GdImage $src): \GdImage
+    {
+        $width = imagesx($src);
+        $height = imagesy($src);
+        $max = 1200;
+
+        if ($width <= $max && $height <= $max) {
+            return $src;
+        }
+
+        $scale = $max / max($width, $height);
+        $nextWidth = max(1, (int) round($width * $scale));
+        $nextHeight = max(1, (int) round($height * $scale));
+        $dst = imagecreatetruecolor($nextWidth, $nextHeight);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $nextWidth, $nextHeight, $transparent);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nextWidth, $nextHeight, $width, $height);
+        imagedestroy($src);
+
+        return $dst;
     }
 
     private function logoOnNavy(?string $logoPath): ?string

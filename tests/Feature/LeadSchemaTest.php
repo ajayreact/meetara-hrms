@@ -18,7 +18,7 @@ class LeadSchemaTest extends TestCase
 
     public function test_lead_tables_are_company_scoped_and_do_not_change_employees(): void
     {
-        foreach (['lead_import_batches', 'leads', 'lead_assignments', 'lead_activities'] as $table) {
+        foreach (['lead_import_batches', 'leads', 'lead_assignments', 'lead_activities', 'lead_sources'] as $table) {
             $this->assertTrue(Schema::hasTable($table));
         }
 
@@ -37,6 +37,8 @@ class LeadSchemaTest extends TestCase
             'remarks',
             'team_lead_employee_id',
             'assignee_employee_id',
+            'lead_source_id',
+            'source_name',
         ]));
         $this->assertTrue(Schema::hasColumns('lead_assignments', [
             'tenant_id',

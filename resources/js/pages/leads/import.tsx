@@ -2,6 +2,7 @@ import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-t
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
@@ -70,18 +71,18 @@ export default function LeadImportPage({
                         upload.post('/leads/imports', { forceFormData: true });
                     }}
                 >
-                    <label className="grid gap-1 text-sm" htmlFor="lead-file">
+                    <div className="grid gap-1 text-sm">
                         <Label htmlFor="lead-file">Excel file</Label>
-                        <input
+                        <FileUpload
                             id="lead-file"
-                            className="block w-full text-sm"
-                            type="file"
                             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)}
+                            file={upload.data.file}
+                            hint="Excel .xlsx workbook. Sheet1 is imported."
+                            error={upload.errors.file}
+                            onChange={(file) => upload.setData('file', file)}
                         />
-                    </label>
-                    <p className="text-sm text-slate-600">Use an .xlsx file. Sheet1 is read and Sheet2 is ignored. The Emaill column is Email. The Year column is the graduation term.</p>
-                    {upload.errors.file && <p className="text-sm text-rose-700">{upload.errors.file}</p>}
+                    </div>
+                    <p className="text-sm text-slate-600">Use an .xlsx file. Sheet1 is read and Sheet2 is ignored. The Emaill column is Email. The Year column is the graduation term. An optional Source column is saved as the lead's original source.</p>
                     <div className="flex flex-wrap items-center gap-4">
                         <Button type="submit" disabled={upload.processing || upload.data.file === null}>
                             {upload.processing ? 'Uploading…' : 'Upload and preview'}

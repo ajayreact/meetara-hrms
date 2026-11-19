@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { accounts, denied, finishClean, signIn, signOut, watchPage, type BrowserAccounts } from './support';
+import { accounts, denied, finishClean, signIn, signOut, watchPage } from './support';
 
 const data = accounts();
 
@@ -173,7 +173,7 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
     await expect(page.getByText('Team Lead · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'My team' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Employees' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Salary' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Payroll' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Route Map' })).toHaveCount(0);
@@ -213,8 +213,10 @@ test('outside employee and team lead stay inside the team', async ({ page }) => 
 test('hr manages help desk and cannot run payroll', async ({ page }) => {
     await signIn(page, data.emails.hr, data.password);
     await expect(page.getByText('HR & Assistant Operations', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
-    await page.getByRole('link', { name: 'Offer letters' }).click();
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toBeVisible();
+    await page.getByRole('button', { name: 'Offer Letters' }).click();
+    await page.getByRole('button', { name: 'India' }).click();
+    await page.getByRole('link', { name: 'Indian Offer Letters' }).click();
     await expect(page.getByRole('heading', { name: 'Offer letters' })).toBeVisible();
     await expect(page.locator('body')).not.toContainText('BRS-REP');
     await expect(page.getByText('No offer letters yet.')).toBeVisible();
@@ -280,7 +282,7 @@ test('company admin assigns accounts and cannot process payroll', async ({ page 
 
     await signIn(page, data.emails.owner, data.password);
     await expect(page.getByText('Head of Operations · Main office').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toBeVisible();
     await expect(page.getByText("Here's what's happening at Browser North today.")).toBeVisible();
     await page.goto('/company/settings');
     await expect(page.getByText('Not configured').first()).toBeVisible();
@@ -312,7 +314,7 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await signIn(page, data.emails.accounts, data.password);
     await expect(page.getByText('Accounts · Main office').first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Employees' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toHaveCount(0);
     await page.goto('/employees');
     await expect(page.getByText('Your account cannot open Employees')).toBeVisible();
     await page.goto('/attendance');
@@ -365,9 +367,7 @@ test('accounts payroll confirmation does not describe a bank transfer', async ({
     await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
     await expect(page.getByText('Statutory readiness is unresolved.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Process payroll' })).toHaveCount(0);
-    await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' }, false);
-    await page.goto(runUrl);
-    await expect(page.getByText('Approve this payroll run before processing it.')).toBeVisible();
+    expect(await postForm(page, `${runPath}/process`, { note: 'Process now', confirm: 'PROCESS' }, false)).toBe(403);
     await assignCalculator(runPath, data.emails.owner);
     await postForm(page, `${runPath}/approve`, { note: 'Trying own calculation' }, false);
     await page.goto(runUrl);
@@ -441,8 +441,8 @@ test('offer pages stay inside the company', async ({ page }) => {
     await signOut(page);
 
     await signIn(page, data.emails.report, data.password);
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'USA offers' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'USA Offer Letters' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'STEM I-983' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
     await denied(page, '/usa-offers', 403);
@@ -450,14 +450,14 @@ test('offer pages stay inside the company', async ({ page }) => {
     await signOut(page);
 
     await signIn(page, data.emails.lead, data.password);
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
     await denied(page, '/usa-offers', 403);
     await denied(page, '/i983', 403);
     await signOut(page);
 
     await signIn(page, data.emails.accounts, data.password);
-    await expect(page.getByRole('link', { name: 'Offer letters' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Offer Letters' })).toHaveCount(0);
     await denied(page, '/offer-letters', 403);
     await denied(page, '/usa-offers', 403);
     await denied(page, '/i983', 403);

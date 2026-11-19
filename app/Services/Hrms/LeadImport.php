@@ -32,6 +32,7 @@ class LeadImport
         'year' => 'graduation_term',
         'experience' => 'experience',
         'designations' => 'designations',
+        'source' => 'source',
     ];
 
     /**
@@ -47,6 +48,7 @@ class LeadImport
         'graduation_term' => 255,
         'experience' => 20,
         'designations' => 65000,
+        'source' => 120,
     ];
 
     public function __construct(private readonly SpreadsheetTable $sheets) {}
@@ -169,16 +171,25 @@ class LeadImport
             }
 
             $preview = $this->classify($tenantId, $this->table($this->absolute($locked)), null, true);
+            $sources = [];
 
             foreach ($preview['rows'] as $row) {
                 if ($row['outcome'] !== 'new') {
                     continue;
                 }
 
+                $sourceName = trim((string) ($row['source'] ?? ''));
+                $sourceId = $sourceName === '' ? null : app(LeadSources::class)->findOrCreate($tenantId, $actor->id, $sourceName);
+                if ($sourceId !== null) {
+                    $sources[$sourceId] = DB::table('lead_sources')->where('id', $sourceId)->value('name');
+                }
+
                 $lead = new Lead;
                 $lead->forceFill([
                     'tenant_id' => $tenantId,
                     'import_batch_id' => $locked->id,
+                    'lead_source_id' => $sourceId,
+                    'source_name' => $sourceId === null ? null : (string) ($sources[$sourceId] ?? $sourceName),
                     'source_row' => $row['line'],
                     'imported_on' => $row['importedOn'],
                     'name' => $row['name'],
@@ -320,6 +331,7 @@ class LeadImport
                 'graduation_term' => $value('graduation_term'),
                 'experience' => $value('experience'),
                 'designations' => $value('designations'),
+                'source' => $value('source'),
             ] as $field => $text) {
                 if (mb_strlen($text) > self::LIMITS[$field]) {
                     $problem = match ($field) {
@@ -355,6 +367,7 @@ class LeadImport
             'graduationTerm' => $value('graduation_term'),
             'experience' => $value('experience'),
             'designations' => $value('designations'),
+            'source' => $value('source'),
             'importedOn' => $this->date($value('imported_on')),
         ];
     }

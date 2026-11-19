@@ -3,8 +3,8 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { LeadFollowUpDialog, phoneLabel, reminderLabel, reminderTone, type LeadFollowUpTarget } from '@/components/hrms/lead-follow-up-dialog';
 import { MetricCard } from '@/components/hrms/metric-card';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
+import { LeadPagination, LeadSearchField } from '@/components/hrms/lead-listing';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router } from '@inertiajs/react';
 import { Contact, UserRound, Users } from 'lucide-react';
@@ -25,6 +25,7 @@ interface LeadRow {
     reminder: 'none' | 'due_today' | 'overdue' | 'upcoming';
     batchId: number | null;
     batchName: string;
+    source?: string;
     unassigned: boolean;
     heldBy: string;
 }
@@ -36,12 +37,13 @@ interface Filters {
     term: string;
     status: string;
     pool: 'all' | 'unassigned';
+    source?: string;
 }
 
 interface LeadIndexProps extends HrmsPageProps {
     summary: { total: number; unassigned: number; imported: number };
     filters: Filters;
-    options: { states: string[]; universities: string[]; terms: string[]; statuses: { value: string; label: string }[] };
+    options: { states: string[]; universities: string[]; terms: string[]; statuses: { value: string; label: string }[]; sources?: { id: number; name: string }[] };
     leads: LeadRow[];
     matching: number;
     page: number;
@@ -49,6 +51,7 @@ interface LeadIndexProps extends HrmsPageProps {
     perPage?: number;
     selectedIds: number[] | null;
     selectable: boolean;
+    canManageSources?: boolean;
     canImport: boolean;
     canAssign: boolean;
     canFollowUp: boolean;
@@ -72,12 +75,13 @@ export default function LeadIndexPage({
     canImport,
     canAssign,
     canFollowUp,
+    canManageSources = false,
     canReport = false,
     statuses = [],
     notice,
     error,
 }: LeadIndexProps) {
-    const [term, setTerm] = useState(filters.q);
+    const [searching, setSearching] = useState(false);
     const selectionKey = selectedIds ? selectedIds.join(',') : null;
     const [selected, setSelected] = useState<number[]>(selectedIds ?? []);
     const [editing, setEditing] = useState<LeadFollowUpTarget | null>(null);
@@ -91,13 +95,15 @@ export default function LeadIndexPage({
         }
     }, [selectionKey]);
 
-    function visit(next: Partial<Filters & { page: number; selection?: string }>) {
+    function visit(next: Partial<Filters & { page: number; perPage: number; selection?: string }>) {
         const pool = next.pool ?? filters.pool;
         const status = next.status ?? filters.status;
         const state = next.state ?? filters.state;
         const university = next.university ?? filters.university;
         const graduation = next.term ?? filters.term;
-        const search = next.q ?? filters.q;
+        const source = next.source ?? filters.source ?? '';
+        const search = (next.q ?? filters.q).trim();
+        const size = next.perPage ?? perPage;
 
         router.get('/leads', {
             q: search !== '' ? search : undefined,
@@ -105,10 +111,12 @@ export default function LeadIndexPage({
             university: university !== '' ? university : undefined,
             term: graduation !== '' ? graduation : undefined,
             status: status !== '' ? status : undefined,
+            source: source !== '' ? source : undefined,
             pool: pool === 'unassigned' ? 'unassigned' : undefined,
             page: next.page && next.page > 1 ? next.page : undefined,
+            per_page: size !== 25 ? size : undefined,
             selection: next.selection,
-        }, { preserveState: true, preserveScroll: true });
+        }, { preserveState: true, preserveScroll: true, onStart: () => setSearching(true), onFinish: () => setSearching(false) });
     }
 
     function toggle(id: number) {
@@ -128,6 +136,7 @@ export default function LeadIndexPage({
                     <div className="flex flex-wrap gap-2">
                         {canFollowUp && <Button asChild variant="outline"><Link href="/leads/follow-ups">Follow-ups</Link></Button>}
                         {canReport && <Button asChild variant="outline"><Link href="/leads/reports">Reports</Link></Button>}
+                        {canManageSources && <Button asChild variant="outline"><Link href="/leads/sources">Lead sources</Link></Button>}
                         {canImport && <Button asChild><Link href="/leads/import">Import Excel</Link></Button>}
                     </div>
                 )}
@@ -143,17 +152,19 @@ export default function LeadIndexPage({
                     <Button type="button" variant={filters.pool === 'all' ? 'default' : 'outline'} onClick={() => visit({ pool: 'all', page: 1 })}>All leads</Button>
                     <Button type="button" variant={filters.pool === 'unassigned' ? 'default' : 'outline'} onClick={() => visit({ pool: 'unassigned', page: 1 })}>Unassigned pool</Button>
                 </div>
-                <form
-                    className="mb-4 grid items-end gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,0.9fr))_auto]"
-                    onSubmit={(event) => { event.preventDefault(); visit({ q: term, page: 1 }); }}
-                >
-                    <label className="grid min-w-0 gap-1 text-xs text-slate-500">
-                        Search
-                        <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Name, email, or phone" className="bg-white" />
-                    </label>
+                <div className="mb-4 grid items-end gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,0.8fr))]">
+                    <LeadSearchField applied={filters.q} onSearch={(value) => visit({ q: value, page: 1 })} />
                     <Select label="State" value={filters.state} options={options.states} onChange={(value) => visit({ state: value, page: 1 })} />
                     <Select label="University" value={filters.university} options={options.universities} onChange={(value) => visit({ university: value, page: 1 })} />
                     <Select label="Graduation term" value={filters.term} options={options.terms} onChange={(value) => visit({ term: value, page: 1 })} />
+                    <label className="grid min-w-0 gap-1 text-xs text-slate-500">
+                        Source
+                        <select aria-label="Lead source" className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={filters.source ?? ''} onChange={(event) => visit({ source: event.target.value, page: 1 })}>
+                            <option value="">All sources</option>
+                            <option value="none">No source</option>
+                            {(options.sources ?? []).map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+                        </select>
+                    </label>
                     <label className="grid min-w-0 gap-1 text-xs text-slate-500">
                         Pipeline status
                         <select aria-label="Pipeline status" className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900" value={filters.status} onChange={(event) => visit({ status: event.target.value, page: 1 })}>
@@ -161,11 +172,7 @@ export default function LeadIndexPage({
                             {options.statuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                         </select>
                     </label>
-                    <div className="flex gap-2">
-                        <Button type="submit" variant="outline">Search</Button>
-                        <Button type="button" variant="ghost" onClick={() => { setTerm(''); visit({ q: '', state: '', university: '', term: '', status: '', page: 1 }); }}>Clear</Button>
-                    </div>
-                </form>
+                </div>
                 <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
                     <span>{selected.length} selected</span>
                     <Button type="button" variant="outline" onClick={() => visit({ selection: 'matching' })}>Select all matching</Button>
@@ -174,8 +181,9 @@ export default function LeadIndexPage({
                         <Button type="button" onClick={() => router.post('/leads/assignments/prepare', { ids: selected })}>Assign to Team Lead</Button>
                     )}
                 </div>
+                {searching && <p className="mb-3 text-sm text-slate-500">Searching…</p>}
                 {leads.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No leads match these filters.</p>
+                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">{searching ? 'Searching…' : 'No leads match these filters.'}</p>
                 ) : (
                     <DataTable fit>
                         <thead>
@@ -186,6 +194,7 @@ export default function LeadIndexPage({
                                 <th className={`${headCell} w-[12%]`}>Name</th>
                                 <th className={`${headCell} w-[18%]`}>Email</th>
                                 <th className={`${headCell} w-[12%]`}>Phone</th>
+                                <th className={`${headCell} w-[10%]`}>Source</th>
                                 <th className={`${headCell} w-[6%]`}>State</th>
                                 <th className={`${headCell} w-[16%]`}>University</th>
                                 <th className={`${headCell} w-[10%]`}>Graduation term</th>
@@ -209,6 +218,7 @@ export default function LeadIndexPage({
                                         </td>
                                         <td className={`${bodyCell} max-w-0 truncate text-slate-600`} title={lead.email || undefined}>{lead.email || '—'}</td>
                                         <td className={`${bodyCell} whitespace-nowrap font-medium tabular-nums tracking-wide text-slate-950`}>{phoneLabel(lead.phone)}</td>
+                                        <td className={`${bodyCell} max-w-0 truncate`} title={lead.source || undefined}>{lead.source || '—'}</td>
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.state || '—'}</td>
                                         <td className={`${bodyCell} max-w-0 truncate`} title={lead.university || undefined}>{lead.university || '—'}</td>
                                         <td className={`${bodyCell} whitespace-nowrap`}>{lead.graduationTerm || '—'}</td>
@@ -245,7 +255,7 @@ export default function LeadIndexPage({
                         </tbody>
                     </DataTable>
                 )}
-                <Pagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} />
+                <LeadPagination page={page} pages={pages} matching={matching} perPage={perPage} onPage={(next) => visit({ page: next })} onPerPage={(size) => visit({ perPage: size, page: 1 })} />
             </SectionCard>
             <LeadFollowUpDialog
                 open={editing !== null}
@@ -264,52 +274,6 @@ function rowTone(isSelected: boolean, index: number): string {
     }
 
     return `${bodyRow} ${index % 2 === 1 ? 'bg-slate-50/80' : 'bg-white'}`;
-}
-
-function pageItems(page: number, pages: number): Array<number | 'gap'> {
-    if (pages <= 7) {
-        return Array.from({ length: pages }, (_, index) => index + 1);
-    }
-
-    const items: Array<number | 'gap'> = [1];
-    const start = Math.max(2, page - 1);
-    const end = Math.min(pages - 1, page + 1);
-
-    if (start > 2) {
-        items.push('gap');
-    }
-
-    for (let number = start; number <= end; number += 1) {
-        items.push(number);
-    }
-
-    if (end < pages - 1) {
-        items.push('gap');
-    }
-
-    items.push(pages);
-
-    return items;
-}
-
-function Pagination({ page, pages, matching, perPage, onPage }: { page: number; pages: number; matching: number; perPage: number; onPage: (page: number) => void }) {
-    const start = matching === 0 ? 0 : (page - 1) * perPage + 1;
-    const end = matching === 0 ? 0 : Math.min(page * perPage, matching);
-
-    return (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <p className="text-sm text-slate-600">Showing {start}-{end} of {matching}</p>
-            <div className="flex flex-wrap items-center gap-1">
-                <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</Button>
-                {pageItems(page, pages).map((item, index) => (
-                    item === 'gap'
-                        ? <span key={`gap-${index}`} className="px-1 text-slate-400">...</span>
-                        : <Button key={item} type="button" size="sm" variant={item === page ? 'default' : 'outline'} aria-current={item === page ? 'page' : undefined} onClick={() => onPage(item)}>{item}</Button>
-                ))}
-                <Button type="button" variant="outline" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</Button>
-            </div>
-        </div>
-    );
 }
 
 function Select({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {

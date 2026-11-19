@@ -40,6 +40,11 @@ class Lead extends Model
         return $this->belongsTo(LeadImportBatch::class, 'import_batch_id');
     }
 
+    public function source(): BelongsTo
+    {
+        return $this->belongsTo(LeadSource::class, 'lead_source_id');
+    }
+
     public function teamLead(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'team_lead_employee_id');

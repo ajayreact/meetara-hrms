@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { FileUpload } from '@/components/ui/file-upload';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
@@ -533,7 +534,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         <div className="grid gap-3 md:grid-cols-2">
                             <label className="text-sm text-slate-700">Signatory full name<input className={control} value={signatureForm.data.signatory_name} onChange={(event) => signatureForm.setData('signatory_name', event.target.value)} /></label>
                             <label className="text-sm text-slate-700">Official title<input className={control} value={signatureForm.data.signatory_title} onChange={(event) => signatureForm.setData('signatory_title', event.target.value)} /></label>
-                            <label className="text-sm text-slate-700 md:col-span-2">Signature image (PNG or JPEG)<input className={control} type="file" accept="image/png,image/jpeg" onChange={(event) => signatureForm.setData('signature', event.target.files?.[0] ?? null)} /></label>
+                            <div className="text-sm text-slate-700 md:col-span-2">Signature image (PNG or JPEG)<FileUpload className="mt-1.5" accept="image/png,image/jpeg" file={signatureForm.data.signature} hint="PNG or JPEG." error={signatureForm.errors.signature} onChange={(file) => signatureForm.setData('signature', file)} /></div>
                         </div>
                         {signatureForm.errors.signatory_name && <p className="mt-2 text-sm text-rose-700">{signatureForm.errors.signatory_name}</p>}
                         {signatureForm.errors.signatory_title && <p className="mt-2 text-sm text-rose-700">{signatureForm.errors.signatory_title}</p>}

@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { FileUpload } from '@/components/ui/file-upload';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { useForm } from '@inertiajs/react';
@@ -82,7 +83,7 @@ export default function MyDocumentsPage({
                                 <textarea className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" value={form.data.description} onChange={(event) => form.setData('description', event.target.value)} />
                             </label>
                             <label className="text-sm">File
-                                <input className="mt-1 block w-full text-sm" type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} />
+                                <FileUpload accept="application/pdf,image/png,image/jpeg" file={form.data.file} hint="PDF, PNG, or JPEG." error={form.errors.file} onChange={(file) => form.setData('file', file)} />
                             </label>
                             {form.errors.file && <p className="text-sm text-rose-700">{form.errors.file}</p>}
                             {form.errors.category && <p className="text-sm text-rose-700">{form.errors.category}</p>}

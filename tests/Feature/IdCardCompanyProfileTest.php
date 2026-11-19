@@ -144,6 +144,49 @@ class IdCardCompanyProfileTest extends TestCase
         $this->assertSame('image/jpeg', $updated->logo_mime);
     }
 
+    public function test_white_and_colored_logos_are_stored_and_served_separately(): void
+    {
+        $this->withoutVite();
+        Storage::fake('local');
+        $company = CompanyFixture::make('ID Card Two Logos', 'idcard-two-logos');
+        $other = CompanyFixture::make('Other Two Logos', 'other-two-logos');
+
+        $this->actingAs($company->hr)->post('/id-cards/settings', array_merge($this->profile('india'), [
+            'logo' => UploadedFile::fake()->image('color.png', 240, 80),
+            'white_logo' => UploadedFile::fake()->image('white.png', 240, 80),
+        ]))->assertRedirect('/id-cards/settings?country=india');
+
+        $row = DB::table('id_card_company_profiles')->where('tenant_id', $company->id)->where('country', 'india')->first();
+        $this->assertNotNull($row);
+        $this->assertNotSame($row->logo_path, $row->white_logo_path);
+        $this->assertStringContainsString('-white-', (string) $row->white_logo_path);
+        $this->assertStringStartsWith('id-cards/'.$company->id.'/logos/', (string) $row->white_logo_path);
+        Storage::disk('local')->assertExists((string) $row->logo_path);
+        Storage::disk('local')->assertExists((string) $row->white_logo_path);
+
+        $this->actingAs($company->hr)->get('/id-cards/settings?country=india')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('profile.hasLogo', true)
+            ->where('profile.hasWhiteLogo', true)
+            ->where('profile.whiteLogoUrl', '/id-cards/settings/logo?country=india&variant=white')
+        );
+
+        $this->actingAs($company->hr)->get('/id-cards/settings/logo?country=india&variant=white')->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->actingAs($other->hr)->get('/id-cards/settings/logo?country=india&variant=white')->assertNotFound();
+        $this->actingAs($company->employee)->get('/id-cards/settings/logo?country=india&variant=white')->assertForbidden();
+
+        $previous = (string) $row->white_logo_path;
+        $this->actingAs($company->hr)->post('/id-cards/settings', array_merge($this->profile('india'), [
+            'white_logo' => UploadedFile::fake()->image('white-next.jpg', 200, 60),
+        ]))->assertRedirect();
+
+        $updated = DB::table('id_card_company_profiles')->where('id', $row->id)->first();
+        $this->assertSame($row->logo_path, $updated->logo_path);
+        $this->assertNotSame($previous, $updated->white_logo_path);
+        Storage::disk('local')->assertMissing($previous);
+        Storage::disk('local')->assertExists((string) $updated->white_logo_path);
+        $this->assertSame('image/jpeg', $updated->white_logo_mime);
+    }
+
     public function test_hr_signature_is_private_to_the_company_and_prints_above_the_signatory(): void
     {
         $this->withoutVite();
@@ -300,6 +343,41 @@ class IdCardCompanyProfileTest extends TestCase
     /**
      * @return array<string, mixed>
      */
+    public function test_front_uses_the_white_logo_and_back_uses_the_colored_logo(): void
+    {
+        $white = $this->solidPng(255, 0, 0);
+        $colored = $this->solidPng(20, 90, 200);
+        $pdf = new \App\Services\Hrms\EmployeeIdCardPdf;
+        $dedicated = $pdf->render($this->cardPayload(null) + [
+            'frontLogoPath' => $white,
+            'backLogoPath' => $colored,
+            'logoPath' => $colored,
+        ]);
+        $fallback = $pdf->render($this->cardPayload(null) + [
+            'logoPath' => $colored,
+        ]);
+        $stable = static fn (string $bytes): string => preg_replace('/\/CreationDate \(D:[^)]+\)/', '/CreationDate (D:STABLE)', $bytes) ?? $bytes;
+
+        $this->assertSame(2, $pdf->pages($dedicated));
+        $this->assertNotSame($stable($dedicated), $stable($fallback));
+        $this->assertFileExists($white);
+        $this->assertFileExists($colored);
+        unlink($white);
+        unlink($colored);
+    }
+
+    private function solidPng(int $red, int $green, int $blue): string
+    {
+        $image = imagecreatetruecolor(80, 24);
+        $color = imagecolorallocate($image, $red, $green, $blue);
+        imagefilledrectangle($image, 0, 0, 79, 23, $color);
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'id-card-source-'.bin2hex(random_bytes(4)).'.png';
+        imagepng($image, $path);
+        imagedestroy($image);
+
+        return $path;
+    }
+
     private function cardPayload(?string $signaturePath): array
     {
         return [

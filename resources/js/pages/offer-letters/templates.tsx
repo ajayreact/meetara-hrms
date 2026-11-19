@@ -1,4 +1,5 @@
 import { HrmsLayout } from '@/components/hrms/hrms-layout';
+import { FileUpload } from '@/components/ui/file-upload';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm } from '@inertiajs/react';
@@ -312,7 +313,7 @@ export default function OfferTemplates({
                         <p className="mt-3 text-sm text-slate-500">No HR signature uploaded</p>
                     )}
                     <form className="mt-3 grid gap-3" onSubmit={(event) => { event.preventDefault(); signatureForm.post(route('hrms.offer-letters.signature.store'), { forceFormData: true }); }}>
-                        <input className="text-sm" type="file" accept="image/png,image/jpeg" onChange={(event) => signatureForm.setData('signature', event.target.files?.[0] ?? null)} />
+                        <FileUpload accept="image/png,image/jpeg" file={signatureForm.data.signature} hint="PNG or JPEG." error={signatureForm.errors.signature} onChange={(file) => signatureForm.setData('signature', file)} />
                         {signatureForm.errors.signature && <p className="text-sm text-rose-700">{signatureForm.errors.signature}</p>}
                         <button className="w-fit rounded-xl bg-blue-700 px-4 py-2 text-sm text-white" type="submit" disabled={signatureForm.processing}>Upload signature</button>
                     </form>
@@ -343,7 +344,7 @@ export default function OfferTemplates({
                 <p className="text-sm text-slate-600">Upload a clean one-page PDF, PNG, or JPG without appointment wording. Page size follows the file. These measurements are a starting point and can be changed.</p>
                 <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); letterheadForm.post(route('hrms.offer-letters.letterheads.store'), { forceFormData: true }); }}>
                     <label className="text-sm sm:col-span-2">Letterhead file
-                        <input className="mt-1 block w-full text-sm" type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => letterheadForm.setData('letterhead', event.target.files?.[0] ?? null)} />
+                        <FileUpload className="mt-1" accept="image/png,image/jpeg,application/pdf" file={letterheadForm.data.letterhead} hint="PNG, JPEG, or PDF." error={letterheadForm.errors.letterhead} onChange={(file) => letterheadForm.setData('letterhead', file)} />
                     </label>
                     <Field label="Page width" value={letterheadForm.data.page_width} onChange={(value) => letterheadForm.setData('page_width', value)} />
                     <Field label="Page height" value={letterheadForm.data.page_height} onChange={(value) => letterheadForm.setData('page_height', value)} />

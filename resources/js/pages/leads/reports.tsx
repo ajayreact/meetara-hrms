@@ -64,6 +64,7 @@ interface ReportsProps extends HrmsPageProps {
     universities: CountRow[];
     graduationTerms: CountRow[];
     designations: CountRow[];
+    sources?: Array<CountRow & { conversionRate: number }>;
 }
 
 function queryString(filters: Filters): string {
@@ -115,7 +116,7 @@ function Breakdown({ title, rows }: { title: string; rows: CountRow[] }) {
     );
 }
 
-export default function LeadReportsPage({ workspace, filters, summary, pipeline, teamLeads, employees, states, universities, graduationTerms, designations }: ReportsProps) {
+export default function LeadReportsPage({ workspace, filters, summary, pipeline, teamLeads, employees, states, universities, graduationTerms, designations, sources = [] }: ReportsProps) {
     return (
         <HrmsLayout workspace={workspace} title="Lead reports">
             <PageIntro
@@ -223,6 +224,34 @@ export default function LeadReportsPage({ workspace, filters, summary, pipeline,
                                         <td className={bodyCell}>{row.dueToday}</td>
                                         <td className={bodyCell}>{row.overdue}</td>
                                         <td className={bodyCell}>{row.activities}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </DataTable>
+                    )}
+                </SectionCard>
+            </div>
+            <div className="mt-4">
+                <SectionCard title="Source performance">
+                    {sources.length === 0 ? (
+                        <p className="text-sm text-slate-500">No lead sources are recorded in this range.</p>
+                    ) : (
+                        <DataTable>
+                            <thead>
+                                <tr>
+                                    <th className={headCell}>Source</th>
+                                    <th className={headCell}>Leads</th>
+                                    <th className={headCell}>Converted</th>
+                                    <th className={headCell}>Conversion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sources.map((row) => (
+                                    <tr key={row.label} className={bodyRow}>
+                                        <td className={bodyCell}>{row.label}</td>
+                                        <td className={bodyCell}>{row.total}</td>
+                                        <td className={bodyCell}>{row.converted}</td>
+                                        <td className={bodyCell}>{row.conversionRate}%</td>
                                     </tr>
                                 ))}
                             </tbody>

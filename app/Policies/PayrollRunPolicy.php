@@ -36,4 +36,9 @@ class PayrollRunPolicy
     {
         return $user->applicationRole() === 'company_admin' && (int) $run->tenant_id === (int) $user->companyId();
     }
+
+    public function process(User $user, PayrollRun $run): bool
+    {
+        return $user->applicationRole() === 'accounts' && (int) $run->tenant_id === (int) $user->companyId();
+    }
 }

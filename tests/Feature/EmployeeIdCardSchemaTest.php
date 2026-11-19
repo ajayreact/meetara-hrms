@@ -29,6 +29,8 @@ class EmployeeIdCardSchemaTest extends TestCase
             'display_name',
             'logo_path',
             'logo_mime',
+            'white_logo_path',
+            'white_logo_mime',
             'signature_path',
             'signature_mime',
             'office_address',

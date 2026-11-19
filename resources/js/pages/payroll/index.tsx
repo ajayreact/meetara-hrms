@@ -3,6 +3,7 @@ import { MetricCard } from '@/components/hrms/metric-card';
 import { PayrollNav } from '@/components/hrms/payroll-nav';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -122,12 +123,14 @@ export default function PayrollOverview({ workspace, overview, history = [], can
                                     >
                                         <Upload className="mx-auto size-5 text-blue-700" aria-hidden="true" />
                                         <p className="mt-2 text-sm font-medium text-slate-900">Drop the payroll file here</p>
-                                        <p className="mt-1 text-xs text-slate-500">CSV or XLSX, up to 5 MB. Employee ID and Net Salary are required.</p>
-                                        <label className="mt-3 inline-flex cursor-pointer">
-                                            <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800">Browse file</span>
-                                            <input className="sr-only" type="file" accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => chooseFile(event.target.files?.[0] ?? null)} />
-                                        </label>
-                                        {upload.data.file && <p className="mt-3 text-sm text-slate-700">Selected file: {upload.data.file.name}</p>}
+                                        <FileUpload
+                                            className="mx-auto mt-3 max-w-md text-left"
+                                            accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                            file={upload.data.file}
+                                            buttonLabel="Browse Files"
+                                            hint="CSV or XLSX, up to 5 MB. Employee ID and Net Salary are required."
+                                            onChange={(file) => chooseFile(file)}
+                                        />
                                     </div>
                                 )}
                                 {(localFileError || upload.errors.file) && <p className="text-sm text-rose-700" role="alert">{localFileError ?? upload.errors.file}</p>}

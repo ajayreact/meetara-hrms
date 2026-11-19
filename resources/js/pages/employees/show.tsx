@@ -2,6 +2,7 @@ import { HrmsLayout } from '@/components/hrms/hrms-layout';
 import { PageTabs, TabPanel } from '@/components/hrms/page-tabs';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -632,7 +633,7 @@ function UploadForm({ employeeId, categories }: { employeeId: number; categories
                 </select>
             </Field>
             <Field label="File" error={form.errors.file}>
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => form.setData('file', event.target.files?.[0] ?? null)} />
+                <FileUpload accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" file={form.data.file} hint="PDF, JPEG, or PNG." onChange={(file) => form.setData('file', file)} />
             </Field>
             <div className="sm:col-span-2">
                 <Button type="submit" disabled={form.processing}>{form.processing ? 'Uploading…' : 'Upload document'}</Button>

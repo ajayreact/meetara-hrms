@@ -1,5 +1,6 @@
 import { FormEvent } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
+import { FileUpload } from '@/components/ui/file-upload';
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import type { HrmsPageProps } from '@/types/hrms';
 
@@ -130,7 +131,7 @@ export default function OfferSetup({ workspace, legal = null, letterheads = [], 
                     <p className="mt-1 text-sm text-slate-600">{active ? `Active: ${active.name}, version ${active.version}, ${active.pageSize}.` : 'No active India letterhead.'}</p>
                     {active && <img alt="Active letterhead" className="mt-3 max-h-40 rounded-xl border border-slate-200" src={route('hrms.offer-letters.letterheads.preview', active.id)} />}
                     <form className="mt-4 flex flex-wrap items-center gap-3" onSubmit={(event) => { event.preventDefault(); letterhead.post(route('hrms.offer-letters.letterheads.store'), { forceFormData: true }); }}>
-                        <input type="file" accept="image/png,image/jpeg,application/pdf" onChange={(event) => letterhead.setData('letterhead', event.target.files?.[0] ?? null)} />
+                        <FileUpload accept="image/png,image/jpeg,application/pdf" file={letterhead.data.letterhead} hint="PNG, JPEG, or PDF." error={letterhead.errors.letterhead} onChange={(file) => letterhead.setData('letterhead', file)} />
                         <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit">Upload letterhead</button>
                     </form>
                 </section>
@@ -152,7 +153,7 @@ export default function OfferSetup({ workspace, legal = null, letterheads = [], 
                     </p>
                     {legal?.signatureOnFile && <img alt="HR signature" className="mt-3 max-h-16" src={route('hrms.offer-letters.signature.show', { country: 'india' })} />}
                     <form className="mt-4 flex flex-wrap items-center gap-3" onSubmit={(event) => { event.preventDefault(); signature.post(route('hrms.offer-letters.signature.store'), { forceFormData: true }); }}>
-                        <input type="file" accept="image/png,image/jpeg" onChange={(event) => signature.setData('signature', event.target.files?.[0] ?? null)} />
+                        <FileUpload accept="image/png,image/jpeg" file={signature.data.signature} hint="PNG or JPEG." error={signature.errors.signature} onChange={(file) => signature.setData('signature', file)} />
                         <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm" type="submit">Upload signature</button>
                     </form>
                     <form className="mt-4" onSubmit={(event) => { event.preventDefault(); placement.transform((data) => ({ ...data, country: 'india', enabled: data.enabled ? 1 : 0, width: Number(data.width), height: Number(data.height), gap_before: Number(data.gap_before), gap_after: Number(data.gap_after) })); placement.post(route('hrms.offer-letters.signature.settings')); }}>

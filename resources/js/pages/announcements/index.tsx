@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { FileUpload } from '@/components/ui/file-upload';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
@@ -102,7 +103,7 @@ function AnnouncementForm({ categories, visibility }: { categories: Record<strin
                     </label>
                 </div>
                 <label className="text-sm text-slate-700">Attachment
-                    <input className="mt-1 block w-full text-sm" type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => form.setData('attachment', event.target.files?.[0] ?? null)} />
+                    <FileUpload accept="application/pdf,image/png,image/jpeg" file={form.data.attachment} hint="PDF, PNG, or JPEG." error={form.errors.attachment} onChange={(file) => form.setData('attachment', file)} />
                 </label>
                 <button className="w-fit rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60" type="submit" disabled={form.processing}>Save draft</button>
             </form>

@@ -87,6 +87,7 @@ class PayrollController extends Controller
         return Inertia::render('payroll/show', [
             'run' => $directory->run($payrollRun),
             'canPrepare' => $request->user()->can('prepare', $payrollRun),
+            'canProcess' => $request->user()->can('process', $payrollRun),
             'canApprove' => $request->user()->can('approve', $payrollRun),
             'notice' => session('status'),
             'error' => session('error'),

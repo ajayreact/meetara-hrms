@@ -136,6 +136,83 @@ class UsaOfferLetters
     /**
      * @param  array<string, mixed>  $input
      */
+    /**
+     * @return array<string, string>
+     */
+    public function appointment(int $companyId): array
+    {
+        $this->ensureProfile($companyId);
+
+        if (! Schema::hasColumn('usa_offer_profiles', 'appointment_template')) {
+            return UsaOfferAppointment::defaults();
+        }
+
+        $stored = DB::table('usa_offer_profiles')->where('tenant_id', $companyId)->value('appointment_template');
+
+        return UsaOfferAppointment::normalize($stored);
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    public function saveAppointment(int $companyId, array $input): void
+    {
+        $this->ensureProfile($companyId);
+
+        if (! Schema::hasColumn('usa_offer_profiles', 'appointment_template')) {
+            throw ValidationException::withMessages([
+                'appointment' => 'USA appointment letter storage is not available yet.',
+            ]);
+        }
+
+        DB::table('usa_offer_profiles')->where('tenant_id', $companyId)->update([
+            'appointment_template' => json_encode(UsaOfferAppointment::normalize($input), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    public function previewAppointment(int $companyId, array $template): string
+    {
+        $sample = [
+            'designation_name' => 'Sample Position',
+            'responsibilities' => ['Sample responsibility stored on the offer.'],
+            'candidate_name' => 'Sample Candidate',
+            'candidate_email' => 'candidate@example.test',
+            'candidate_phone' => '+1 555 0100',
+            'candidate_address' => '100 Sample Street',
+            'employment_type' => 'Full time',
+            'pay_type' => 'hourly',
+            'pay_amount' => '20.00',
+            'working_hours' => '40 hours per week',
+            'work_arrangement' => 'remote position',
+            'university' => 'Sample University',
+            'start_date' => '2026-12-01',
+            'issue_date' => now()->toDateString(),
+        ];
+
+        return $this->pdf->render(
+            $sample,
+            $this->profile($companyId),
+            ...[...$this->requireStationery($companyId), UsaOfferAppointment::isBuiltIn(UsaOfferAppointment::normalize($template)) ? null : UsaOfferAppointment::normalize($template)],
+        );
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function appointmentForRender(int $companyId): ?array
+    {
+        $template = $this->appointment($companyId);
+
+        return UsaOfferAppointment::isBuiltIn($template) ? null : $template;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
     public function saveProfile(int $companyId, array $input): void
     {
         $this->ensureProfile($companyId);
@@ -270,7 +347,7 @@ class UsaOfferLetters
             return $this->stored($offer->file_path);
         }
 
-        return $this->pdf->render($this->document($offer), $this->profile($companyId), ...$this->requireStationery($companyId));
+        return $this->pdf->render($this->document($offer), $this->profile($companyId), ...[...$this->requireStationery($companyId), $this->appointmentForRender($companyId)]);
     }
 
     public function generate(User $actor, int $offerId): void
@@ -280,7 +357,7 @@ class UsaOfferLetters
         $this->assertDraft($offer);
         $profile = $this->profile($companyId);
         $document = $this->document($offer);
-        $bytes = $this->pdf->render($document, $profile, ...$this->requireStationery($companyId));
+        $bytes = $this->pdf->render($document, $profile, ...[...$this->requireStationery($companyId), $this->appointmentForRender($companyId)]);
         $path = 'usa-offers/'.$companyId.'/'.$offer->id.'.pdf';
         Storage::disk('local')->put($path, $bytes);
 

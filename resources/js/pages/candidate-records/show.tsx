@@ -4,6 +4,7 @@ import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
@@ -317,7 +318,7 @@ export default function CandidateRecordPage({ workspace, record, options, notice
                             </select>
                         </Labeled>
                         <Labeled label="Label"><Input value={upload.data.label} onChange={(event) => upload.setData('label', event.target.value)} placeholder="Required for Other" /></Labeled>
-                        <Labeled label="File"><Input type="file" onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)} /></Labeled>
+                        <Labeled label="File"><FileUpload file={upload.data.file} error={upload.errors.file} onChange={(file) => upload.setData('file', file)} /></Labeled>
                         <div className="self-end"><Button type="submit" disabled={upload.processing}>Upload</Button></div>
                         <InputError message={upload.errors.file || upload.errors.label} />
                     </form>
@@ -355,7 +356,7 @@ export default function CandidateRecordPage({ workspace, record, options, notice
                                     const file = new FormData(event.currentTarget).get('file');
                                     router.post(`/candidate-records/${record.id}/payments/${item.id}/receipts`, { file }, { forceFormData: true, preserveScroll: true });
                                 }}>
-                                    <Input type="file" name="file" aria-label={`Receipt for payment ${item.id}`} />
+                                    <FileUpload name="file" ariaLabel={`Receipt for payment ${item.id}`} hint="Attach the payment receipt." />
                                     <Button type="submit" variant="outline">Upload receipt</Button>
                                 </form>
                             </div>

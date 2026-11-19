@@ -2,6 +2,7 @@ import { bodyCell, bodyRow, DataTable, headCell } from '@/components/hrms/data-t
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
 import { SectionCard, StatusBadge } from '@/components/hrms/section-card';
 import { Button } from '@/components/ui/button';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, useForm } from '@inertiajs/react';
@@ -98,20 +99,20 @@ export default function StandaloneIdCardImportPage({
                         upload.post(route('hrms.id-cards.standalone.import.store'), { forceFormData: true });
                     }}
                 >
-                    <label className="grid gap-1 text-sm" htmlFor="standalone-id-file">
+                    <div className="grid gap-1 text-sm">
                         <Label htmlFor="standalone-id-file">Excel file</Label>
-                        <input
+                        <FileUpload
                             id="standalone-id-file"
-                            className="block w-full text-sm"
-                            type="file"
                             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            onChange={(event) => upload.setData('file', event.target.files?.[0] ?? null)}
+                            file={upload.data.file}
+                            hint="Excel .xlsx workbook, up to the server upload limit."
+                            error={upload.errors.file}
+                            onChange={(file) => upload.setData('file', file)}
                         />
-                    </label>
+                    </div>
                     <p className="text-sm text-slate-600">
                         Use an .xlsx file. Sheet1 is imported. Card Number is optional and auto-generated when blank. Photos are added later on each draft card.
                     </p>
-                    {upload.errors.file && <p className="text-sm text-rose-700">{upload.errors.file}</p>}
                     <Button type="submit" disabled={upload.processing || upload.data.file === null}>
                         {upload.processing ? 'Uploading…' : 'Upload and preview'}
                     </Button>

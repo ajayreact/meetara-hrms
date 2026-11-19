@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrms;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Hrms\UsaDesignationCatalog;
+use App\Services\Hrms\UsaOfferAppointment;
 use App\Services\Hrms\UsaOfferLetters;
 use App\Support\AuthenticatedWorkspace;
 use Illuminate\Http\RedirectResponse;
@@ -75,6 +76,9 @@ class UsaOfferController extends Controller
             'groups' => UsaDesignationCatalog::GROUPS,
             'profile' => $this->offers->profile($companyId),
             'stationery' => $this->offers->stationery($companyId),
+            'appointment' => $this->offers->appointment($companyId),
+            'appointmentCustomized' => ! UsaOfferAppointment::isBuiltIn($this->offers->appointment($companyId)),
+            'tab' => $this->tab($request),
             'notice' => session('status'),
         ]);
     }
@@ -125,7 +129,30 @@ class UsaOfferController extends Controller
         ]);
         $this->offers->saveProfile((int) $actor->companyId(), $data);
 
-        return redirect()->route('hrms.usa-offers.settings')->with('status', 'USA offer letter details saved.');
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => 'company'])->with('status', 'USA offer letter details saved.');
+    }
+
+    public function saveAppointment(Request $request): RedirectResponse
+    {
+        $actor = $this->manager($request);
+        $this->offers->saveAppointment((int) $actor->companyId(), $this->appointmentInput($request));
+
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => 'letter'])->with('status', 'USA appointment letter saved. Previously generated PDFs were not changed.');
+    }
+
+    public function previewAppointment(Request $request): HttpResponse|RedirectResponse
+    {
+        $actor = $this->manager($request);
+
+        try {
+            return $this->pdf(
+                $this->offers->previewAppointment((int) $actor->companyId(), $this->appointmentInput($request)),
+                'inline',
+                'USA-appointment-letter-preview.pdf',
+            );
+        } catch (ValidationException $exception) {
+            return redirect()->route('hrms.usa-offers.settings', ['tab' => 'letter'])->withErrors($exception->errors());
+        }
     }
 
     public function saveLetterhead(Request $request): RedirectResponse
@@ -162,7 +189,7 @@ class UsaOfferController extends Controller
             (bool) $data['active'],
         );
 
-        return redirect()->route('hrms.usa-offers.settings')->with('status', 'Default responsibilities updated. Existing offers were not changed.');
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => 'letter'])->with('status', 'Default responsibilities updated. Existing offers were not changed.');
     }
 
     public function addDesignation(Request $request): RedirectResponse
@@ -180,7 +207,7 @@ class UsaOfferController extends Controller
             preg_split('/\r\n|\r|\n/', $data['responsibilities']) ?: [],
         );
 
-        return redirect()->route('hrms.usa-offers.settings')->with('status', 'Designation added.');
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => 'letter'])->with('status', 'Designation added.');
     }
 
     public function restoreDesignation(Request $request, int $usaDesignation): RedirectResponse
@@ -188,7 +215,7 @@ class UsaOfferController extends Controller
         $actor = $this->manager($request);
         $this->catalog->restore((int) $actor->companyId(), $usaDesignation);
 
-        return redirect()->route('hrms.usa-offers.settings')->with('status', 'Default responsibilities restored. Existing offers were not changed.');
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => 'letter'])->with('status', 'Default responsibilities restored. Existing offers were not changed.');
     }
 
     public function preview(Request $request, int $offer): HttpResponse|RedirectResponse
@@ -284,7 +311,7 @@ class UsaOfferController extends Controller
         $data = $request->validate($rules);
         $this->offers->saveStationery((int) $actor->companyId(), $kind, $data[$kind]);
 
-        return redirect()->route('hrms.usa-offers.settings')->with('status', $kind === 'letterhead' ? 'Company letterhead saved. Generated offers were not changed.' : 'HR signature saved. Generated offers were not changed.');
+        return redirect()->route('hrms.usa-offers.settings', ['tab' => $kind === 'letterhead' ? 'letterhead' : 'signature'])->with('status', $kind === 'letterhead' ? 'Company letterhead saved. Generated offers were not changed.' : 'HR signature saved. Generated offers were not changed.');
     }
 
     private function showStationery(Request $request, string $kind): BinaryFileResponse
@@ -308,6 +335,28 @@ class UsaOfferController extends Controller
         $response->headers->set('Cache-Control', 'private, no-store');
 
         return $response;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function appointmentInput(Request $request): array
+    {
+        $rules = [];
+
+        foreach (UsaOfferAppointment::keys() as $key) {
+            $limit = in_array($key, ['subject', 'responsibilities_heading', 'closing'], true) ? 200 : 4000;
+            $rules[$key] = ['nullable', 'string', 'max:'.$limit];
+        }
+
+        return UsaOfferAppointment::normalize($request->validate($rules));
+    }
+
+    private function tab(Request $request): string
+    {
+        $tab = (string) $request->query('tab', 'company');
+
+        return in_array($tab, ['company', 'letterhead', 'signature', 'letter'], true) ? $tab : 'company';
     }
 
     private function manager(Request $request): User

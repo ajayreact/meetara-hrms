@@ -10,10 +10,12 @@ use Tests\TestCase;
 
 class CompanyAdminInvitationMysqlTest extends TestCase
 {
+    private const DATABASE = 'meetara_hrms_invite_20261020';
+
     public function test_overlapping_acceptance_allows_one_account(): void
     {
-        if (TestDatabaseGuard::integrationDecision('meetara_hrms_invite_20261020') === 'skip') {
-            $this->markTestSkipped('Invitation row locks are run on the disposable MySQL database meetara_hrms_invite_20261020.');
+        if (TestDatabaseGuard::integrationDecision(self::DATABASE) === 'skip') {
+            $this->markTestSkipped('Invitation row locks are run on the disposable MySQL database '.self::DATABASE.'.');
         }
 
         $engine = DB::selectOne(
@@ -60,7 +62,7 @@ class CompanyAdminInvitationMysqlTest extends TestCase
         $holder->query('SELECT id FROM company_admin_invitations WHERE id='.(int) $invitationId.' FOR UPDATE');
         $environment = getenv() ?: [];
         $environment['DB_CONNECTION'] = 'mysql';
-        $environment['DB_DATABASE'] = $database;
+        $environment['DB_DATABASE'] = self::DATABASE;
         $child = proc_open(
             [PHP_BINARY, base_path('tests/Support/accept-invitation-once.php'), $token],
             [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
