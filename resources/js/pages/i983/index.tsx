@@ -1,4 +1,5 @@
 import { HrmsLayout, PageIntro } from '@/components/hrms/hrms-layout';
+import { LeadPagination, LeadSearchField } from '@/components/hrms/lead-listing';
 import { SectionCard } from '@/components/hrms/section-card';
 import type { HrmsPageProps } from '@/types/hrms';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
@@ -12,7 +13,20 @@ interface CaseRow {
     status: string;
     stageLabel?: string;
     submitted: boolean;
+    canReviewEvaluation?: boolean;
     createdAt: string;
+}
+
+interface Catalog {
+    cases?: CaseRow[];
+    matching?: number;
+    page?: number;
+    pages?: number;
+    perPage?: number;
+    q?: string;
+    sort?: string;
+    direction?: string;
+    notice?: string;
 }
 
 const control = 'mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm';
@@ -29,13 +43,38 @@ function label(status: string): string {
     return labels[status] ?? status;
 }
 
-export default function I983Index({ workspace, cases = [], notice }: HrmsPageProps & { cases?: CaseRow[]; notice?: string }) {
+function visit(query: Record<string, string | number>) {
+    router.get(route('hrms.i983'), query, { preserveState: true, preserveScroll: true, replace: true });
+}
+
+export default function I983Index({
+    workspace,
+    cases = [],
+    matching = 0,
+    page = 1,
+    pages = 1,
+    perPage = 25,
+    q = '',
+    sort = 'created',
+    direction = 'desc',
+    notice,
+}: HrmsPageProps & Catalog) {
     const form = useForm({ candidate_name: '', candidate_email: '' });
     const errors = usePage().props.errors as Record<string, string>;
+    const query = { q, sort, direction, page, per_page: perPage };
 
     function submit(event: FormEvent) {
         event.preventDefault();
         form.post(route('hrms.i983.store'));
+    }
+
+    function search(value: string) {
+        visit({ ...query, q: value, page: 1 });
+    }
+
+    function sortBy(column: string) {
+        const next = sort === column ? (direction === 'asc' ? 'desc' : 'asc') : column === 'created' ? 'desc' : 'asc';
+        visit({ ...query, sort: column, direction: next, page: 1 });
     }
 
     return (
@@ -54,16 +93,21 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
                 </SectionCard>
             </form>
             <SectionCard title="Cases">
-                {cases.length === 0 ? <p className="text-sm text-slate-600">No I-983 cases yet.</p> : (
+                <div className="mb-4">
+                    <LeadSearchField applied={q} onSearch={search} placeholder="Reference, candidate name, or email" ariaLabel="Search I-983 cases" />
+                </div>
+                {cases.length === 0 ? (
+                    <p className="text-sm text-slate-600">{q === '' ? 'No I-983 cases yet.' : 'No I-983 cases match this search.'}</p>
+                ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-left text-sm">
                             <thead className="text-xs uppercase tracking-wide text-slate-500">
                                 <tr>
-                                    <th className="py-2 pr-3">Reference</th>
-                                    <th className="py-2 pr-3">Candidate</th>
+                                    <th className="py-2 pr-3"><button type="button" className="font-medium" onClick={() => sortBy('reference')}>Reference</button></th>
+                                    <th className="py-2 pr-3"><button type="button" className="font-medium" onClick={() => sortBy('name')}>Candidate</button></th>
                                     <th className="py-2 pr-3">Email</th>
-                                    <th className="py-2 pr-3">Status</th>
-                                    <th className="py-2 pr-3">Created</th>
+                                    <th className="py-2 pr-3"><button type="button" className="font-medium" onClick={() => sortBy('status')}>Status</button></th>
+                                    <th className="py-2 pr-3"><button type="button" className="font-medium" onClick={() => sortBy('created')}>Created</button></th>
                                     <th className="py-2">Action</th>
                                 </tr>
                             </thead>
@@ -78,6 +122,9 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
                                         <td className="py-2">
                                             <div className="flex flex-wrap items-center gap-3">
                                                 <Link className="font-medium text-blue-700" href={route('hrms.i983.show', item.id)}>Review</Link>
+                                                {item.canReviewEvaluation && (
+                                                    <Link className="font-medium text-blue-700" href={route('hrms.i983.evaluation', item.id)}>Review Evaluation</Link>
+                                                )}
                                                 {workspace.role === 'company_admin' && (
                                                     <button className="font-medium text-rose-700" type="button" onClick={() => {
                                                         if (window.confirm(`Delete ${item.reference} (${label(item.status)}) for ${item.candidate}? The case, student link, and stored PDFs will be removed. This cannot be undone.`)) {
@@ -92,6 +139,16 @@ export default function I983Index({ workspace, cases = [], notice }: HrmsPagePro
                             </tbody>
                         </table>
                     </div>
+                )}
+                {matching > 0 && (
+                    <LeadPagination
+                        page={page}
+                        pages={pages}
+                        matching={matching}
+                        perPage={perPage}
+                        onPage={(next) => visit({ ...query, page: next })}
+                        onPerPage={(next) => visit({ ...query, per_page: next, page: 1 })}
+                    />
                 )}
             </SectionCard>
         </HrmsLayout>

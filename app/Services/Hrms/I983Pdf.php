@@ -28,11 +28,24 @@ class I983Pdf
     public const EMPLOYER_ADDRESS_KEYS = ['street', 'suite', 'city', 'state', 'zip', 'site_address'];
 
     /**
+     * Employer-owned fields. A student-submitted PDF leaves these blank.
+     * HR working, employer-signed, and final copies still print them.
+     *
+     * @var list<string>
+     */
+    public const EMPLOYER_PRINT_KEYS = [
+        'employer_name', 'street', 'suite', 'website', 'city', 'state', 'zip',
+        'ein', 'employee_count', 'naics', 'opt_hours', 'salary', 'start_date', 'other_compensation',
+        'site_name', 'site_address', 'official_name', 'official_title', 'official_email', 'official_phone',
+        'oversight', 'measures', 'remarks',
+    ];
+
+    /**
      * @param  array<string, string>  $values
      * @param  array{image: string, name_title: string, date: string, organization: string}|null  $signature
      * @param  array{image: string, printed_name: string, date: string}|null  $studentCertification
      */
-    public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false, bool $deferEmployerAddress = false): string
+    public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false, bool $studentCopy = false): string
     {
         $source = storage_path('app/private/i983/official-i983.pdf');
         $pdf = new Fpdi('P', 'pt', [612, 792]);
@@ -53,14 +66,14 @@ class I983Pdf
                 if ($box['page'] !== $page) {
                     continue;
                 }
-                $text = trim((string) ($values[$box['key']] ?? ''));
-                if ($deferEmployerAddress && $this->employerAddressDeferred($pdf, $box, $text)) {
+                if ($studentCopy && in_array($box['key'], self::EMPLOYER_PRINT_KEYS, true)) {
                     continue;
                 }
+                $text = trim((string) ($values[$box['key']] ?? ''));
                 $this->draw($pdf, $box, $text);
             }
 
-            if ($page === 2) {
+            if ($page === 2 && ! $studentCopy) {
                 $this->drawLines($pdf, $this->compensationLines(trim((string) ($values['other_compensation'] ?? ''))), 236, [202.54, 220.30, 238.30, 256.30]);
             }
 
@@ -72,7 +85,7 @@ class I983Pdf
                 $this->drawStudentCertification($pdf, $studentCertification);
             }
 
-            if ($signature !== null && ($page === 2 || $page === 4)) {
+            if (! $studentCopy && $signature !== null && ($page === 2 || $page === 4)) {
                 $this->drawEmployerSignature($pdf, $page, $signature);
             }
 
@@ -82,6 +95,65 @@ class I983Pdf
         }
 
         return $pdf->Output('S');
+    }
+
+    /**
+     * Draw only the final-evaluation block on page 5 of an existing five-page PDF.
+     * Pages 1–4 are copied. The source bytes are not modified.
+     *
+     * @param  array{date_from: string, date_to: string, narrative: string, student_name: string, student_date: string, student_image: string, employer_name: string, employer_date: string, employer_image: string}  $fields
+     */
+    public function overlayFinalEvaluation(string $bytes, array $fields): string
+    {
+        $this->assertFinalNarrative($fields['narrative']);
+        $temp = tempnam(sys_get_temp_dir(), 'i983');
+
+        if ($temp === false) {
+            throw ValidationException::withMessages([
+                'form' => 'The evaluation PDF could not be prepared.',
+            ]);
+        }
+
+        file_put_contents($temp, $bytes);
+
+        try {
+            $pdf = new Fpdi('P', 'pt', [612, 792]);
+            $pdf->SetMargins(0, 0, 0);
+            $pdf->SetAutoPageBreak(false);
+            $pdf->SetCompression(false);
+            $count = $pdf->setSourceFile($temp);
+
+            if ($count !== 5) {
+                throw ValidationException::withMessages([
+                    'form' => 'The I-983 does not have the five official pages, so the evaluation was not written.',
+                ]);
+            }
+
+            for ($page = 1; $page <= $count; $page++) {
+                $template = $pdf->importPage($page);
+                $size = $pdf->getTemplateSize($template);
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($template, 0, 0, $size['width'], $size['height']);
+
+                if ($page !== 5) {
+                    continue;
+                }
+
+                $pdf->SetFont('Helvetica', '', 8);
+                $pdf->SetTextColor(0, 0, 0);
+
+                foreach ($this->finalEvaluationText($fields) as $field) {
+                    $this->draw($pdf, $field, $field['text']);
+                }
+
+                $this->drawSignatureImage($pdf, $fields['student_image'], 128, 137.88);
+                $this->drawSignatureImage($pdf, $fields['employer_image'], 248, 99.60);
+            }
+
+            return $pdf->Output('S');
+        } finally {
+            @unlink($temp);
+        }
     }
 
     /**
@@ -107,7 +179,7 @@ class I983Pdf
         $measure->SetFont('Helvetica', '', 8);
 
         foreach ($this->boxes() as $box) {
-            if ($mode === 'student' && in_array($box['key'], self::EMPLOYER_ADDRESS_KEYS, true)) {
+            if ($mode === 'student' && in_array($box['key'], self::EMPLOYER_PRINT_KEYS, true)) {
                 continue;
             }
 
@@ -147,7 +219,7 @@ class I983Pdf
 
         $compensation = trim((string) ($values['other_compensation'] ?? ''));
 
-        if ($compensation !== '') {
+        if ($mode !== 'student' && $compensation !== '') {
             $lines = $this->wrap($measure, $compensation, 332);
 
             if ($lines === null || count($lines) > 4) {
@@ -637,6 +709,55 @@ class I983Pdf
             $this->at(3, 'measures', 'Measures and Assessments', 46, 566, 149.0, 80),
             $this->at(4, 'remarks', 'Additional Remarks', 46, 566, 733.0, 70),
         ];
+    }
+
+    /**
+     * Measured from the official Form I-983 (7/16) page 5 content stream.
+     * Date underlines are y=337.80. The student signature line is y=137.88.
+     * The student name and date lines are y=115.80. The employer signature line
+     * is y=99.60. The employer name and date lines are y=84.00.
+     *
+     * @param  array{date_from: string, date_to: string, narrative: string, student_name: string, student_date: string, employer_name: string, employer_date: string}  $fields
+     * @return list<array{key: string, label: string, page: int, x: float, y: float, w: float, h: float, text: string}>
+     */
+    private function finalEvaluationText(array $fields): array
+    {
+        return [
+            [...$this->at(5, 'final_date_from', 'Final evaluation from', 230, 301, 337.80), 'text' => $fields['date_from']],
+            [...$this->at(5, 'final_date_to', 'Final evaluation to', 374, 444, 337.80), 'text' => $fields['date_to']],
+            [...$this->finalNarrativeBox(), 'text' => $fields['narrative']],
+            [...$this->at(5, 'final_student_name', 'Printed name of student', 142, 410, 115.80), 'text' => $fields['student_name']],
+            [...$this->at(5, 'final_student_date', 'Student signature date', 496, 562, 115.80), 'text' => $fields['student_date']],
+            [...$this->at(5, 'final_employer_name', 'Employer official name and title', 260, 410, 84.00), 'text' => $fields['employer_name']],
+            [...$this->at(5, 'final_employer_date', 'Employer signature date', 495, 560, 84.00), 'text' => $fields['employer_date']],
+        ];
+    }
+
+    /**
+     * The final-evaluation narrative sits below the measured date line at y=337.80
+     * and above the student signature line at y=137.88 on page 5.
+     */
+    public function assertFinalNarrative(string $narrative): void
+    {
+        $box = $this->finalNarrativeBox();
+        $measure = new \FPDF('P', 'pt', [612, 792]);
+        $measure->SetFont('Helvetica', '', 8);
+        $lines = $this->wrap($measure, $narrative, $box['w']);
+        $max = max(1, (int) floor($box['h'] / 10));
+
+        if ($lines === null || count($lines) > $max) {
+            throw ValidationException::withMessages([
+                'narrative' => 'The progress narrative does not fit in the final evaluation box. Shorten it.',
+            ]);
+        }
+    }
+
+    /**
+     * @return array{key: string, label: string, page: int, x: float, y: float, w: float, h: float}
+     */
+    private function finalNarrativeBox(): array
+    {
+        return $this->at(5, 'final_narrative', 'Final evaluation narrative', 46, 566, 326, 170);
     }
 
     /**

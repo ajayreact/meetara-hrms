@@ -61,7 +61,10 @@ Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->g
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/signature', [I983SubmissionController::class, 'signature'])->where('token', '[a-f0-9]{64}')->name('i983.submit.signature');
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final', [I983SubmissionController::class, 'preview'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final');
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/final/download', [I983SubmissionController::class, 'download'])->where('token', '[a-f0-9]{64}')->name('i983.submit.final.download');
+Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/evaluation', [I983SubmissionController::class, 'previewEvaluation'])->where('token', '[a-f0-9]{64}')->name('i983.submit.evaluation.preview');
+Route::middleware([PublicFormHeaders::class, 'throttle:60,1,i983-form-read'])->get('/i983/s/{token}/evaluation/download', [I983SubmissionController::class, 'downloadEvaluation'])->where('token', '[a-f0-9]{64}')->name('i983.submit.evaluation.download');
 Route::middleware([PublicFormHeaders::class, 'throttle:20,1,i983-form-save'])->post('/i983/s/{token}', [I983SubmissionController::class, 'update'])->where('token', '[a-f0-9]{64}')->name('i983.submit.update');
+Route::middleware([PublicFormHeaders::class, 'throttle:20,1,i983-form-save'])->post('/i983/s/{token}/evaluation', [I983SubmissionController::class, 'saveEvaluation'])->where('token', '[a-f0-9]{64}')->name('i983.submit.evaluation');
 
 Route::middleware([PublicFormHeaders::class, 'throttle:60,1,id-card-verify'])->get('/id-cards/verify/{token}', [EmployeeIdCardVerifyController::class, 'show'])->where('token', '[a-f0-9]{64}')->name('id-cards.verify');
 
@@ -258,6 +261,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/usa-offers/{offer}', [UsaOfferController::class, 'destroy'])->whereNumber('offer')->name('hrms.usa-offers.destroy');
     Route::get('/i983', [I983CaseController::class, 'index'])->name('hrms.i983');
     Route::post('/i983', [I983CaseController::class, 'store'])->middleware('throttle:20,1')->name('hrms.i983.store');
+    Route::get('/i983/{case}/evaluation', [I983CaseController::class, 'evaluation'])->whereNumber('case')->name('hrms.i983.evaluation');
+    Route::post('/i983/{case}/evaluation', [I983CaseController::class, 'saveEvaluation'])->whereNumber('case')->name('hrms.i983.evaluation.save');
+    Route::post('/i983/{case}/evaluation/signature', [I983CaseController::class, 'confirmEvaluationSignature'])->whereNumber('case')->name('hrms.i983.evaluation.signature');
+    Route::get('/i983/{case}/evaluation/preview', [I983CaseController::class, 'previewEvaluation'])->whereNumber('case')->name('hrms.i983.evaluation.preview');
+    Route::post('/i983/{case}/evaluation/document', [I983CaseController::class, 'storeEvaluation'])->whereNumber('case')->name('hrms.i983.evaluation.document');
     Route::get('/i983/{case}', [I983CaseController::class, 'show'])->whereNumber('case')->name('hrms.i983.show');
     Route::post('/i983/{case}/employer', [I983CaseController::class, 'saveEmployer'])->whereNumber('case')->name('hrms.i983.employer');
     Route::post('/i983/{case}/employer/finalize', [I983CaseController::class, 'finalizeEmployer'])->whereNumber('case')->name('hrms.i983.employer.finalize');

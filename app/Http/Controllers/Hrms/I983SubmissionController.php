@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Hrms;
 
 use App\Http\Controllers\Controller;
 use App\Services\Hrms\I983Cases;
+use App\Services\Hrms\I983Evaluations;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
@@ -12,7 +14,10 @@ use Inertia\Response;
 
 class I983SubmissionController extends Controller
 {
-    public function __construct(private readonly I983Cases $cases) {}
+    public function __construct(
+        private readonly I983Cases $cases,
+        private readonly I983Evaluations $evaluations,
+    ) {}
 
     public function show(Request $request, string $token): Response
     {
@@ -39,6 +44,24 @@ class I983SubmissionController extends Controller
             : 'Draft saved on this link. You can return with the same link until it expires.');
     }
 
+    public function saveEvaluation(Request $request, string $token): RedirectResponse
+    {
+        if ($request->filled('fax')) {
+            abort(404);
+        }
+
+        $signature = $request->file('signature');
+        $this->evaluations->saveStudent(
+            $token,
+            $request->except(['fax', 'signature']),
+            $signature instanceof UploadedFile ? $signature : null,
+        );
+
+        return back()->with('status', $signature instanceof UploadedFile
+            ? 'Your evaluation narrative and signature are saved.'
+            : 'Your evaluation narrative is saved.');
+    }
+
     public function preview(string $token): HttpResponse
     {
         return $this->pdf($this->cases->studentFinal($token), 'inline');
@@ -47,6 +70,16 @@ class I983SubmissionController extends Controller
     public function download(string $token): HttpResponse
     {
         return $this->pdf($this->cases->studentFinal($token), 'attachment');
+    }
+
+    public function previewEvaluation(string $token): HttpResponse
+    {
+        return $this->pdf($this->evaluations->studentEvaluationFile($token), 'inline');
+    }
+
+    public function downloadEvaluation(string $token): HttpResponse
+    {
+        return $this->pdf($this->evaluations->studentEvaluationFile($token), 'attachment');
     }
 
     public function signature(string $token): HttpResponse

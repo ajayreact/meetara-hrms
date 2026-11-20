@@ -4,6 +4,7 @@ namespace App\Services\Hrms;
 
 use App\Auth\CompanyRole;
 use App\Models\User;
+use App\Support\LeadListing;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
@@ -43,17 +44,54 @@ class I983Cases
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @param  array<string, mixed>  $input
+     * @return array{cases: list<array<string, mixed>>, matching: int, page: int, pages: int, perPage: int, q: string, sort: string, direction: string}
      */
-    public function list(int $companyId): array
+    public function catalog(int $companyId, array $input = []): array
     {
+        $perPage = LeadListing::perPage($input);
+        $q = trim((string) ($input['q'] ?? ''));
+        $sorts = [
+            'name' => 'candidate_name',
+            'reference' => 'reference',
+            'status' => 'status',
+            'created' => 'created_at',
+        ];
+        $sort = array_key_exists((string) ($input['sort'] ?? ''), $sorts) ? (string) $input['sort'] : 'created';
+        $direction = (string) ($input['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+        $empty = [
+            'cases' => [],
+            'matching' => 0,
+            'page' => 1,
+            'pages' => 1,
+            'perPage' => $perPage,
+            'q' => $q,
+            'sort' => $sort,
+            'direction' => $direction,
+        ];
+
         if (! Schema::hasTable('i983_cases')) {
-            return [];
+            return $empty;
         }
 
-        return DB::table('i983_cases')
-            ->where('tenant_id', $companyId)
+        $query = DB::table('i983_cases')->where('tenant_id', $companyId);
+
+        if ($q !== '') {
+            $like = '%'.addcslashes($q, '%_\\').'%';
+            $query->where(function ($inner) use ($like): void {
+                $inner->where('candidate_name', 'like', $like)
+                    ->orWhere('candidate_email', 'like', $like)
+                    ->orWhere('reference', 'like', $like);
+            });
+        }
+
+        $matching = (clone $query)->count();
+        $pages = max(1, (int) ceil($matching / $perPage));
+        $page = min(max(1, (int) ($input['page'] ?? 1)), $pages);
+        $cases = $query
+            ->orderBy($sorts[$sort], $direction)
             ->orderByDesc('id')
+            ->forPage($page, $perPage)
             ->get()
             ->map(function (object $row): array {
                 $workflow = $this->workflow($row);
@@ -67,10 +105,30 @@ class I983Cases
                     'stage' => $workflow['stage'],
                     'stageLabel' => $workflow['label'],
                     'submitted' => $row->student_submitted_at !== null,
+                    'canReviewEvaluation' => $row->student_submitted_at !== null,
                     'createdAt' => substr((string) $row->created_at, 0, 10),
                 ];
             })
             ->all();
+
+        return [
+            'cases' => $cases,
+            'matching' => $matching,
+            'page' => $page,
+            'pages' => $pages,
+            'perPage' => $perPage,
+            'q' => $q,
+            'sort' => $sort,
+            'direction' => $direction,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function list(int $companyId): array
+    {
+        return $this->catalog($companyId)['cases'];
     }
 
     public function remove(User $actor, int $caseId): void
@@ -622,7 +680,23 @@ class I983Cases
             'training' => $this->presentTraining($training, $student, $employer),
             'employer' => $this->studentEmployer(),
             'employerCertification' => ['signed' => false, 'printedName' => '', 'title' => '', 'certifiedOn' => ''],
-            'evaluations' => [],
+            'evaluation' => $case->student_submitted_at === null
+                ? [
+                    'available' => false,
+                    'dateFrom' => '',
+                    'dateTo' => '',
+                    'narrative' => '',
+                    'studentName' => '',
+                    'studentSigned' => false,
+                    'studentSignedOn' => '',
+                    'employerSigned' => false,
+                    'employerName' => '',
+                    'employerTitle' => '',
+                    'employerSignedOn' => '',
+                    'datesReady' => false,
+                    'evaluationPdf' => false,
+                ]
+                : app(I983Evaluations::class)->publicView($case),
             'goalHistory' => $this->revisions((int) $case->id, 'goals'),
             'statements' => I983StudentCertifications::STATEMENTS,
             'timezone' => $this->studentCertifications->timezoneFor((int) $case->tenant_id),
@@ -801,6 +875,11 @@ class I983Cases
         abort_unless(Schema::hasTable('i983_cases'), 404);
     }
 
+    public function managedCase(User $actor, int $caseId): object
+    {
+        return $this->caseFor($actor, $caseId);
+    }
+
     private function caseFor(User $actor, int $caseId): object
     {
         $this->assertManager($actor);
@@ -808,6 +887,11 @@ class I983Cases
         abort_if($case === null, 404);
 
         return $case;
+    }
+
+    public function openLink(string $token): ?object
+    {
+        return $this->link($token);
     }
 
     private function link(string $token): ?object

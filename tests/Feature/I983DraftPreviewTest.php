@@ -144,10 +144,9 @@ class I983DraftPreviewTest extends TestCase
 
         $this->actingAs($owner)->post('/i983/'.$caseId.'/documents/student')->assertRedirect();
         $this->assertSame($stored, Storage::disk('local')->get($first->file_path));
-        $this->assertSame(2, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
-        $second = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->where('version', 2)->first();
-        $this->assertNotSame($first->file_path, $second->file_path);
-        $this->assertNotSame($first->id, $second->id);
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
+        $this->assertSame($first->id, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->value('id'));
+        $this->assertSame($first->sha256, DB::table('i983_documents')->where('id', $first->id)->value('sha256'));
 
         $this->actingAs($company->lead)->get('/i983/'.$caseId.'/documents/'.$first->id.'/preview')->assertForbidden();
         $this->actingAs($company->employee)->get('/i983/'.$caseId.'/documents/'.$first->id.'/download')->assertForbidden();

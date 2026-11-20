@@ -17,6 +17,8 @@ class I983Documents
 
     public const FINAL_SIGNED = 'final_signed';
 
+    public const EVALUATION_FINAL = 'evaluation_final';
+
     public function __construct(
         private readonly I983Pdf $pdf,
         private readonly I983StudentCertifications $studentCertifications,
@@ -31,7 +33,7 @@ class I983Documents
             return [];
         }
 
-        return DB::table('i983_documents')
+        $documents = DB::table('i983_documents')
             ->leftJoin('users', 'users.id', '=', 'i983_documents.created_by')
             ->where('i983_documents.tenant_id', $tenantId)
             ->where('i983_documents.case_id', $caseId)
@@ -56,8 +58,13 @@ class I983Documents
                 'createdBy' => $row->created_by === null ? 'Student' : (string) ($row->creator ?? 'HR'),
                 'bytes' => (int) $row->size,
                 'sourceDocumentId' => $row->source_document_id === null ? null : (int) $row->source_document_id,
-            ])
-            ->all();
+            ]);
+
+        $student = $documents->first(fn (array $document): bool => $document['kind'] === self::STUDENT_SNAPSHOT);
+        $working = $documents->last(fn (array $document): bool => $document['kind'] === self::HR_WORKING);
+        $final = $documents->first(fn (array $document): bool => $document['kind'] === self::FINAL_SIGNED);
+
+        return array_values(array_filter([$student, $working, $final]));
     }
 
     /**
@@ -82,6 +89,10 @@ class I983Documents
             throw ValidationException::withMessages([
                 'form' => 'The student-submitted PDF is created after Section 1 and the Section 2 certification are saved.',
             ]);
+        }
+
+        if ($this->latest($case, self::STUDENT_SNAPSHOT) !== null) {
+            return;
         }
 
         $this->store($case, self::STUDENT_SNAPSHOT, 'student', $actorId);
@@ -186,6 +197,12 @@ class I983Documents
 
     public function finalize(object $case, int $actorId): void
     {
+        if ($this->latest($case, self::FINAL_SIGNED) !== null) {
+            throw ValidationException::withMessages([
+                'form' => 'This I-983 is already finalized. The finalized PDF was not replaced.',
+            ]);
+        }
+
         $signed = $this->latest($case, self::EMPLOYER_SIGNED);
 
         if ($signed === null) {
@@ -218,7 +235,17 @@ class I983Documents
             ]);
         }
 
-        $this->persist($case, self::FINAL_SIGNED, $bytes, $actorId, (int) $signed->id, 'i983_finalized');
+        $prepared = app(I983Evaluations::class)->applyToNewFinal($case, $bytes);
+        $documentId = $this->persist($case, self::FINAL_SIGNED, $prepared['bytes'], $actorId, (int) $signed->id, 'i983_finalized');
+
+        if ($prepared['overlaid']) {
+            app(I983Evaluations::class)->markStored($case, $documentId);
+        }
+    }
+
+    public function storeEvaluation(object $case, string $bytes, int $actorId, int $sourceId): int
+    {
+        return $this->persist($case, self::EVALUATION_FINAL, $bytes, $actorId, $sourceId, 'evaluation_completed');
     }
 
     public function workingCopy(int $caseId, int $actorId): void
@@ -275,6 +302,13 @@ class I983Documents
     private function store(object $case, string $kind, string $mode, ?int $actorId): void
     {
         $values = $this->values((int) $case->id);
+
+        if ($mode === 'student') {
+            foreach (I983Pdf::EMPLOYER_PRINT_KEYS as $key) {
+                $values[$key] = '';
+            }
+        }
+
         $studentCertification = $this->studentCertification($case);
         $signature = $mode === 'working' ? $this->employerSignature($case) : null;
         $this->pdf->assertFits($values, $mode);
@@ -392,6 +426,7 @@ class I983Documents
             self::HR_WORKING => 'HR_Working_v'.$version,
             self::EMPLOYER_SIGNED => 'Employer_Signed_v'.$version,
             self::FINAL_SIGNED => $version === 1 ? 'Final_Signed' : 'Final_Signed_v'.$version,
+            self::EVALUATION_FINAL => 'Final_Evaluation',
             default => 'Student_Submitted_v'.$version,
         };
 

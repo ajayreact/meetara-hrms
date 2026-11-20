@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use App\Services\Hrms\I983Pdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\CompanyFixture;
 use Tests\Support\I983StudentSignature;
 use Tests\TestCase;
@@ -277,12 +279,23 @@ class I983PdfTest extends TestCase
     {
         $long = trim(str_repeat('NorthIndustrialOverflow ', 8));
         $pdf = app(I983Pdf::class);
-        $pdf->assertFits([...$this->values(), 'street' => $long], 'student');
-        $studentCopy = $pdf->render([...$this->values(), 'street' => $long, 'student_name' => 'Quinn, Riley'], null, null, false, true);
+        $pdf->assertFits([...$this->values(), 'street' => $long, 'employer_name' => 'Veltrix Digital Solutions Inc', 'ein' => '43-2316091'], 'student');
+        $studentCopy = $pdf->render([
+            ...$this->values(),
+            'street' => $long,
+            'employer_name' => 'Veltrix Digital Solutions Inc',
+            'ein' => '43-2316091',
+            'student_name' => 'Quinn, Riley',
+        ], null, null, false, true);
         $this->assertStringContainsString('(Quinn, Riley)', $studentCopy);
         $this->assertStringNotContainsString('NorthIndustrialOverflow', $studentCopy);
-        $fitted = $pdf->render([...$this->values(), 'street' => '1 Main Street'], null, null, false, true);
-        $this->assertStringContainsString('(1 Main Street)', $fitted);
+        $this->assertStringNotContainsString('Veltrix Digital Solutions Inc', $studentCopy);
+        $this->assertStringNotContainsString('43-2316091', $studentCopy);
+        $fitted = $pdf->render([...$this->values(), 'street' => '1 Main Street', 'city' => 'Farmington', 'salary' => '28000.00'], null, null, false, true);
+        $this->assertStringContainsString('(Quinn, Riley)', $fitted);
+        $this->assertStringNotContainsString('(1 Main Street)', $fitted);
+        $this->assertStringNotContainsString('(Farmington)', $fitted);
+        $this->assertStringNotContainsString('(28000.00)', $fitted);
 
         try {
             $pdf->assertEmployerAddressLayout(['street' => $long]);
@@ -332,6 +345,193 @@ class I983PdfTest extends TestCase
         $this->actingAs($company->hr)->post('/i983/'.$caseId.'/final', ['confirm' => '1'])->assertRedirect();
         $this->assertSame('finalized', DB::table('i983_cases')->where('id', $caseId)->value('status'));
         $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'final_signed')->count());
+    }
+
+    public function test_student_submitted_pdf_leaves_employer_section_blank_and_later_versions_keep_it(): void
+    {
+        Mail::fake();
+        $company = CompanyFixture::make('Veltrix Digital Solutions', 'i983-student-blank-employer');
+        $this->actingAs($company->hr)->put('/company/settings/i983-employer', [
+            'legal_name' => 'Veltrix Digital Solutions Inc',
+            'website' => 'https://veltrixds.com',
+            'street' => '37085 Grand River Ave',
+            'suite' => '1105',
+            'city' => 'Farmington',
+            'state' => 'MI',
+            'zip' => '48335',
+            'ein' => '43-2316091',
+            'employee_count' => 20,
+            'naics' => '541',
+            'opt_hours' => 20,
+            'hourly_rate' => '20.00',
+            'salary_frequency' => 'hour',
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Riley Quinn',
+            'candidate_email' => 'riley.blank-employer@example.test',
+        ])->assertRedirect();
+        $link = (string) session('i983_link');
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        DB::table('i983_employers')->where('case_id', $caseId)->update([
+            'start_date' => '2026-06-15',
+            'other_compensation' => 'Transit stipend only',
+        ]);
+        $role = 'Student data analyst trainee for the submitted copy.';
+        $goals = 'Practice one reviewed student workflow and keep the employer section blank.';
+
+        $this->post($link, $this->student([
+            'email' => 'riley.blank-employer@example.test',
+            'student_role' => $role,
+            'goals' => $goals,
+        ], true))->assertRedirect();
+
+        $snapshot = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->first();
+        $bytes = Storage::disk('local')->get($snapshot->file_path);
+        $this->assertSame($snapshot->sha256, hash('sha256', $bytes));
+        $this->assertStringContainsString('(Quinn, Riley)', $bytes);
+        $this->assertStringContainsString('('.$role.')', $bytes);
+        $this->assertStringContainsString('(Practice one reviewed student workflow and keep the employer section blank.)', $bytes);
+        $this->assertStringContainsString('144.00 173.90 Td (Quinn, Riley)', $bytes);
+        foreach ([
+            'Veltrix Digital Solutions Inc',
+            '37085 Grand River Ave',
+            'veltrixds.com',
+            'Farmington',
+            '43-2316091',
+            '318.00 660.50 Td (541)',
+            '20800.00',
+            '06-15-2026',
+            'Transit stipend only',
+            'direct supervision and guidance',
+        ] as $employerText) {
+            $this->assertStringNotContainsString($employerText, $bytes, $employerText);
+        }
+        $this->assertStringNotContainsString('320.00 97.80 Td', $bytes);
+        $this->assertStringNotContainsString('320.00 451.80 Td', $bytes);
+        $this->assertStringNotContainsString('372.00 73.80 Td', $bytes);
+
+        $preview = $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$snapshot->id.'/preview');
+        $download = $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$snapshot->id.'/download');
+        $preview->assertOk();
+        $download->assertOk();
+        $this->assertSame($bytes, $preview->getContent());
+        $this->assertSame($bytes, $download->getContent());
+
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
+        $working = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->first();
+        $workingBytes = Storage::disk('local')->get($working->file_path);
+        $this->assertStringContainsString('42.00 718.80 Td (Veltrix Digital Solutions Inc)', $workingBytes);
+        $this->assertStringContainsString('318.00 718.80 Td (37085 Grand River Ave)', $workingBytes);
+        $this->assertStringContainsString('42.00 660.50 Td (43-2316091)', $workingBytes);
+        $this->assertStringContainsString('216.00 660.50 Td (20)', $workingBytes);
+        $this->assertStringContainsString('318.00 660.50 Td (541)', $workingBytes);
+        $this->assertStringContainsString('42.00 623.00 Td (20)', $workingBytes);
+        $this->assertStringContainsString('346.00 625.70 Td (20800.00)', $workingBytes);
+        $this->assertStringContainsString('42.00 593.00 Td (06-15-2026)', $workingBytes);
+        $this->assertStringContainsString('(Transit stipend only)', $workingBytes);
+        $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $workingBytes);
+        $this->assertSame($bytes, Storage::disk('local')->get($snapshot->file_path));
+        $this->assertSame($snapshot->sha256, hash('sha256', $bytes));
+
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/student')->assertRedirect();
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
+        $this->assertSame($bytes, Storage::disk('local')->get($snapshot->file_path));
+        $this->assertSame($snapshot->sha256, DB::table('i983_documents')->where('id', $snapshot->id)->value('sha256'));
+        $this->assertSame($workingBytes, Storage::disk('local')->get($working->file_path));
+        Mail::assertNothingSent();
+    }
+
+    public function test_the_workflow_keeps_the_student_working_and_final_pdfs(): void
+    {
+        Mail::fake();
+        $company = CompanyFixture::make('Acme People', 'acme-i983-three-versions');
+        $owner = $this->owner($company);
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Riley Quinn',
+            'candidate_email' => 'riley.three@example.test',
+        ])->assertRedirect();
+        $link = (string) session('i983_link');
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        $this->post($link, $this->student([
+            'email' => 'riley.three@example.test',
+            'student_role' => 'Data analyst trainee',
+            'goals' => 'Practice one reviewed workflow.',
+        ], true))->assertRedirect();
+        $student = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->first();
+        $studentBytes = Storage::disk('local')->get($student->file_path);
+
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/employer', $this->employer())->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training('Practice one reviewed workflow.'))->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/signature', [
+            'signatory_name' => 'Priya Shah',
+            'signatory_title' => 'HR Manager',
+            'signature' => UploadedFile::fake()->image('signature.jpg', 240, 60),
+        ])->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
+        $firstWorking = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->first();
+        $firstWorkingBytes = Storage::disk('local')->get($firstWorking->file_path);
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/training', $this->training('Practice the revised workflow.'))->assertRedirect();
+        $this->actingAs($company->hr)->post('/i983/'.$caseId.'/documents/working')->assertRedirect();
+        $latestWorking = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->orderByDesc('id')->first();
+
+        $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('documents', fn (mixed $documents): bool => collect($documents)->pluck('kind')->all() === ['student_snapshot', 'hr_working']
+                && (int) $documents[0]['id'] === (int) $student->id
+                && (int) $documents[1]['id'] === (int) $latestWorking->id)
+        );
+        $this->assertSame($studentBytes, Storage::disk('local')->get($student->file_path));
+        $this->assertSame($firstWorkingBytes, Storage::disk('local')->get($firstWorking->file_path));
+        $this->assertSame($firstWorking->sha256, hash('sha256', $firstWorkingBytes));
+
+        $this->actingAs($owner)->post('/i983/'.$caseId.'/final', ['confirm' => '1'])->assertRedirect();
+        $final = DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'final_signed')->first();
+        $finalBytes = Storage::disk('local')->get($final->file_path);
+        $this->assertStringContainsString('(Acme People LLC)', $finalBytes);
+        $this->assertStringContainsString('320.00 97.80 Td (Priya Shah, HR Manager)', $finalBytes);
+        $this->assertStringNotContainsString('(Acme People LLC)', $studentBytes);
+        $this->actingAs($owner)->post('/i983/'.$caseId.'/final', ['confirm' => '1'])->assertSessionHasErrors('form');
+        $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('documents', fn (mixed $documents): bool => collect($documents)->pluck('kind')->all() === ['student_snapshot', 'hr_working', 'final_signed']
+                && collect($documents)->pluck('kind')->doesntContain('employer_signed')
+                && (int) $documents[0]['id'] === (int) $student->id
+                && (int) $documents[2]['id'] === (int) $final->id)
+        );
+        $this->assertSame($studentBytes, Storage::disk('local')->get($student->file_path));
+        $this->assertSame($finalBytes, Storage::disk('local')->get($final->file_path));
+        $this->assertSame($final->sha256, hash('sha256', $finalBytes));
+        $this->assertSame($studentBytes, $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$student->id.'/download')->getContent());
+        $this->assertSame($finalBytes, $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$final->id.'/preview')->getContent());
+        $this->assertSame(
+            Storage::disk('local')->get($latestWorking->file_path),
+            $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$latestWorking->id.'/download')->getContent()
+        );
+        $this->assertGreaterThan(0, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'employer_signed')->count());
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'final_signed')->count());
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
+        Mail::assertNothingSent();
+    }
+
+    private function owner(CompanyFixture $company): User
+    {
+        $user = User::factory()->create();
+        $user->forceFill([
+            'tenant_id' => $company->id,
+            'is_platform_admin' => false,
+            'invite_accepted_at' => now(),
+        ])->save();
+        DB::table('model_has_roles')->insert([
+            'role_id' => DB::table('roles')->where('tenant_id', $company->id)->where('name', 'Owner')->value('id'),
+            'model_type' => User::class,
+            'model_id' => $user->id,
+            'tenant_id' => $company->id,
+        ]);
+
+        return $user->refresh();
     }
 
     /**

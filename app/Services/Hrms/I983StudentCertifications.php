@@ -227,6 +227,17 @@ class I983StudentCertifications
     /**
      * @return array{png: string, png_sha256: string, upload_sha256: string}
      */
+    public function privatePng(object $case, UploadedFile $file): array
+    {
+        $prepared = $this->png($file);
+        $this->assertReusable($case, $prepared['upload_sha256'], $prepared['png_sha256']);
+
+        return $prepared;
+    }
+
+    /**
+     * @return array{png: string, png_sha256: string, upload_sha256: string}
+     */
     private function png(UploadedFile $file): array
     {
         if ($file->getSize() === false || $file->getSize() > 1024 * 1024) {

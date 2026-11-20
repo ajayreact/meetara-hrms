@@ -283,7 +283,7 @@ class I983CaseTest extends TestCase
         $this->assertSame('Quinn, Rileigh', DB::table('i983_training_plans')->where('case_id', $caseId)->value('student_name'));
         $this->assertSame('Quinn, Riley', DB::table('i983_field_revisions')->where('case_id', $caseId)->where('field_name', 'student_name')->orderBy('id')->value('new_value'));
         $this->assertSame('resubmitted', DB::table('i983_cases')->where('id', $caseId)->value('status'));
-        $this->assertSame(2, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
+        $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
         $this->assertSame(0, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'hr_working')->count());
 
         $this->actingAs($company->lead)->post('/i983/'.$caseId.'/training', ['goals' => 'No access'])->assertForbidden();

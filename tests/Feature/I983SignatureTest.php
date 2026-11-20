@@ -162,9 +162,10 @@ class I983SignatureTest extends TestCase
         $this->assertSame('Complete one reviewed feature and discuss the result with the hiring manager during the weekly review meeting. The second sentence names the next skill to practice.', DB::table('i983_training_plans')->where('case_id', $caseId)->value('goals'));
         $this->actingAs($company->hr)->get('/i983/'.$caseId.'/documents/'.$final->id.'/download')->assertOk();
         $this->actingAs($company->hr)->get('/i983/'.$caseId)->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('documents', fn (mixed $documents): bool => collect($documents)->every(
-                fn (array $document): bool => ! array_key_exists('file_path', $document) && strlen((string) $document['sha256']) === 64
-            ))
+            ->where('documents', fn (mixed $documents): bool => collect($documents)->pluck('kind')->all() === ['student_snapshot', 'hr_working', 'final_signed']
+                && collect($documents)->every(
+                    fn (array $document): bool => ! array_key_exists('file_path', $document) && strlen((string) $document['sha256']) === 64
+                ))
             ->where('canSign', true)
         );
         $this->actingAs($owner)->get('/i983/'.$caseId)->assertInertia(fn (Assert $page) => $page->where('canSign', true));
@@ -293,7 +294,7 @@ class I983SignatureTest extends TestCase
             $this->assertTrue(Storage::disk('local')->exists($first->signature_path));
             $this->assertTrue(Storage::disk('local')->exists($second->signature_path));
             $this->assertSame($firstBytes, Storage::disk('local')->get($first->signature_path));
-            $this->assertSame(2, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
+            $this->assertSame(1, DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->count());
             $this->assertSame($snapshotBytes, Storage::disk('local')->get($snapshot->file_path));
             $this->assertSame('resubmitted', DB::table('i983_cases')->where('id', $caseId)->value('status'));
 

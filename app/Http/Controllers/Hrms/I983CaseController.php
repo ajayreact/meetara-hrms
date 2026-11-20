@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hrms;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Hrms\I983Cases;
+use App\Services\Hrms\I983Evaluations;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
@@ -13,14 +14,18 @@ use Inertia\Response;
 
 class I983CaseController extends Controller
 {
-    public function __construct(private readonly I983Cases $cases) {}
+    public function __construct(
+        private readonly I983Cases $cases,
+        private readonly I983Evaluations $evaluations,
+    ) {}
 
     public function index(Request $request): Response
     {
         $actor = $this->manager($request);
+        $catalog = $this->cases->catalog((int) $actor->companyId(), $request->query());
 
         return Inertia::render('i983/index', [
-            'cases' => $this->cases->list((int) $actor->companyId()),
+            ...$catalog,
             'notice' => $request->session()->get('status'),
         ]);
     }
@@ -41,6 +46,42 @@ class I983CaseController extends Controller
             ->route('hrms.i983.show', $opened['id'])
             ->with('status', 'I-983 case created. Share the student link. It expires in 14 days and was not emailed.')
             ->with('i983_link', $opened['url']);
+    }
+
+    public function evaluation(Request $request, int $case): Response
+    {
+        $actor = $this->manager($request);
+
+        return Inertia::render('i983/evaluation', [
+            ...$this->evaluations->show($actor, $case),
+            'notice' => $request->session()->get('status'),
+        ]);
+    }
+
+    public function saveEvaluation(Request $request, int $case): RedirectResponse
+    {
+        $this->evaluations->saveDraft($this->manager($request), $case, $request->all());
+
+        return back()->with('status', 'Evaluation dates saved. The student still provides the progress narrative and signature.');
+    }
+
+    public function confirmEvaluationSignature(Request $request, int $case): RedirectResponse
+    {
+        $this->evaluations->confirmEmployer($this->manager($request), $case);
+
+        return back()->with('status', 'The employer signature was copied onto this evaluation. A later signatory change will not rewrite it.');
+    }
+
+    public function previewEvaluation(Request $request, int $case): HttpResponse
+    {
+        return $this->pdf($this->evaluations->preview($this->manager($request), $case), 'inline');
+    }
+
+    public function storeEvaluation(Request $request, int $case): RedirectResponse
+    {
+        $this->evaluations->storeSeparate($this->manager($request), $case);
+
+        return back()->with('status', 'A separate evaluation PDF was stored. The final signed I-983 was not replaced.');
     }
 
     public function show(Request $request, int $case): Response

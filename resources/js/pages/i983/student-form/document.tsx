@@ -149,6 +149,21 @@ export interface StudentFormView {
     employer?: Partial<EmployerInfo> | EmployerInfo[];
     employerCertification?: EmployerCertification;
     evaluations?: EvaluationView[];
+    evaluation?: {
+        available: boolean;
+        dateFrom: string;
+        dateTo: string;
+        narrative: string;
+        studentName: string;
+        studentSigned: boolean;
+        studentSignedOn: string;
+        employerSigned: boolean;
+        employerName: string;
+        employerTitle: string;
+        employerSignedOn: string;
+        datesReady: boolean;
+        evaluationPdf?: boolean;
+    };
 }
 
 const line =

@@ -32,10 +32,12 @@ export function LeadSearchField({
     applied,
     onSearch,
     placeholder = 'Name, email, phone, or source',
+    ariaLabel = 'Search leads',
 }: {
     applied: string;
     onSearch: (value: string) => void;
     placeholder?: string;
+    ariaLabel?: string;
 }) {
     const { term, setTerm } = useDeferredLeadSearch(applied, onSearch);
 
@@ -43,7 +45,7 @@ export function LeadSearchField({
         <div className="flex min-w-[16rem] flex-1 items-end gap-2">
             <label className="grid min-w-0 flex-1 gap-1 text-xs text-slate-500">
                 Search
-                <Input aria-label="Search leads" value={term} onChange={(event) => setTerm(event.target.value)} placeholder={placeholder} className="bg-white" />
+                <Input aria-label={ariaLabel} value={term} onChange={(event) => setTerm(event.target.value)} placeholder={placeholder} className="bg-white" />
             </label>
             <Button type="button" variant="ghost" disabled={term === '' && applied === ''} onClick={() => { setTerm(''); onSearch(''); }}>Clear</Button>
         </div>

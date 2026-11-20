@@ -1,6 +1,7 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { FormEvent, useEffect, useState } from 'react';
 import { pageForError, StudentDocument, StudentDraft, StudentFormView } from './student-form/document';
+import { StudentEvaluationPanel } from './student-form/evaluation-panel';
 import { retainedStudentSignature } from './student-form/signature-source';
 
 const requiredFields: Array<keyof StudentDraft> = [
@@ -394,6 +395,7 @@ export default function I983Submit({ token, form, notice }: { token: string; for
                         </div>
                     )}
                 </form>
+                {form.evaluation?.available && <StudentEvaluationPanel token={token} evaluation={form.evaluation} />}
             </main>
         </>
     );

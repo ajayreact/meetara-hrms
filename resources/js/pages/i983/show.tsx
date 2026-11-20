@@ -98,10 +98,9 @@ interface Signatory {
 const control = 'mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm';
 
 const documentLabels: Record<string, string> = {
-    student_snapshot: 'Student-submitted',
-    hr_working: 'HR working',
-    employer_signed: 'Employer signed',
-    final_signed: 'Final signed',
+    student_snapshot: 'Student-submitted Version',
+    hr_working: 'HR Working Version',
+    final_signed: 'Final Signed Version',
 };
 const lockedControl = `${control} bg-slate-50 text-slate-700`;
 
@@ -543,10 +542,10 @@ export default function I983Show({ workspace, case: record, student, employer, t
                     </SectionCard>
                 </form>
                 )}
-                {presentation('final_pdf') === 'later' && <SectionCard title="6. Generate Final PDF"><p className="text-sm text-slate-600">One Generate Final PDF action stores the HR working copy, the employer-signed copy, and the final file after the earlier steps are complete.</p></SectionCard>}
+                {presentation('final_pdf') === 'later' && <SectionCard title="6. Generate Final PDF"><p className="text-sm text-slate-600">Generate Final PDF stores the final signed copy after the student submission and the HR working copy are complete.</p></SectionCard>}
                 {presentation('final_pdf') !== 'later' && (
                 <SectionCard title="6. Generate Final PDF">
-                    <p className="mb-3 text-sm text-slate-600">Each generation stores a new private copy for this company. Preview and download use the stored file. Nothing is emailed.</p>
+                    <p className="mb-3 text-sm text-slate-600">The case keeps three PDFs: the original student submission, the latest HR working copy, and the final signed copy. Preview and download use those stored files. Nothing is emailed.</p>
                     <p className="mb-3 text-sm text-slate-600">{studentCertification.latest ? `Student Section 2 certification version ${studentCertification.latest.version}: ${studentCertification.latest.printedName}, ${studentCertification.latest.certifiedOn} (${studentCertification.latest.timezone}).${studentCertification.history.length > 1 ? ' Earlier certifications remain stored.' : ''}` : 'Section 2 stays blank until the student certifies it. HR cannot sign Section 2 for the student.'}</p>
                     {canSign && presentation('final_pdf') === 'form' && record.status !== 'finalized' && (
                         <form className="mb-4" onSubmit={generateFinal}>
@@ -569,7 +568,7 @@ export default function I983Show({ workspace, case: record, student, employer, t
                         <ul className="space-y-3 text-sm text-slate-700">
                             {documents.map((document) => (
                                 <li key={document.id} className="rounded-xl border border-slate-200 px-3 py-2">
-                                    <p>{documentLabels[document.kind] ?? document.kind} version {document.version}</p>
+                                    <p>{documentLabels[document.kind] ?? document.kind}</p>
                                     <p className="text-slate-500">{document.createdAt} · Created by {document.createdBy}</p>
                                     <p className="break-all font-mono text-xs text-slate-600">SHA-256 {document.sha256}</p>
                                     <p className="mt-2 flex gap-3">

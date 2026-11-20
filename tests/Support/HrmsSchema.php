@@ -1656,7 +1656,13 @@ class HrmsSchema
                 $table->string('employer_signature_path')->nullable();
                 $table->timestamp('completed_at')->nullable();
                 $table->unsignedBigInteger('created_by')->nullable();
+                $table->string('student_printed_name')->nullable();
+                $table->string('employer_printed_name')->nullable();
+                $table->string('employer_title')->nullable();
+                $table->unsignedBigInteger('document_id')->nullable();
+                $table->string('status', 32)->nullable();
                 $table->timestamps();
+                $table->unique(['case_id', 'kind']);
             });
         }
 
