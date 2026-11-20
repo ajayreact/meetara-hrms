@@ -143,16 +143,78 @@ class I983PdfTest extends TestCase
         Mail::assertNothingSent();
     }
 
-    public function test_a_prior_degree_mark_is_drawn_only_when_the_answer_is_yes(): void
+    public function test_degree_labels_and_prior_degree_marks_follow_the_stored_answer(): void
     {
         $pdf = app(I983Pdf::class);
-        $values = $this->values();
-        $pdf->assertFits($values, 'student');
-        $without = $pdf->render($values);
-        $with = $pdf->render([...$values, 'prior_degree' => 'yes']);
+        $base = $this->values();
+        $tick = '130.70 476.70 m 132.70 473.90 l S';
+        $tickStem = '132.70 473.90 m 136.30 479.20 l S';
+        $cross = '130.70 479.30 m 136.30 473.70 l S';
+        $crossStem = '130.70 473.70 m 136.30 479.30 l S';
+        $unknown = '131.36 473.92 Td (?)';
 
-        $this->assertNotSame(hash('sha256', $without), hash('sha256', $with));
-        $this->assertGreaterThan(strlen($without), strlen($with));
+        $master = $pdf->render([...$base, 'degree_level' => 'Master', 'prior_degree' => 'yes']);
+        $this->assertStringContainsString("172.00 511.80 Td (Master's)", $master);
+        $this->assertDoesNotMatchRegularExpression('/172\\.00 511\\.80 Td \\(Master\\)/', $master);
+        $this->assertStringContainsString($tick, $master);
+        $this->assertStringContainsString($tickStem, $master);
+        $this->assertStringNotContainsString($cross, $master);
+
+        $bachelor = $pdf->render([...$base, 'degree_level' => "Bachelor's", 'prior_degree' => 'no']);
+        $this->assertStringContainsString("172.00 511.80 Td (Bachelor's)", $bachelor);
+        $this->assertStringContainsString($cross, $bachelor);
+        $this->assertStringContainsString($crossStem, $bachelor);
+        $this->assertStringNotContainsString($tick, $bachelor);
+
+        $curly = $pdf->render([...$base, 'degree_level' => "Master\u{2019}s", 'prior_degree' => false]);
+        $this->assertStringContainsString("172.00 511.80 Td (Master's)", $curly);
+        $this->assertStringContainsString($cross, $curly);
+
+        $associate = $pdf->render([...$base, 'degree_level' => 'Associate', 'prior_degree' => 0]);
+        $this->assertStringContainsString("172.00 511.80 Td (Associate's)", $associate);
+        $this->assertStringContainsString($cross, $associate);
+
+        $doctorate = $pdf->render([...$base, 'degree_level' => 'Doctorate', 'prior_degree' => 'true']);
+        $this->assertStringContainsString('172.00 511.80 Td (Doctorate)', $doctorate);
+        $this->assertStringContainsString($tick, $doctorate);
+        $this->assertStringNotContainsString($unknown, $doctorate);
+
+        $custom = $pdf->render([...$base, 'degree_level' => 'Ph.D.', 'prior_degree' => null]);
+        $this->assertStringContainsString('172.00 511.80 Td (Ph.D.)', $custom);
+        $this->assertStringContainsString($unknown, $custom);
+        $this->assertStringNotContainsString($tick, $custom);
+        $this->assertStringNotContainsString($cross, $custom);
+
+        $blank = $pdf->render([...$base, 'degree_level' => 'Doctorate', 'prior_degree' => '']);
+        $this->assertStringContainsString($unknown, $blank);
+        $this->assertStringNotContainsString($tick, $blank);
+        $this->assertStringNotContainsString($cross, $blank);
+
+        $pdf->assertFits([...$base, 'degree_level' => 'Master'], 'student');
+        $pdf->assertFits([...$base, 'degree_level' => "Bachelor's"], 'student');
+        $pdf->assertFits([...$base, 'degree_level' => 'Associate'], 'student');
+        $pdf->assertFits([...$base, 'degree_level' => 'Doctorate'], 'student');
+
+        Mail::fake();
+        $official = storage_path('app/private/i983/official-i983.pdf');
+        $officialHash = hash_file('sha256', $official);
+        $company = CompanyFixture::make('Acme People', 'acme-i983-degree');
+        $this->actingAs($company->hr)->post('/i983', [
+            'candidate_name' => 'Riley Quinn',
+            'candidate_email' => 'riley.degree@example.test',
+        ])->assertRedirect();
+        $caseId = (int) DB::table('i983_cases')->where('tenant_id', $company->id)->value('id');
+        $this->post((string) session('i983_link'), $this->student(['prior_degree' => 'yes'], true))->assertRedirect();
+
+        $this->assertSame('Master', DB::table('i983_students')->where('case_id', $caseId)->value('degree_level'));
+        $this->assertSame(1, (int) DB::table('i983_students')->where('case_id', $caseId)->value('prior_degree'));
+        $snapshot = Storage::disk('local')->get(
+            (string) DB::table('i983_documents')->where('case_id', $caseId)->where('kind', 'student_snapshot')->value('file_path')
+        );
+        $this->assertStringContainsString("172.00 511.80 Td (Master's)", $snapshot);
+        $this->assertStringContainsString($tick, $snapshot);
+        $this->assertStringNotContainsString($cross, $snapshot);
+        $this->assertSame($officialHash, hash_file('sha256', $official));
     }
 
     public function test_section_two_uses_the_measured_lines_and_does_not_sign_the_employer_sections(): void

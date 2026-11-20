@@ -47,6 +47,7 @@ class I983Pdf
      */
     public function render(array $values, ?array $signature = null, ?array $studentCertification = null, bool $draft = false, bool $studentCopy = false): string
     {
+        $values = $this->printedValues($values);
         $source = storage_path('app/private/i983/official-i983.pdf');
         $pdf = new Fpdi('P', 'pt', [612, 792]);
         $pdf->SetMargins(0, 0, 0);
@@ -77,8 +78,8 @@ class I983Pdf
                 $this->drawLines($pdf, $this->compensationLines(trim((string) ($values['other_compensation'] ?? ''))), 236, [202.54, 220.30, 238.30, 256.30]);
             }
 
-            if ($page === 1 && ($values['prior_degree'] ?? '') === 'yes') {
-                $this->drawPriorDegreeCheck($pdf);
+            if ($page === 1) {
+                $this->drawPriorDegreeMark($pdf, $values['prior_degree'] ?? null);
             }
 
             if ($page === 1 && $studentCertification !== null) {
@@ -161,6 +162,7 @@ class I983Pdf
      */
     public function assertFits(array $values, string $mode): void
     {
+        $values = $this->printedValues($values);
         $source = storage_path('app/private/i983/official-i983.pdf');
 
         if (! is_file($source)) {
@@ -650,12 +652,101 @@ class I983Pdf
         return $target;
     }
 
-    private function drawPriorDegreeCheck(Fpdi $pdf): void
+    /**
+     * The student form stores Bachelor, Master, and Doctorate. The official
+     * degree line prints the possessive label. A value that is already written
+     * out, including Doctorate and any other supported text, is printed unchanged.
+     * A typographic apostrophe is normalized so Helvetica can draw it.
+     */
+    private function degreeLabel(string $stored): string
+    {
+        $text = str_replace(["\u{2019}", "\u{2018}", "\u{02BC}", '`'], "'", trim($stored));
+
+        return match ($text) {
+            'Bachelor' => "Bachelor's",
+            'Master' => "Master's",
+            'Associate' => "Associate's",
+            default => $text,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function printedValues(array $values): array
+    {
+        if (array_key_exists('degree_level', $values)) {
+            $values['degree_level'] = $this->degreeLabel((string) $values['degree_level']);
+        }
+
+        return $values;
+    }
+
+    /**
+     * Yes, true, and 1 draw a tick. No, false, and 0 draw a cross.
+     * A missing or unrecognized answer stays visibly unanswered.
+     */
+    private function priorDegreeState(mixed $value): string
+    {
+        if (is_string($value)) {
+            $value = strtolower(trim($value));
+        }
+
+        if ($value === null || $value === '') {
+            return 'unknown';
+        }
+
+        if (in_array($value, [true, 1, '1', 'yes', 'true'], true)) {
+            return 'yes';
+        }
+
+        if (in_array($value, [false, 0, '0', 'no', 'false'], true)) {
+            return 'no';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * The official checkbox is the 10-point square at PDF user space
+     * (128.52, 471.48)–(138.48, 481.56). These strokes use FPDF's top origin
+     * and stay inside that square. Helvetica has no check or cross glyph.
+     */
+    private function drawPriorDegreeMark(Fpdi $pdf, mixed $value): void
     {
         $pdf->SetDrawColor(0, 0, 0);
-        $pdf->SetLineWidth(0.9);
-        $pdf->Line(130.3, 315.6, 132.5, 318.0);
-        $pdf->Line(132.5, 318.0, 136.5, 312.8);
+        $pdf->SetLineWidth(1.15);
+
+        match ($this->priorDegreeState($value)) {
+            'yes' => $this->drawPriorDegreeTick($pdf),
+            'no' => $this->drawPriorDegreeCross($pdf),
+            default => $this->drawPriorDegreeUnknown($pdf),
+        };
+
+        $pdf->SetLineWidth(0.567);
+        $pdf->SetFont('Helvetica', '', 8);
+    }
+
+    private function drawPriorDegreeTick(Fpdi $pdf): void
+    {
+        $pdf->Line(130.70, 315.30, 132.70, 318.10);
+        $pdf->Line(132.70, 318.10, 136.30, 312.80);
+    }
+
+    private function drawPriorDegreeCross(Fpdi $pdf): void
+    {
+        $pdf->Line(130.70, 312.70, 136.30, 318.30);
+        $pdf->Line(130.70, 318.30, 136.30, 312.70);
+    }
+
+    private function drawPriorDegreeUnknown(Fpdi $pdf): void
+    {
+        $pdf->SetFont('Helvetica', 'B', 7);
+        $mark = '?';
+        $left = 128.52;
+        $right = 138.48;
+        $pdf->Text($left + (($right - $left - $pdf->GetStringWidth($mark)) / 2), 318.08, $mark);
     }
 
     /**
